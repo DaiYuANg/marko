@@ -32,7 +32,7 @@ export function slugify(label: string) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\-]/g, '')
+    .replace(/[^a-z0-9-]/g, '')
 }
 
 export function isExternalLink(target: string) {

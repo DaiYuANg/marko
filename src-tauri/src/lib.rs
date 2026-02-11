@@ -1,73 +1,50 @@
-use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::sync::RwLock;
+use tauri::{Listener, Manager};
 
-#[derive(Serialize)]
-struct MarkdownFile {
-  path: String,
-  relative_path: String,
-}
+mod commands;
+mod models;
+mod state;
 
-#[tauri::command]
-fn list_markdown_files(root: String) -> Result<Vec<MarkdownFile>, String> {
-  let root_path = PathBuf::from(root);
-  if !root_path.exists() {
-    return Err("Project path does not exist".to_string());
-  }
-  if !root_path.is_dir() {
-    return Err("Project path is not a directory".to_string());
-  }
-
-  let mut files = Vec::new();
-  collect_markdown_files(&root_path, &root_path, &mut files)?;
-  files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
-  Ok(files)
-}
-
-#[tauri::command]
-fn read_markdown_file(path: String) -> Result<String, String> {
-  fs::read_to_string(path).map_err(|err| format!("Failed to read file: {err}"))
-}
-
-#[tauri::command]
-fn write_markdown_file(path: String, content: String) -> Result<(), String> {
-  fs::write(path, content).map_err(|err| format!("Failed to write file: {err}"))
-}
-
-fn collect_markdown_files(
-  root: &Path,
-  current: &Path,
-  out: &mut Vec<MarkdownFile>,
-) -> Result<(), String> {
-  let entries = fs::read_dir(current).map_err(|err| format!("Failed to read dir: {err}"))?;
-  for entry in entries {
-    let entry = entry.map_err(|err| format!("Failed to read entry: {err}"))?;
-    let path = entry.path();
-    if path.is_dir() {
-      collect_markdown_files(root, &path, out)?;
-      continue;
-    }
-    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-      if ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown") {
-        let relative_path = path
-          .strip_prefix(root)
-          .unwrap_or(&path)
-          .to_string_lossy()
-          .replace('\\', "/");
-        out.push(MarkdownFile {
-          path: path.to_string_lossy().to_string(),
-          relative_path,
-        });
-      }
-    }
-  }
-  Ok(())
-}
+use crate::state::{FsState, FsStateData};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .manage(FsState(RwLock::new(FsStateData {
+      root_kind: "internal".to_string(),
+      root_path: PathBuf::new(),
+      internal_root: PathBuf::new(),
+    })))
     .setup(|app| {
+      let app_handle = app.handle();
+      let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|_| "Failed to resolve app data dir")?;
+      let internal_root = app_data_dir.join("marko").join("workspace");
+      fs::create_dir_all(&internal_root)?;
+      commands::fs::ensure_default_file(&internal_root)?;
+
+      if let Some(state) = app_handle.try_state::<FsState>() {
+        let mut data = state.0.write().map_err(|_| "Failed to lock fs state")?;
+        data.root_kind = "internal".to_string();
+        data.root_path = internal_root.clone();
+        data.internal_root = internal_root;
+      }
+
+      if let (Some(splash), Some(main)) = (
+        app_handle.get_webview_window("splashscreen"),
+        app_handle.get_webview_window("main"),
+      ) {
+        app_handle.listen("app-ready", move |_| {
+          let _ = main.show();
+          let _ = main.set_focus();
+          let _ = splash.close();
+        });
+      }
+
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
@@ -79,9 +56,18 @@ pub fn run() {
     })
     .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
-      list_markdown_files,
-      read_markdown_file,
-      write_markdown_file
+      commands::markdown::list_markdown_files,
+      commands::markdown::read_markdown_file,
+      commands::markdown::write_markdown_file,
+      commands::fs::fs_get_root_info,
+      commands::fs::fs_set_root,
+      commands::fs::fs_list_entries,
+      commands::fs::fs_read_file,
+      commands::fs::fs_write_file,
+      commands::fs::fs_create_file,
+      commands::fs::fs_create_dir,
+      commands::fs::fs_delete_path,
+      commands::fs::fs_rename_path
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

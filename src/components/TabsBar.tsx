@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileLabel } from '@/logic/paths'
+import { useI18n } from '@/i18n/useI18n'
 
 type TabsBarProps = {
   tabs: string[]
@@ -20,6 +21,7 @@ export default function TabsBar({
   pathToSlug,
   slugToPath,
 }: TabsBarProps) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const isGraph = location.pathname.includes('graph')
@@ -87,14 +89,14 @@ export default function TabsBar({
             }
           }}
         >
-          编辑器
+          {t('tabs.editor')}
         </Button>
         <Button
           variant={isGraph ? 'default' : 'secondary'}
           size="sm"
           onClick={() => navigate('/graph')}
         >
-          思维导图
+          {t('tabs.graph')}
         </Button>
       </div>
     </div>

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "md-mind",
+  "productName": "marko",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.daiyuang.marko",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,12 +12,26 @@
   "app": {
     "windows": [
       {
-        "title": "MD Mind",
+        "label": "splashscreen",
+        "title": "marko",
+        "width": 420,
+        "height": 280,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "url": "splashscreen.html"
+      },
+      {
+        "label": "main",
+        "title": "marko",
         "width": 800,
         "height": 600,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false
+        "decorations": false,
+        "visible": false
       }
     ],
     "security": {

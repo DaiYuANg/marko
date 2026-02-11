@@ -6,22 +6,17 @@ import NotFoundPage from '@/pages/NotFoundPage'
 
 function EditorRoute() {
   const { slug } = useParams()
-  const {
-    activePath,
-    editorValue,
-    onEditorChange,
-    getSlugForPath,
-    slugToPath,
-    files,
-    onOpenFile,
-  } = useOutletContext<LayoutContext>()
+  const { activePath, editorValue, onEditorChange, getSlugForPath, slugToPath, files, onOpenFile } =
+    useOutletContext<LayoutContext>()
 
   if (!slug && activePath) {
     return <Navigate to={`/${getSlugForPath(activePath)}`} replace />
   }
 
   if (slug && !slugToPath.has(slug)) {
-    return <NotFoundPage files={files} onOpenFile={onOpenFile} />
+    return (
+      <NotFoundPage files={files.filter((file) => file.kind === 'file')} onOpenFile={onOpenFile} />
+    )
   }
 
   return <EditorPage activePath={activePath} editorValue={editorValue} onChange={onEditorChange} />
@@ -40,7 +35,7 @@ export default function App() {
           <Route path="/graph" element={<GraphRoute />} />
           <Route path="/:slug" element={<EditorRoute />} />
           <Route path="*" element={<NotFoundPage />} />
-          <Route path="/" element={<Navigate to="/graph" replace />} />
+          <Route path="/" element={<EditorRoute />} />
         </Route>
       </Routes>
     </HashRouter>

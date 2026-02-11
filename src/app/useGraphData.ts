@@ -1,18 +1,19 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { buildGraph, type GraphData } from '@/logic/graph'
-import type { MarkdownFile } from '@/store/useAppStore'
+import type { FileEntry } from '@/store/useAppStore'
 
 export function useGraphData(
-  files: MarkdownFile[],
+  entries: FileEntry[],
   fileContents: Record<string, string>,
   pathname: string,
 ) {
-  const graphRef = useRef<GraphData>({ nodes: [], edges: [] })
+  const [graph, setGraph] = useState<GraphData>({ nodes: [], edges: [] })
 
-  return useMemo(() => {
-    if (!pathname.includes('graph')) return graphRef.current
-    const next = buildGraph(files, fileContents)
-    graphRef.current = next
-    return next
-  }, [files, fileContents, pathname])
+  useEffect(() => {
+    if (!pathname.includes('graph')) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGraph(buildGraph(entries, fileContents))
+  }, [entries, fileContents, pathname])
+
+  return graph
 }

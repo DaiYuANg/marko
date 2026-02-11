@@ -9,15 +9,17 @@ import { useGraphData } from '@/app/useGraphData'
 
 export function useAppLayoutState() {
   const {
-    projectPath,
+    rootPath,
+    rootKind,
     recentProjects,
-    files,
+    entries,
     tabs,
     activePath,
     sidebarCollapsed,
     theme,
-    setProjectPath,
-    setFiles,
+    setRootPath,
+    setRootKind,
+    setEntries,
     setTabs,
     setActivePath,
     toggleSidebar,
@@ -31,38 +33,58 @@ export function useAppLayoutState() {
   const navigate = useNavigate()
   const params = useParams()
 
-  const routeMaps = useMemo(() => buildRouteMaps(files), [files])
-  const filePathMap = useMemo(() => {
-    const map = new Map<string, string>()
-    files.forEach((file) => map.set(file.relative_path, file.path))
-    return map
-  }, [files])
+  const routeMaps = useMemo(() => buildRouteMaps(entries), [entries])
 
+  const workspaceKey = `${rootKind}:${rootPath}`
   const { fileContents, setFileContents, editorValue, onEditorChange } = useEditorBuffer({
     activePath,
-    filePathMap,
-    projectPath,
+    workspaceKey,
   })
 
-  const { loadProject, onSelectProject } = useProjectLoader({
-    projectPath,
-    files,
+  const {
+    loadWorkspace,
+    onSelectFolder,
+    onUseInternalRoot,
+    openFolder,
+    createFile,
+    createFolder,
+    renamePath,
+    deletePath,
+  } = useProjectLoader({
     tabs,
     activePath,
     locationPathname: location.pathname,
     navigate,
-    setFiles,
+    setEntries,
     setFileContents,
-    setProjectPath,
+    setRootPath,
+    setRootKind,
     setTabs,
+    setActivePath,
     touchRecentProject,
   })
 
   useEffect(() => {
-    if (projectPath) {
-      void loadProject(projectPath)
+    void loadWorkspace()
+  }, [loadWorkspace])
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    const setup = async () => {
+      const { listen } = await import('@tauri-apps/api/event')
+      unlisten = await listen('fs-changed', () => {
+        void loadWorkspace()
+      })
     }
-  }, [projectPath, loadProject])
+    if (typeof window !== 'undefined') {
+      void setup()
+    }
+    return () => {
+      if (unlisten) {
+        unlisten()
+      }
+    }
+  }, [loadWorkspace])
 
   useEffect(() => {
     const slug = params.slug
@@ -102,12 +124,12 @@ export function useAppLayoutState() {
     [activePath, location.pathname, navigate, routeMaps, setTabs, tabs],
   )
 
-  const fileTree = useMemo(() => buildFileTree(files), [files])
-  const graph = useGraphData(files, fileContents, location.pathname)
+  const fileTree = useMemo(() => buildFileTree(entries), [entries])
+  const graph = useGraphData(entries, fileContents, location.pathname)
 
   return {
     recentProjects,
-    files,
+    files: entries,
     tabs,
     activePath,
     sidebarCollapsed,
@@ -121,8 +143,14 @@ export function useAppLayoutState() {
     onEditorChange,
     onOpenFile,
     onCloseTab,
-    onSelectProject,
-    onOpenProject: loadProject,
+    onSelectProject: onSelectFolder,
+    onOpenProject: openFolder,
+    onUseInternalRoot,
+    createFile,
+    createFolder,
+    renamePath,
+    deletePath,
+    onRefresh: loadWorkspace,
     setTheme,
     toggleSidebar,
   }

@@ -26,6 +26,7 @@ export default function CrepeEditor({ onChange }: MilkdownProps) {
   const divRef = useRef<HTMLDivElement>(null)
   const toast = useToast()
   const toastRef = useRef(toast)
+  const contentRef = useRef('')
   const content = useAtomValue(markdown)
   const setCrepeAPI = useSetAtom(crepeAPI)
 
@@ -37,20 +38,24 @@ export default function CrepeEditor({ onChange }: MilkdownProps) {
     toastRef.current = toast
   }, [toast])
 
+  useEffect(() => {
+    contentRef.current = content
+  }, [content])
+
   useLayoutEffect(() => {
     if (!divRef.current) return
 
     let destroyed = false
     const crepe = new Crepe({
       root: divRef.current,
-      defaultValue: content,
+      defaultValue: contentRef.current,
       featureConfigs: {
         [Crepe.Feature.CodeMirror]: {
           theme: darkMode ? undefined : eclipse,
         },
         [Crepe.Feature.LinkTooltip]: {
           onCopyLink: () => {
-            toast('Link copied', 'success')
+            toastRef.current('Link copied', 'success')
           },
         },
       },

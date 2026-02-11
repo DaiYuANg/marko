@@ -1,29 +1,35 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { Locale } from '@/i18n/resources'
+import { getInitialLocale } from '@/i18n/utils'
 
 export type ViewMode = 'editor' | 'graph'
 export type ThemeMode = 'warm' | 'light' | 'dark'
 
-export type MarkdownFile = {
+export type FileEntry = {
   path: string
-  relative_path: string
+  kind: 'file' | 'folder'
 }
 
 type AppState = {
-  projectPath: string
+  rootPath: string
+  rootKind: 'internal' | 'external'
   recentProjects: string[]
-  files: MarkdownFile[]
+  entries: FileEntry[]
   tabs: string[]
   activePath: string | null
   viewMode: ViewMode
   theme: ThemeMode
+  locale: Locale
   sidebarCollapsed: boolean
-  setProjectPath: (path: string) => void
-  setFiles: (files: MarkdownFile[]) => void
+  setRootPath: (path: string) => void
+  setRootKind: (kind: 'internal' | 'external') => void
+  setEntries: (entries: FileEntry[]) => void
   setTabs: (tabs: string[]) => void
   setActivePath: (path: string | null) => void
   setViewMode: (mode: ViewMode) => void
   setTheme: (theme: ThemeMode) => void
+  setLocale: (locale: Locale) => void
   toggleSidebar: () => void
   touchRecentProject: (path: string) => void
 }
@@ -31,20 +37,24 @@ type AppState = {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      projectPath: '',
+      rootPath: '',
+      rootKind: 'internal',
       recentProjects: [],
-      files: [],
+      entries: [],
       tabs: [],
       activePath: null,
       viewMode: 'editor',
       theme: 'warm',
+      locale: getInitialLocale(),
       sidebarCollapsed: false,
-      setProjectPath: (path) => set({ projectPath: path }),
-      setFiles: (files) => set({ files }),
+      setRootPath: (path) => set({ rootPath: path }),
+      setRootKind: (kind) => set({ rootKind: kind }),
+      setEntries: (entries) => set({ entries }),
       setTabs: (tabs) => set({ tabs }),
       setActivePath: (path) => set({ activePath: path }),
       setViewMode: (mode) => set({ viewMode: mode }),
       setTheme: (theme) => set({ theme }),
+      setLocale: (locale) => set({ locale }),
       toggleSidebar: () =>
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
@@ -56,14 +66,16 @@ export const useAppStore = create<AppState>()(
         }),
     }),
     {
-      name: 'mdmind.app',
+      name: 'marko.app',
       partialize: (state) => ({
-        projectPath: state.projectPath,
+        rootPath: state.rootPath,
+        rootKind: state.rootKind,
         recentProjects: state.recentProjects,
         tabs: state.tabs,
         activePath: state.activePath,
         viewMode: state.viewMode,
         theme: state.theme,
+        locale: state.locale,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
     },

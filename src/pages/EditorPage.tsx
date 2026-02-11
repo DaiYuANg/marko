@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Dual } from '@/playground'
 import { cmAPI, crepeAPI, markdown } from '@/playground/atom'
+import { useI18n } from '@/i18n/useI18n'
 
 type EditorPageProps = {
   activePath: string | null
@@ -13,6 +14,7 @@ export default function EditorPage({ activePath, editorValue, onChange }: Editor
   const [value, setValue] = useAtom(markdown)
   const crepe = useAtomValue(crepeAPI)
   const cm = useAtomValue(cmAPI)
+  const { t } = useI18n()
   const handleMarkdownChange = useCallback(
     (nextValue: string) => {
       onChange(nextValue)
@@ -39,13 +41,8 @@ export default function EditorPage({ activePath, editorValue, onChange }: Editor
 
   return (
     <div className="h-full overflow-hidden">
-      {activePath ? (
-        <Dual
-          onMarkdownChange={handleMarkdownChange}
-        />
-      ) : (
-        <div className="text-sm text-muted-foreground">请选择或打开一个文件</div>
-      )}
+      <Dual onMarkdownChange={handleMarkdownChange} />
+      {!activePath && <div className="text-sm text-muted-foreground">{t('editor.empty')}</div>}
     </div>
   )
 }

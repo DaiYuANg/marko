@@ -1,4 +1,4 @@
-import type { MarkdownFile } from '@/store/useAppStore'
+import type { FileEntry } from '@/store/useAppStore'
 
 export type FileTreeNode = {
   name: string
@@ -7,11 +7,11 @@ export type FileTreeNode = {
   children?: FileTreeNode[]
 }
 
-export function buildFileTree(files: MarkdownFile[]) {
+export function buildFileTree(entries: FileEntry[]) {
   const root: FileTreeNode = { name: 'root', path: '', type: 'folder', children: [] }
 
-  files.forEach((file) => {
-    const parts = file.relative_path.split('/')
+  entries.forEach((entry) => {
+    const parts = entry.path.split('/')
     let current = root
     parts.forEach((part, index) => {
       const isFile = index === parts.length - 1
@@ -21,7 +21,7 @@ export function buildFileTree(files: MarkdownFile[]) {
         next = {
           name: part,
           path: parts.slice(0, index + 1).join('/'),
-          type: isFile ? 'file' : 'folder',
+          type: isFile ? entry.kind : 'folder',
           children: isFile ? undefined : [],
         }
         current.children.push(next)

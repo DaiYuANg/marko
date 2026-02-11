@@ -1,5 +1,5 @@
 {
-  "name": "md-mind",
+  "name": "marko",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,9 +7,22 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "format:rust": "cargo fmt --all",
     "preview": "vite preview",
     "tauri": "tauri",
-    "dev:desktop": "tauri dev"
+    "dev:desktop": "concurrently \"react-devtools\" \"tauri dev\"",
+    "prepare": "husky install",
+    "build:desktop": "tauri build"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,css,md,json,yml,yaml}": [
+      "prettier --write"
+    ],
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix"
+    ]
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
@@ -28,6 +41,7 @@
     "@milkdown/preset-gfm": "^7.18.0",
     "@milkdown/react": "^7.18.0",
     "@milkdown/theme-nord": "^7.18.0",
+    "@radix-ui/react-context-menu": "^2.2.6",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-tabs": "^1.1.13",
@@ -38,14 +52,17 @@
     "@uiw/react-codemirror": "^4.25.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "i18next": "^23.12.2",
     "jotai": "^2.17.1",
     "lodash.debounce": "^4.0.8",
     "lodash.throttle": "^4.1.1",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^15.0.7",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.0",
+    "react-scan": "^0.4.3",
     "reactflow": "^11.11.4",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.4.0",
@@ -63,13 +80,20 @@
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.24",
     "eslint": "^9.39.1",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
     "postcss": "^8.5.6",
+    "prettier": "^3.3.3",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
-    "vite": "^7.3.1"
+    "unplugin-turbo-console": "^2.1.3",
+    "vite": "^7.3.1",
+    "react-devtools": "^7.0.1",
+    "concurrently": "^9.2.1"
   }
 }

@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.cache
+.turbo
+.pnpm-store
+.tauri
+src-tauri/target
+target
+pnpm-lock.yaml

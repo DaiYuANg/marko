@@ -5,15 +5,10 @@ const SAVE_DEBOUNCE_MS = 600
 
 type UseEditorBufferArgs = {
   activePath: string | null
-  filePathMap: Map<string, string>
-  projectPath: string | null
+  workspaceKey: string
 }
 
-export function useEditorBuffer({
-  activePath,
-  filePathMap,
-  projectPath,
-}: UseEditorBufferArgs) {
+export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArgs) {
   const [fileContents, setFileContents] = useState<Record<string, string>>({})
   const [editorValue, setEditorValue] = useState('')
   const saveTimer = useRef<number | null>(null)
@@ -35,7 +30,7 @@ export function useEditorBuffer({
   useEffect(() => {
     lastActiveRef.current = null
     bufferRef.current = {}
-  }, [projectPath])
+  }, [workspaceKey])
 
   const onEditorChange = useCallback(
     (value: string) => {
@@ -48,8 +43,6 @@ export function useEditorBuffer({
 
   useEffect(() => {
     if (!activePath || !isTauri()) return
-    const absolutePath = filePathMap.get(activePath)
-    if (!absolutePath) return
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current)
     }
@@ -59,14 +52,14 @@ export function useEditorBuffer({
         if (prev[activePath] === content) return prev
         return { ...prev, [activePath]: content }
       })
-      void invoke('write_markdown_file', { path: absolutePath, content })
+      void invoke('fs_write_file', { path: activePath, content })
     }, SAVE_DEBOUNCE_MS)
     return () => {
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current)
       }
     }
-  }, [activePath, filePathMap])
+  }, [activePath])
 
   return {
     fileContents,

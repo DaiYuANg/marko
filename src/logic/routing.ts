@@ -1,4 +1,4 @@
-import type { MarkdownFile } from '@/store/useAppStore'
+import type { FileEntry } from '@/store/useAppStore'
 import { createFileLabel, slugify } from '@/logic/paths'
 
 export type RouteMaps = {
@@ -15,19 +15,21 @@ function hashPath(value: string) {
   return Math.abs(hash).toString(36)
 }
 
-export function buildRouteMaps(files: MarkdownFile[]): RouteMaps {
+export function buildRouteMaps(entries: FileEntry[]): RouteMaps {
   const pathToSlug = new Map<string, string>()
   const slugToPath = new Map<string, string>()
 
-  files.forEach((file) => {
-    const base = slugify(createFileLabel(file.relative_path))
-    let slug = base || hashPath(file.relative_path)
-    if (slugToPath.has(slug)) {
-      slug = `${slug}-${hashPath(file.relative_path).slice(0, 6)}`
-    }
-    pathToSlug.set(file.relative_path, slug)
-    slugToPath.set(slug, file.relative_path)
-  })
+  entries
+    .filter((entry) => entry.kind === 'file')
+    .forEach((entry) => {
+      const base = slugify(createFileLabel(entry.path))
+      let slug = base || hashPath(entry.path)
+      if (slugToPath.has(slug)) {
+        slug = `${slug}-${hashPath(entry.path).slice(0, 6)}`
+      }
+      pathToSlug.set(entry.path, slug)
+      slugToPath.set(slug, entry.path)
+    })
 
   return { pathToSlug, slugToPath }
 }

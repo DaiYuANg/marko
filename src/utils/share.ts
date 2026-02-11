@@ -6,3 +6,9 @@ export function encode(text: string) {
   })
   return btoa(binary)
 }
+
+const isDevelopment = () => {
+  return import.meta.env.MODE === 'development'
+}
+
+export { isDevelopment }

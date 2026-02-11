@@ -39,12 +39,10 @@ function createThrottledEmitter(onChange: (value: string) => void) {
   }
 }
 
-export default function MarkdownEditor({
-  value,
-  onChange,
-}: MarkdownEditorProps) {
+export default function MarkdownEditor({ value, onChange }: MarkdownEditorProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const crepeRef = useRef<Crepe | null>(null)
+  const initialValue = useRef(value)
   const latestValue = useRef(value)
   const emitChangeRef = useRef(createThrottledEmitter(onChange))
 
@@ -62,7 +60,7 @@ export default function MarkdownEditor({
 
     const crepe = new Crepe({
       root,
-      defaultValue: value,
+      defaultValue: initialValue.current,
       featureConfigs: {
         [Crepe.Feature.LinkTooltip]: {
           onCopyLink: () => {},
