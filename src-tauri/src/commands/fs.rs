@@ -1,10 +1,13 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use tauri::{Emitter, State};
+use notify::{event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use tauri::{Emitter, Manager, State};
+use tokio::runtime::Handle;
+use tokio::sync::mpsc;
 
-use crate::models::{FsEntry, FsRootInfo};
-use crate::state::FsState;
+use crate::models::{FsEntry, FsRootInfo, FsSnapshot};
+use crate::state::{FsState, FsWatcherState};
 
 #[tauri::command]
 pub fn fs_get_root_info(state: State<'_, FsState>) -> Result<FsRootInfo, String> {
@@ -16,33 +19,43 @@ pub fn fs_get_root_info(state: State<'_, FsState>) -> Result<FsRootInfo, String>
 }
 
 #[tauri::command]
+pub fn fs_get_snapshot(state: State<'_, FsState>) -> Result<FsSnapshot, String> {
+  snapshot_from_state(&state)
+}
+
+#[tauri::command]
 pub fn fs_set_root(
   path: Option<String>,
   state: State<'_, FsState>,
+  watcher_state: State<'_, FsWatcherState>,
   app: tauri::AppHandle,
 ) -> Result<FsRootInfo, String> {
-  let mut data = state.0.write().map_err(|_| "Failed to lock fs state")?;
-  match path {
-    Some(path) => {
-      let root = PathBuf::from(path);
-      if !root.exists() || !root.is_dir() {
-        return Err("Selected path is not a directory".to_string());
+  let root_info = {
+    let mut data = state.0.write().map_err(|_| "Failed to lock fs state")?;
+    match path {
+      Some(path) => {
+        let root = PathBuf::from(path);
+        if !root.exists() || !root.is_dir() {
+          return Err("Selected path is not a directory".to_string());
+        }
+        data.root_kind = "external".to_string();
+        data.root_path = root;
       }
-      data.root_kind = "external".to_string();
-      data.root_path = root;
+      None => {
+        data.root_kind = "internal".to_string();
+        data.root_path = data.internal_root.clone();
+        ensure_default_file(&data.root_path)?;
+      }
     }
-    None => {
-      data.root_kind = "internal".to_string();
-      data.root_path = data.internal_root.clone();
-      ensure_default_file(&data.root_path)?;
+    FsRootInfo {
+      kind: data.root_kind.clone(),
+      path: data.root_path.to_string_lossy().to_string(),
     }
-  }
+  };
 
-  emit_fs_changed(&app)?;
-  Ok(FsRootInfo {
-    kind: data.root_kind.clone(),
-    path: data.root_path.to_string_lossy().to_string(),
-  })
+  start_fs_watcher(&app, &state, &watcher_state)?;
+  emit_fs_changed(&app, &state)?;
+  Ok(root_info)
 }
 
 #[tauri::command]
@@ -87,7 +100,7 @@ pub fn fs_create_file(
   if !resolved.exists() {
     fs::write(resolved, "").map_err(|err| format!("Failed to create file: {err}"))?;
   }
-  emit_fs_changed(&app)?;
+  emit_fs_changed(&app, &state)?;
   Ok(())
 }
 
@@ -100,7 +113,7 @@ pub fn fs_create_dir(
   let data = state.0.read().map_err(|_| "Failed to lock fs state")?;
   let resolved = resolve_path(&data.root_path, &path)?;
   fs::create_dir_all(resolved).map_err(|err| format!("Failed to create dir: {err}"))?;
-  emit_fs_changed(&app)?;
+  emit_fs_changed(&app, &state)?;
   Ok(())
 }
 
@@ -117,7 +130,7 @@ pub fn fs_delete_path(
   } else {
     fs::remove_file(resolved).map_err(|err| format!("Failed to delete file: {err}"))?;
   }
-  emit_fs_changed(&app)?;
+  emit_fs_changed(&app, &state)?;
   Ok(())
 }
 
@@ -135,7 +148,70 @@ pub fn fs_rename_path(
     fs::create_dir_all(parent).map_err(|err| format!("Failed to create dir: {err}"))?;
   }
   fs::rename(from_path, to_path).map_err(|err| format!("Failed to rename: {err}"))?;
-  emit_fs_changed(&app)?;
+  emit_fs_changed(&app, &state)?;
+  Ok(())
+}
+
+pub fn start_fs_watcher(
+  app: &tauri::AppHandle,
+  state: &FsState,
+  watcher_state: &FsWatcherState,
+) -> Result<(), String> {
+  let root_path = {
+    let data = state.0.read().map_err(|_| "Failed to lock fs state")?;
+    data.root_path.clone()
+  };
+  if !root_path.exists() {
+    return Ok(());
+  }
+
+  let (tx, mut rx) = mpsc::unbounded_channel();
+  let mut watcher: RecommendedWatcher = RecommendedWatcher::new(
+    move |result| {
+      let _ = tx.send(result);
+    },
+    Config::default(),
+  )
+  .map_err(|err| format!("Failed to create fs watcher: {err}"))?;
+
+  watcher
+    .watch(&root_path, RecursiveMode::Recursive)
+    .map_err(|err| format!("Failed to watch path: {err}"))?;
+
+  let runtime =
+    Handle::try_current().map_err(|err| format!("Tokio runtime unavailable for fs watcher: {err}"))?;
+  let app_handle = app.clone();
+  runtime.spawn(async move {
+    while let Some(result) = rx.recv().await {
+      match result {
+        Ok(event) => {
+          let interesting = matches!(
+            event.kind,
+            EventKind::Any
+              | EventKind::Create(_)
+              | EventKind::Remove(_)
+              | EventKind::Modify(ModifyKind::Name(_))
+              | EventKind::Modify(ModifyKind::Metadata(_))
+              | EventKind::Modify(ModifyKind::Any)
+          );
+          if !interesting {
+            continue;
+          }
+          while rx.try_recv().is_ok() {}
+          if let Some(state) = app_handle.try_state::<FsState>() {
+            let _ = emit_fs_changed(&app_handle, &state);
+          }
+        }
+        Err(err) => log::warn!("fs watcher error: {err}"),
+      }
+    }
+  });
+
+  let mut holder = watcher_state
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock watcher state")?;
+  *holder = Some(watcher);
   Ok(())
 }
 
@@ -214,6 +290,21 @@ fn list_entries(root: &Path) -> Result<Vec<FsEntry>, String> {
   Ok(entries)
 }
 
+fn snapshot_from_state(state: &FsState) -> Result<FsSnapshot, String> {
+  let (root_kind, root_path) = {
+    let data = state.0.read().map_err(|_| "Failed to lock fs state")?;
+    (data.root_kind.clone(), data.root_path.clone())
+  };
+  let entries = list_entries(&root_path)?;
+  Ok(FsSnapshot {
+    root: FsRootInfo {
+      kind: root_kind,
+      path: root_path.to_string_lossy().to_string(),
+    },
+    entries,
+  })
+}
+
 fn is_hidden(path: &Path) -> bool {
   path
     .file_name()
@@ -230,6 +321,7 @@ fn is_markdown(path: &Path) -> bool {
     .unwrap_or(false)
 }
 
-fn emit_fs_changed(app: &tauri::AppHandle) -> Result<(), String> {
-  app.emit("fs-changed", ()).map_err(|err| err.to_string())
+fn emit_fs_changed(app: &tauri::AppHandle, state: &FsState) -> Result<(), String> {
+  let snapshot = snapshot_from_state(state)?;
+  app.emit("fs-changed", snapshot).map_err(|err| err.to_string())
 }

@@ -18,3 +18,16 @@ pub struct FsRootInfo {
   pub kind: String,
   pub path: String,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsSnapshot {
+  pub root: FsRootInfo,
+  pub entries: Vec<FsEntry>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsFileUpdate {
+  pub path: String,
+  pub content: String,
+  pub source_id: Option<String>,
+}

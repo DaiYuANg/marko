@@ -1,5 +1,6 @@
+use notify::RecommendedWatcher;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 #[derive(Debug, Clone)]
 pub struct FsStateData {
@@ -9,3 +10,5 @@ pub struct FsStateData {
 }
 
 pub struct FsState(pub RwLock<FsStateData>);
+
+pub struct FsWatcherState(pub Mutex<Option<RecommendedWatcher>>);

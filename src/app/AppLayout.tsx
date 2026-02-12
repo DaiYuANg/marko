@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import Sidebar from '@/components/Sidebar'
+import RightSidebar from '@/components/RightSidebar'
 import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
@@ -40,8 +41,8 @@ export default function AppLayout() {
   return (
     <div className="flex h-full flex-col">
       <Titlebar
-        sidebarCollapsed={state.sidebarCollapsed}
         onToggleSidebar={state.toggleSidebar}
+        onToggleRightSidebar={state.toggleRightSidebar}
         onSelectProject={state.onSelectProject}
         isMaximized={state.isMaximized}
         setIsMaximized={state.setIsMaximized}
@@ -61,11 +62,11 @@ export default function AppLayout() {
           onRenamePath={state.renamePath}
           onDeletePath={state.deletePath}
           onUseInternalRoot={state.onUseInternalRoot}
-          onRefresh={state.onRefresh}
         />
         <section className="flex flex-1 flex-col overflow-hidden">
           <TabsBar
             tabs={state.tabs}
+            activePath={state.activePath}
             onOpenFile={state.onOpenFile}
             onCloseTab={state.onCloseTab}
             pathToSlug={state.routeMaps.pathToSlug}
@@ -90,6 +91,13 @@ export default function AppLayout() {
             />
           </div>
         </section>
+        <RightSidebar
+          collapsed={state.rightSidebarCollapsed}
+          activePath={state.activePath}
+          tabs={state.tabs}
+          totalFiles={state.files.filter((file) => file.kind === 'file').length}
+          onOpenFile={state.onOpenFile}
+        />
       </div>
     </div>
   )

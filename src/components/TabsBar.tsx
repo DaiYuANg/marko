@@ -1,13 +1,17 @@
 import { useCallback, useMemo, type WheelEvent } from 'react'
+import { FileText, GitGraph, PencilLine, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 type TabsBarProps = {
   tabs: string[]
+  activePath: string | null
   onOpenFile: (path: string) => void
   onCloseTab: (path: string) => void
   pathToSlug: Map<string, string>
@@ -16,6 +20,7 @@ type TabsBarProps = {
 
 export default function TabsBar({
   tabs,
+  activePath,
   onOpenFile,
   onCloseTab,
   pathToSlug,
@@ -44,9 +49,53 @@ export default function TabsBar({
   }, [])
 
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-white/70 px-4 py-2">
+    <div className="border-b border-border bg-background px-2 py-1.5">
+      <TooltipProvider>
+        <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className="truncate text-sm font-medium">
+              {activePath ? createFileLabel(activePath) : t('center.noFile')}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={!isGraph ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    if (activeSlug) {
+                      navigate(`/${activeSlug}`)
+                    }
+                  }}
+                  aria-label={t('tabs.editor')}
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('tabs.editor')}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isGraph ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => navigate('/graph')}
+                  aria-label={t('tabs.workspaceGraph')}
+                >
+                  <GitGraph className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('tabs.workspaceGraph')}</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </TooltipProvider>
       <Tabs
-        className="min-w-0 flex-1"
+        className="min-w-0"
         value={activeSlug}
         onValueChange={(slug) => {
           const path = slugToPath.get(slug)
@@ -60,45 +109,27 @@ export default function TabsBar({
           onWheel={handleTabsWheel}
           viewportClassName="w-full"
         >
-          <TabsList className="w-max min-w-full">
+          <TabsList className="h-9 w-max min-w-full justify-start rounded-md bg-muted/40 p-1">
             {routes.map((tab) => (
-              <TabsTrigger key={tab.path} value={tab.slug}>
-                {createFileLabel(tab.path)}
+              <TabsTrigger key={tab.path} value={tab.slug} className="gap-1.5 rounded-sm px-2.5">
+                <FileText className="h-3.5 w-3.5" />
+                <span>{createFileLabel(tab.path)}</span>
                 <span
-                  className="text-xs opacity-70"
+                  className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
                   role="presentation"
                   onClick={(event) => {
                     event.stopPropagation()
                     onCloseTab(tab.path)
                   }}
                 >
-                  ×
+                  <X className="h-3.5 w-3.5" />
                 </span>
               </TabsTrigger>
             ))}
           </TabsList>
         </ScrollArea>
       </Tabs>
-      <div className="flex shrink-0 items-center gap-2">
-        <Button
-          variant={!isGraph ? 'default' : 'secondary'}
-          size="sm"
-          onClick={() => {
-            if (activeSlug) {
-              navigate(`/${activeSlug}`)
-            }
-          }}
-        >
-          {t('tabs.editor')}
-        </Button>
-        <Button
-          variant={isGraph ? 'default' : 'secondary'}
-          size="sm"
-          onClick={() => navigate('/graph')}
-        >
-          {t('tabs.graph')}
-        </Button>
-      </div>
+      <Separator className="mt-1.5" />
     </div>
   )
 }

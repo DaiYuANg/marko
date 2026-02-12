@@ -1,22 +1,24 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 use tauri::{Listener, Manager};
+use crate::commands::fs::{fs_create_dir, fs_create_file, fs_delete_path, fs_get_root_info, fs_get_snapshot, fs_list_entries, fs_read_file, fs_rename_path, fs_set_root, fs_write_file};
+use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
 
 mod commands;
 mod models;
 mod state;
 
-use crate::state::{FsState, FsStateData};
+use crate::state::{FsState, FsStateData, FsWatcherState};
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+fn run_impl() {
   tauri::Builder::default()
     .manage(FsState(RwLock::new(FsStateData {
       root_kind: "internal".to_string(),
       root_path: PathBuf::new(),
       internal_root: PathBuf::new(),
     })))
+    .manage(FsWatcherState(Mutex::new(None)))
     .setup(|app| {
       let app_handle = app.handle();
       let app_data_dir = app_handle
@@ -32,6 +34,12 @@ pub fn run() {
         data.root_kind = "internal".to_string();
         data.root_path = internal_root.clone();
         data.internal_root = internal_root;
+      }
+      if let (Some(state), Some(watcher_state)) = (
+        app_handle.try_state::<FsState>(),
+        app_handle.try_state::<FsWatcherState>(),
+      ) {
+        commands::fs::start_fs_watcher(&app_handle, &state, &watcher_state)?;
       }
 
       if let (Some(splash), Some(main)) = (
@@ -56,19 +64,29 @@ pub fn run() {
     })
     .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
-      commands::markdown::list_markdown_files,
-      commands::markdown::read_markdown_file,
-      commands::markdown::write_markdown_file,
-      commands::fs::fs_get_root_info,
-      commands::fs::fs_set_root,
-      commands::fs::fs_list_entries,
-      commands::fs::fs_read_file,
-      commands::fs::fs_write_file,
-      commands::fs::fs_create_file,
-      commands::fs::fs_create_dir,
-      commands::fs::fs_delete_path,
-      commands::fs::fs_rename_path
+      list_markdown_files,
+      read_markdown_file,
+      write_markdown_file,
+      fs_get_root_info,
+      fs_get_snapshot,
+      fs_set_root,
+      fs_list_entries,
+      fs_read_file,
+      fs_write_file,
+      fs_create_file,
+      fs_create_dir,
+      fs_delete_path,
+      fs_rename_path
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+  run_impl();
+}
+
+pub async fn run_async() {
+  run_impl();
 }

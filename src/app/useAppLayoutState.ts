@@ -8,6 +8,17 @@ import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
 
 export function useAppLayoutState() {
+  type FsSnapshot = {
+    root: {
+      kind: 'internal' | 'external'
+      path: string
+    }
+    entries: Array<{
+      path: string
+      kind: 'file' | 'folder'
+    }>
+  }
+
   const {
     rootPath,
     rootKind,
@@ -16,6 +27,7 @@ export function useAppLayoutState() {
     tabs,
     activePath,
     sidebarCollapsed,
+    rightSidebarCollapsed,
     theme,
     setRootPath,
     setRootKind,
@@ -23,6 +35,7 @@ export function useAppLayoutState() {
     setTabs,
     setActivePath,
     toggleSidebar,
+    toggleRightSidebar,
     setTheme,
     touchRecentProject,
   } = useAppStore()
@@ -72,8 +85,11 @@ export function useAppLayoutState() {
     let unlisten: (() => void) | undefined
     const setup = async () => {
       const { listen } = await import('@tauri-apps/api/event')
-      unlisten = await listen('fs-changed', () => {
-        void loadWorkspace()
+      unlisten = await listen<FsSnapshot>('fs-changed', (event) => {
+        void loadWorkspace({
+          snapshot: event.payload,
+          refreshContents: 'none',
+        })
       })
     }
     if (typeof window !== 'undefined') {
@@ -133,6 +149,7 @@ export function useAppLayoutState() {
     tabs,
     activePath,
     sidebarCollapsed,
+    rightSidebarCollapsed,
     theme,
     routeMaps,
     fileTree,
@@ -153,5 +170,6 @@ export function useAppLayoutState() {
     onRefresh: loadWorkspace,
     setTheme,
     toggleSidebar,
+    toggleRightSidebar,
   }
 }

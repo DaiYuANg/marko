@@ -4,7 +4,7 @@ import type { Locale } from '@/i18n/resources'
 import { getInitialLocale } from '@/i18n/utils'
 
 export type ViewMode = 'editor' | 'graph'
-export type ThemeMode = 'warm' | 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark'
 
 export type FileEntry = {
   path: string
@@ -22,6 +22,7 @@ type AppState = {
   theme: ThemeMode
   locale: Locale
   sidebarCollapsed: boolean
+  rightSidebarCollapsed: boolean
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external') => void
   setEntries: (entries: FileEntry[]) => void
@@ -31,6 +32,7 @@ type AppState = {
   setTheme: (theme: ThemeMode) => void
   setLocale: (locale: Locale) => void
   toggleSidebar: () => void
+  toggleRightSidebar: () => void
   touchRecentProject: (path: string) => void
 }
 
@@ -44,9 +46,10 @@ export const useAppStore = create<AppState>()(
       tabs: [],
       activePath: null,
       viewMode: 'editor',
-      theme: 'warm',
+      theme: 'light',
       locale: getInitialLocale(),
       sidebarCollapsed: false,
+      rightSidebarCollapsed: false,
       setRootPath: (path) => set({ rootPath: path }),
       setRootKind: (kind) => set({ rootKind: kind }),
       setEntries: (entries) => set({ entries }),
@@ -59,6 +62,10 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
         })),
+      toggleRightSidebar: () =>
+        set((state) => ({
+          rightSidebarCollapsed: !state.rightSidebarCollapsed,
+        })),
       touchRecentProject: (path) =>
         set((state) => {
           const next = [path, ...state.recentProjects.filter((p) => p !== path)]
@@ -67,6 +74,16 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'marko.app',
+      version: 2,
+      migrate: (persistedState) => {
+        const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
+        const normalizedTheme: ThemeMode = state.theme === 'dark' ? 'dark' : 'light'
+        return {
+          ...state,
+          theme: normalizedTheme,
+          rightSidebarCollapsed: state.rightSidebarCollapsed ?? false,
+        } as AppState
+      },
       partialize: (state) => ({
         rootPath: state.rootPath,
         rootKind: state.rootKind,
@@ -77,6 +94,7 @@ export const useAppStore = create<AppState>()(
         theme: state.theme,
         locale: state.locale,
         sidebarCollapsed: state.sidebarCollapsed,
+        rightSidebarCollapsed: state.rightSidebarCollapsed,
       }),
     },
   ),
