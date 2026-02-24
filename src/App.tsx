@@ -27,17 +27,16 @@ function GraphRoute() {
   return <GraphPage graph={graph} onOpenFile={onOpenFile} />
 }
 
-export default function App() {
-  return (
-    <HashRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/graph" element={<GraphRoute />} />
-          <Route path="/:slug" element={<EditorRoute />} />
-          <Route path="*" element={<NotFoundPage />} />
-          <Route path="/" element={<EditorRoute />} />
-        </Route>
-      </Routes>
-    </HashRouter>
-  )
-}
+const App = () => (
+  <HashRouter>
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route path="/graph" element={<GraphRoute />} />
+        <Route path="/:slug" element={<EditorRoute />} />
+        <Route path="*" element={<NotFoundPage />} />
+        <Route path="/" element={<EditorRoute />} />
+      </Route>
+    </Routes>
+  </HashRouter>
+)
+export default App

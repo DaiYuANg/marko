@@ -10,12 +10,7 @@ type NotFoundPageProps = {
   onOpenFile?: (path: string) => void
 }
 
-export default function NotFoundPage({
-  title,
-  description,
-  files = [],
-  onOpenFile,
-}: NotFoundPageProps) {
+const NotFoundPage = ({ title, description, files = [], onOpenFile }: NotFoundPageProps) => {
   const [selected, setSelected] = useState('')
   const { t } = useI18n()
 
@@ -56,3 +51,4 @@ export default function NotFoundPage({
     </div>
   )
 }
+export default NotFoundPage

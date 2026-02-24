@@ -26,7 +26,7 @@ export default function RightSidebar({
   const { t } = useI18n()
   const navigate = useNavigate()
   const quickActions = useMemo(() => {
-    const actions = [
+    return [
       {
         label: t('tabs.workspaceGraph'),
         icon: GitGraph,
@@ -42,7 +42,6 @@ export default function RightSidebar({
         },
       },
     ]
-    return actions
   }, [activePath, navigate, onOpenFile, t])
 
   return (
