@@ -1,4 +1,13 @@
-import { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
+// react-window exports are sometimes tricky under pnpm/Esm
+// use a namespace import and pull out FixedSizeList by name at runtime
+import * as RW from 'react-window'
+// react-window exports `List` as the virtualized list component (not FixedSizeList)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const List = (RW as any).List as React.ComponentType<any>
+if (!List) {
+  console.error('react-window List import failed, namespace:', RW)
+}
 import { FileSearch, FileText, Folder, FolderOpen, Home, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { FileEntry } from '@/store/useAppStore'
@@ -59,146 +68,25 @@ function filterTree(nodes: FileTreeNode[], query: string): FileTreeNode[] {
     .filter((node): node is FileTreeNode => node !== null)
 }
 
-function FileTree({
-  nodes,
-  onOpenFile,
-  onRenamePath,
-  onDeletePath,
-  onCreateFile,
-  onCreateFolder,
+// produce a flat list from nested tree for virtualization, respecting
+// which directories are currently expanded. callers supply a set of open
+// folder paths; only children of those paths are included.
+function flattenTree(
+  nodes: FileTreeNode[],
   depth = 0,
-}: {
-  nodes: FileTreeNode[]
-  onOpenFile: (path: string) => void
-  onRenamePath: (from: string, to: string) => void
-  onDeletePath: (path: string) => void
-  onCreateFile: (path: string) => void
-  onCreateFolder: (path: string) => void
-  depth?: number
-}) {
-  const { t } = useI18n()
-
-  return (
-    <ul className="space-y-1">
-      {nodes.map((node) => (
-        <li key={node.path}>
-          {node.type === 'file' ? (
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-full justify-start rounded-md"
-                  style={{ paddingLeft: 8 + depth * 12 }}
-                  onClick={() => onOpenFile(node.path)}
-                >
-                  <FileText className="h-4 w-4" />
-                  <span className="truncate">{node.name}</span>
-                </Button>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onSelect={() => onOpenFile(node.path)}>
-                  {t('context.open')}
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => {
-                    const next = window.prompt(t('context.renamePrompt'), node.name)
-                    if (!next) return
-                    const nextPath = node.path.split('/').slice(0, -1).concat(next).join('/')
-                    onRenamePath(node.path, nextPath)
-                  }}
-                >
-                  {t('context.rename')}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onSelect={() => {
-                    if (window.confirm(t('context.deleteConfirm', { name: node.name }))) {
-                      onDeletePath(node.path)
-                    }
-                  }}
-                >
-                  {t('context.delete')}
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ) : (
-            <div className="space-y-1">
-              <ContextMenu>
-                <ContextMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-full justify-start rounded-md text-[11px] font-medium text-muted-foreground"
-                    style={{ paddingLeft: 8 + depth * 12 }}
-                  >
-                    <Folder className="h-3.5 w-3.5" />
-                    <span className="truncate">{node.name}</span>
-                  </Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      const name = window.prompt(t('context.newFilePrompt'), 'Untitled.md')
-                      if (!name) return
-                      const target = `${node.path}/${name}`
-                      onCreateFile(target)
-                    }}
-                  >
-                    {t('context.newFile')}
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      const name = window.prompt(t('context.newFolderPrompt'), 'folder')
-                      if (!name) return
-                      const target = `${node.path}/${name}`
-                      onCreateFolder(target)
-                    }}
-                  >
-                    {t('context.newFolder')}
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem
-                    onSelect={() => {
-                      const next = window.prompt(t('context.renamePrompt'), node.name)
-                      if (!next) return
-                      const nextPath = node.path.split('/').slice(0, -1).concat(next).join('/')
-                      onRenamePath(node.path, nextPath)
-                    }}
-                  >
-                    {t('context.rename')}
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      if (window.confirm(t('context.deleteFolderConfirm', { name: node.name }))) {
-                        onDeletePath(node.path)
-                      }
-                    }}
-                  >
-                    {t('context.delete')}
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-              {node.children && (
-                <FileTree
-                  nodes={node.children}
-                  onOpenFile={onOpenFile}
-                  onRenamePath={onRenamePath}
-                  onDeletePath={onDeletePath}
-                  onCreateFile={onCreateFile}
-                  onCreateFolder={onCreateFolder}
-                  depth={depth + 1}
-                />
-              )}
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
-  )
+  openDirs: Set<string>,
+): Array<{ node: FileTreeNode; depth: number }> {
+  const result: Array<{ node: FileTreeNode; depth: number }> = []
+  nodes.forEach((n) => {
+    result.push({ node: n, depth })
+    if (n.type === 'folder' && n.children && openDirs.has(n.path)) {
+      result.push(...flattenTree(n.children, depth + 1, openDirs))
+    }
+  })
+  return result
 }
 
-export default function Sidebar({
+const SidebarComponent = ({
   collapsed,
   recentProjects,
   files,
@@ -210,11 +98,13 @@ export default function Sidebar({
   onRenamePath,
   onDeletePath,
   onUseInternalRoot,
-}: SidebarProps) {
+}: SidebarProps) => {
   const { t } = useI18n()
   const [filter, setFilter] = useState('')
   const filterInputRef = useRef<HTMLInputElement | null>(null)
   const filteredTree = useMemo(() => filterTree(fileTree, filter), [fileTree, filter])
+  const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
+  const flattened = useMemo(() => flattenTree(filteredTree, 0, openDirs), [filteredTree, openDirs])
   const fileCount = useMemo(() => files.filter((entry) => entry.kind === 'file').length, [files])
 
   return (
@@ -318,18 +208,130 @@ export default function Sidebar({
                 />
                 <Separator className="bg-sidebar-border/70" />
                 <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-                  {filteredTree.length === 0 ? (
+                  {flattened.length === 0 ? (
                     <div className="px-1 text-xs text-muted-foreground">
                       {t('sidebar.noProjectLoaded')}
                     </div>
                   ) : (
-                    <FileTree
-                      nodes={filteredTree}
-                      onOpenFile={onOpenFile}
-                      onRenamePath={onRenamePath}
-                      onDeletePath={onDeletePath}
-                      onCreateFile={onCreateFile}
-                      onCreateFolder={onCreateFolder}
+                    <List
+                      height="100%"
+                      width="100%"
+                      rowCount={flattened.length}
+                      rowHeight={28}
+                      rowProps={{}}
+                      rowComponent={({
+                        index,
+                        style,
+                      }: {
+                        index: number
+                        style: React.CSSProperties
+                      }) => {
+                        const { node, depth } = flattened[index]
+                        const isFolder = node.type === 'folder'
+                        const padding = 8 + depth * 12
+                        const isOpen = isFolder && openDirs.has(node.path)
+                        return (
+                          <div style={style} key={node.path}>
+                            <ContextMenu>
+                              <ContextMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-full justify-start rounded-md"
+                                  style={{ paddingLeft: padding }}
+                                  onClick={() => {
+                                    if (isFolder) {
+                                      setOpenDirs((prev) => {
+                                        const next = new Set(prev)
+                                        if (next.has(node.path)) next.delete(node.path)
+                                        else next.add(node.path)
+                                        return next
+                                      })
+                                    } else {
+                                      onOpenFile(node.path)
+                                    }
+                                  }}
+                                >
+                                  {isFolder ? (
+                                    isOpen ? (
+                                      <FolderOpen className="h-4 w-4" />
+                                    ) : (
+                                      <Folder className="h-4 w-4" />
+                                    )
+                                  ) : (
+                                    <FileText className="h-4 w-4" />
+                                  )}
+                                  <span className="truncate ml-1">{node.name}</span>
+                                </Button>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent>
+                                {isFolder ? (
+                                  <>
+                                    <ContextMenuItem
+                                      onSelect={() => {
+                                        const name = window.prompt(
+                                          t('context.newFilePrompt'),
+                                          'Untitled.md',
+                                        )
+                                        if (!name) return
+                                        const target = `${node.path}/${name}`
+                                        onCreateFile(target)
+                                      }}
+                                    >
+                                      {t('context.newFile')}
+                                    </ContextMenuItem>
+                                    <ContextMenuItem
+                                      onSelect={() => {
+                                        const name = window.prompt(
+                                          t('context.newFolderPrompt'),
+                                          'folder',
+                                        )
+                                        if (!name) return
+                                        const target = `${node.path}/${name}`
+                                        onCreateFolder(target)
+                                      }}
+                                    >
+                                      {t('context.newFolder')}
+                                    </ContextMenuItem>
+                                    <ContextMenuSeparator />
+                                  </>
+                                ) : (
+                                  <ContextMenuItem onSelect={() => onOpenFile(node.path)}>
+                                    {t('context.open')}
+                                  </ContextMenuItem>
+                                )}
+                                <ContextMenuItem
+                                  onSelect={() => {
+                                    const next = window.prompt(t('context.renamePrompt'), node.name)
+                                    if (!next) return
+                                    const nextPath = node.path
+                                      .split('/')
+                                      .slice(0, -1)
+                                      .concat(next)
+                                      .join('/')
+                                    onRenamePath(node.path, nextPath)
+                                  }}
+                                >
+                                  {t('context.rename')}
+                                </ContextMenuItem>
+                                <ContextMenuSeparator />
+                                <ContextMenuItem
+                                  onSelect={() => {
+                                    const msg = isFolder
+                                      ? t('context.deleteFolderConfirm', { name: node.name })
+                                      : t('context.deleteConfirm', { name: node.name })
+                                    if (window.confirm(msg)) {
+                                      onDeletePath(node.path)
+                                    }
+                                  }}
+                                >
+                                  {t('context.delete')}
+                                </ContextMenuItem>
+                              </ContextMenuContent>
+                            </ContextMenu>
+                          </div>
+                        )
+                      }}
                     />
                   )}
                 </ScrollArea>
@@ -406,3 +408,5 @@ export default function Sidebar({
     </aside>
   )
 }
+
+export default React.memo(SidebarComponent)

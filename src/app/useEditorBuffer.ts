@@ -46,20 +46,32 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current)
     }
-    saveTimer.current = window.setTimeout(() => {
+    saveTimer.current = window.setTimeout(async () => {
       const content = bufferRef.current[activePath] ?? editorRef.current
+
+      // if file already has same content, skip writing
       setFileContents((prev) => {
         if (prev[activePath] === content) return prev
         return { ...prev, [activePath]: content }
       })
-      void invoke('fs_write_file', { path: activePath, content })
+      const existing = fileContents[activePath]
+      if (existing !== undefined && existing === content) {
+        return
+      }
+
+      try {
+        await invoke('fs_write_file', { path: activePath, content })
+      } catch (err) {
+        console.error('write failed', err)
+        // optional: show a toast or UI indicator
+      }
     }, SAVE_DEBOUNCE_MS)
     return () => {
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current)
       }
     }
-  }, [activePath])
+  }, [activePath, fileContents])
 
   return {
     fileContents,

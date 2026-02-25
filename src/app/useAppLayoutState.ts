@@ -19,26 +19,25 @@ export function useAppLayoutState() {
     }>
   }
 
-  const {
-    rootPath,
-    rootKind,
-    recentProjects,
-    entries,
-    tabs,
-    activePath,
-    sidebarCollapsed,
-    rightSidebarCollapsed,
-    theme,
-    setRootPath,
-    setRootKind,
-    setEntries,
-    setTabs,
-    setActivePath,
-    toggleSidebar,
-    toggleRightSidebar,
-    setTheme,
-    touchRecentProject,
-  } = useAppStore()
+  const rootPath = useAppStore((s) => s.rootPath)
+  const rootKind = useAppStore((s) => s.rootKind)
+  const recentProjects = useAppStore((s) => s.recentProjects)
+  const entries = useAppStore((s) => s.entries)
+  const tabs = useAppStore((s) => s.tabs)
+  const activePath = useAppStore((s) => s.activePath)
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
+  const rightSidebarCollapsed = useAppStore((s) => s.rightSidebarCollapsed)
+  const theme = useAppStore((s) => s.theme)
+
+  const setRootPath = useAppStore((s) => s.setRootPath)
+  const setRootKind = useAppStore((s) => s.setRootKind)
+  const setEntries = useAppStore((s) => s.setEntries)
+  const setTabs = useAppStore((s) => s.setTabs)
+  const setActivePath = useAppStore((s) => s.setActivePath)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const toggleRightSidebar = useAppStore((s) => s.toggleRightSidebar)
+  const setTheme = useAppStore((s) => s.setTheme)
+  const touchRecentProject = useAppStore((s) => s.touchRecentProject)
 
   const [isMaximized, setIsMaximized] = useState(false)
 

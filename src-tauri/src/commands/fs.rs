@@ -71,14 +71,122 @@ pub fn fs_read_file(path: String, state: State<'_, FsState>) -> Result<String, S
   fs::read_to_string(resolved).map_err(|err| format!("Failed to read file: {err}"))
 }
 
+// helper used by the background worker task; takes ownership of the
+// request so that channel messages don't tie up the caller.
+/// background task which receives individual write requests and
+/// batches them together. multiple updates to the same path are
+/// collapsed (only the last content is kept), and all pending files
+/// are flushed at once after a short debounce interval. this reduces
+/// disk churn when the user is typing rapidly.
+///
+/// the receiver is passed in by the caller; the task owns it and
+/// continuously processes messages until the sender is dropped.
+pub async fn write_worker(
+  app: &tauri::AppHandle,
+  mut rx: tokio::sync::mpsc::UnboundedReceiver<crate::models::FsFileUpdate>,
+) -> Result<(), String> {
+  use std::collections::HashMap;
+  use tokio::time::{sleep, Duration, Instant};
+
+  // merge map from relative path -> latest content
+  let mut pending: HashMap<String, String> = HashMap::new();
+
+  // helper that actually flushes all current entries
+  async fn flush_map(
+    app: &tauri::AppHandle,
+    map: &mut HashMap<String, String>,
+  ) {
+    let state = match app.try_state::<FsState>() {
+      Some(s) => s,
+      None => return,
+    };
+    let data = match state.0.read() {
+      Ok(d) => d,
+      Err(_) => return,
+    };
+    for (path, content) in map.drain() {
+      if let Err(err) = write_single(&data.root_path, &path, &content) {
+        log::warn!("batch write failed {}: {}", path, err);
+      }
+    }
+  }
+
+  // helper to write one file synchronously (same logic as before)
+  fn write_single(root: &std::path::PathBuf, rel: &str, content: &str) -> Result<(), String> {
+    let resolved = resolve_path(root, rel)?;
+    if let Ok(existing) = fs::read_to_string(&resolved) {
+      if existing == content {
+        return Ok(());
+      }
+    }
+    if let Some(parent) = resolved.parent() {
+      fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {e}"))?;
+    }
+    let tmp = resolved.with_extension("tmp");
+    fs::write(&tmp, content).map_err(|e| format!("Failed to write temp file: {e}"))?;
+    fs::rename(&tmp, &resolved).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+    Ok(())
+  }
+
+  // timeframe to wait before flushing batch (debounce period)
+  const DEBOUNCE_MS: u64 = 300;
+  let mut deadline = Instant::now() + Duration::from_millis(DEBOUNCE_MS);
+
+  loop {
+    tokio::select! {
+      maybe = rx.recv() => {
+        match maybe {
+          Some(req) => {
+            pending.insert(req.path, req.content);
+            // reset debounce timer
+            deadline = Instant::now() + Duration::from_millis(DEBOUNCE_MS);
+          }
+          None => {
+            // sender closed, flush remaining and exit
+            flush_map(app, &mut pending).await;
+            break;
+          }
+        }
+      }
+      _ = sleep(deadline.saturating_duration_since(Instant::now())) => {
+        if !pending.is_empty() {
+          flush_map(app, &mut pending).await;
+        }
+        // after flush, set a far deadline until new messages arrive
+        deadline = Instant::now() + Duration::from_secs(3600);
+      }
+    }
+  }
+
+  Ok(())
+}
+
 #[tauri::command]
 pub fn fs_write_file(
   path: String,
   content: String,
   state: State<'_, FsState>,
+  app: tauri::AppHandle,
 ) -> Result<(), String> {
+  // envelope the request first
+  let req = crate::models::FsFileUpdate {
+    path: path.clone(),
+    content: content.clone(),
+    source_id: None,
+  };
+
+  // try to enqueue into the write queue managed on the app state
+  if let Some(queue_state) = app.try_state::<crate::state::FsWriteQueue>() {
+    if let Some(tx) = queue_state.0.lock().unwrap().clone() {
+      let _ = tx.send(req);
+      return Ok(())
+    }
+  }
+
+  // fallback synchronous write if queue not available
   let data = state.0.read().map_err(|_| "Failed to lock fs state")?;
   let resolved = resolve_path(&data.root_path, &path)?;
+
   if let Some(parent) = resolved.parent() {
     fs::create_dir_all(parent).map_err(|err| format!("Failed to create dir: {err}"))?;
   }

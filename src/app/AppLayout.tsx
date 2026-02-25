@@ -6,7 +6,7 @@ import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type { FileEntry, ThemeMode } from '@/store/useAppStore'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 
 export type LayoutContext = {
   activePath: string | null
@@ -23,6 +23,33 @@ export type LayoutContext = {
 
 export default function AppLayout() {
   const state = useAppLayoutState()
+
+  // memoize the context object so that consumers (routes) don't re-render
+  // on every layout update; only when the referenced values actually change.
+  const outletContext = useMemo(() => {
+    return {
+      activePath: state.activePath,
+      editorValue: state.editorValue,
+      graph: state.graph,
+      onEditorChange: state.onEditorChange,
+      onOpenFile: state.onOpenFile,
+      getSlugForPath: (path: string) => state.routeMaps.pathToSlug.get(path) ?? path,
+      theme: state.theme,
+      setTheme: state.setTheme,
+      slugToPath: state.routeMaps.slugToPath,
+      files: state.files,
+    } as LayoutContext
+  }, [
+    state.activePath,
+    state.editorValue,
+    state.graph,
+    state.onEditorChange,
+    state.onOpenFile,
+    state.routeMaps,
+    state.theme,
+    state.setTheme,
+    state.files,
+  ])
 
   useEffect(() => {
     document.documentElement.dataset.theme = state.theme
@@ -73,22 +100,7 @@ export default function AppLayout() {
             slugToPath={state.routeMaps.slugToPath}
           />
           <div className="flex-1 overflow-hidden bg-background">
-            <Outlet
-              context={
-                {
-                  activePath: state.activePath,
-                  editorValue: state.editorValue,
-                  graph: state.graph,
-                  onEditorChange: state.onEditorChange,
-                  onOpenFile: state.onOpenFile,
-                  getSlugForPath: (path: string) => state.routeMaps.pathToSlug.get(path) ?? path,
-                  theme: state.theme,
-                  setTheme: state.setTheme,
-                  slugToPath: state.routeMaps.slugToPath,
-                  files: state.files,
-                } satisfies LayoutContext
-              }
-            />
+            <Outlet context={outletContext} />
           </div>
         </section>
         <RightSidebar
