@@ -7,7 +7,8 @@ import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
 import { useEffect, useMemo } from 'react'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { fsApi } from '@/services/fsApi'
+import { isTauriRuntime } from '@/utils/tauri'
 
 export type LayoutContext = {
   activePath: string | null
@@ -69,15 +70,96 @@ export default function AppLayout() {
   }, [])
 
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isTauriRuntime()) return
     const flushOnClose = () => {
-      void invoke('fs_flush_buffers')
+      void fsApi.flushBuffers()
     }
     window.addEventListener('beforeunload', flushOnClose)
     return () => {
       window.removeEventListener('beforeunload', flushOnClose)
     }
   }, [])
+
+  useEffect(() => {
+    const executeEdit = (action: string) => {
+      if (typeof document === 'undefined') return
+      if (action === 'edit.undo') document.execCommand('undo')
+      if (action === 'edit.redo') document.execCommand('redo')
+      if (action === 'edit.cut') document.execCommand('cut')
+      if (action === 'edit.copy') document.execCommand('copy')
+      if (action === 'edit.paste') document.execCommand('paste')
+      if (action === 'edit.select_all') document.execCommand('selectAll')
+    }
+
+    const createUntitledPath = () => {
+      const files = new Set(
+        state.files
+          .filter((entry) => entry.kind === 'file')
+          .map((entry) => entry.path.toLowerCase()),
+      )
+      if (!files.has('untitled.md')) return 'Untitled.md'
+      for (let index = 1; index <= 999; index += 1) {
+        const next = `Untitled-${index}.md`
+        if (!files.has(next.toLowerCase())) return next
+      }
+      return `Untitled-${Date.now()}.md`
+    }
+
+    const handleMenuAction = (id: string) => {
+      if (id.startsWith('edit.')) {
+        executeEdit(id)
+        return
+      }
+      if (id === 'file.open_project') {
+        void state.onSelectProject()
+        return
+      }
+      if (id === 'file.open_file') {
+        void state.onSelectSingleFile()
+        return
+      }
+      if (id === 'file.new') {
+        const next = createUntitledPath()
+        void state.createFile(next).then(() => state.onOpenFile(next))
+        return
+      }
+      if (id === 'view.wysiwyg') state.setViewMode('wysiwyg')
+      if (id === 'view.source') state.setViewMode('source')
+      if (id === 'view.graph') state.setViewMode('graph')
+      if (id === 'view.toggle_sidebar') state.toggleSidebar()
+      if (id === 'view.toggle_right_sidebar') state.toggleRightSidebar()
+      if (id === 'theme.light') state.setTheme('light')
+      if (id === 'theme.dark') state.setTheme('dark')
+      if (id === 'theme.marko-light') state.setTheme('marko-light')
+      if (id === 'theme.marko-dark') state.setTheme('marko-dark')
+      if (id === 'help.about') {
+        window.alert('marko\nA desktop Markdown workspace with graph navigation.')
+      }
+    }
+
+    const domHandler = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail
+      if (typeof detail === 'string') handleMenuAction(detail)
+    }
+
+    window.addEventListener('marko:menu-action', domHandler)
+
+    let unlisten: (() => void) | undefined
+    if (isTauriRuntime()) {
+      void import('@tauri-apps/api/event').then(({ listen }) => {
+        void listen<string>('menu-action', (event) => {
+          handleMenuAction(event.payload)
+        }).then((fn) => {
+          unlisten = fn
+        })
+      })
+    }
+
+    return () => {
+      window.removeEventListener('marko:menu-action', domHandler)
+      if (unlisten) unlisten()
+    }
+  }, [state])
 
   return (
     <div className="app-shell flex h-full flex-col">

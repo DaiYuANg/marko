@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
-use tauri::{Listener, Manager};
+use tauri::{Emitter, Listener, Manager};
+use crate::commands::app::{app_get_platform, menu_dispatch};
 use crate::commands::fs::{
   fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers, fs_get_path_metadata,
   fs_get_root_info, fs_get_snapshot, fs_list_entries, fs_open_file, fs_read_file, fs_rename_path,
@@ -30,6 +31,7 @@ fn run_impl() {
     .manage(FsWriteQueue(Mutex::new(None)))
     .setup(|app| {
       let app_handle = app.handle();
+      commands::app::setup_native_menu(&app_handle)?;
       let app_data_dir = app_handle
         .path()
         .app_data_dir()
@@ -89,6 +91,28 @@ fn run_impl() {
       }
       Ok(())
     })
+    .on_menu_event(|app, event| {
+      let id = event.id().as_ref().to_string();
+      let forward = matches!(
+        id.as_str(),
+        "file.new"
+          | "file.open_project"
+          | "file.open_file"
+          | "view.wysiwyg"
+          | "view.source"
+          | "view.graph"
+          | "view.toggle_sidebar"
+          | "view.toggle_right_sidebar"
+          | "theme.light"
+          | "theme.dark"
+          | "theme.marko-light"
+          | "theme.marko-dark"
+          | "help.about"
+      );
+      if forward {
+        let _ = app.emit("menu-action", id);
+      }
+    })
     .on_window_event(|window, event| {
       if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
         let app = window.app_handle();
@@ -118,7 +142,9 @@ fn run_impl() {
       fs_create_file,
       fs_create_dir,
       fs_delete_path,
-      fs_rename_path
+      fs_rename_path,
+      app_get_platform,
+      menu_dispatch
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { useCallback } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
+import { useLatest } from 'ahooks'
 import type { NavigateFunction } from 'react-router-dom'
 import type { FileEntry } from '@/store/useAppStore'
 import { pathToRoute } from '@/logic/routing'
 import { useI18n } from '@/i18n/useI18n'
+import { fsApi, type FsSnapshot } from '@/services/fsApi'
+import { runInTauri } from '@/utils/tauri'
 
 type UseProjectLoaderArgs = {
   rootPath: string
@@ -22,25 +24,15 @@ type UseProjectLoaderArgs = {
   touchRecentProject: (path: string) => void
 }
 
-type FsRootInfo = {
-  kind: 'internal' | 'external' | 'single'
-  path: string
-}
-
-type FsSnapshot = {
-  root: FsRootInfo
-  entries: FileEntry[]
-}
-
 type LoadWorkspaceOptions = {
   snapshot?: FsSnapshot
 }
 
-function isFile(entry: FileEntry) {
+const isFile = (entry: FileEntry) => {
   return entry.kind === 'file'
 }
 
-function arePathListsEqual(left: string[], right: string[]) {
+const arePathListsEqual = (left: string[], right: string[]) => {
   if (left.length !== right.length) return false
   for (let index = 0; index < left.length; index += 1) {
     if (left[index] !== right[index]) return false
@@ -48,7 +40,7 @@ function arePathListsEqual(left: string[], right: string[]) {
   return true
 }
 
-function areEntriesEqual(left: FileEntry[], right: FileEntry[]) {
+const areEntriesEqual = (left: FileEntry[], right: FileEntry[]) => {
   if (left.length !== right.length) return false
   for (let index = 0; index < left.length; index += 1) {
     if (left[index].path !== right[index].path) return false
@@ -57,8 +49,8 @@ function areEntriesEqual(left: FileEntry[], right: FileEntry[]) {
   return true
 }
 
-async function fetchSnapshot() {
-  return invoke<FsSnapshot>('fs_get_snapshot')
+const fetchSnapshot = async () => {
+  return fsApi.getSnapshot()
 }
 
 export function useProjectLoader({
@@ -77,163 +69,140 @@ export function useProjectLoader({
   touchRecentProject,
 }: UseProjectLoaderArgs) {
   const { t } = useI18n()
-  const entriesRef = useRef(entries)
-  const tabsRef = useRef(tabs)
-  const activePathRef = useRef(activePath)
-  const rootPathRef = useRef(rootPath)
-  const rootKindRef = useRef(rootKind)
-  const locationPathnameRef = useRef(locationPathname)
-
-  useEffect(() => {
-    entriesRef.current = entries
-  }, [entries])
-
-  useEffect(() => {
-    tabsRef.current = tabs
-  }, [tabs])
-
-  useEffect(() => {
-    activePathRef.current = activePath
-  }, [activePath])
-
-  useEffect(() => {
-    rootPathRef.current = rootPath
-  }, [rootPath])
-
-  useEffect(() => {
-    rootKindRef.current = rootKind
-  }, [rootKind])
-
-  useEffect(() => {
-    locationPathnameRef.current = locationPathname
-  }, [locationPathname])
+  const entriesRef = useLatest(entries)
+  const tabsRef = useLatest(tabs)
+  const activePathRef = useLatest(activePath)
+  const rootPathRef = useLatest(rootPath)
+  const rootKindRef = useLatest(rootKind)
+  const locationPathnameRef = useLatest(locationPathname)
 
   const loadWorkspace = useCallback(
     async (options?: LoadWorkspaceOptions) => {
-      if (!isTauri()) return
-      const snapshot = options?.snapshot ?? (await fetchSnapshot())
-      const rootInfo = snapshot.root
-      if (rootPathRef.current !== rootInfo.path) {
-        setRootPath(rootInfo.path)
-        rootPathRef.current = rootInfo.path
-      }
-      if (rootKindRef.current !== rootInfo.kind) {
-        setRootKind(rootInfo.kind)
-        rootKindRef.current = rootInfo.kind
-      }
+      await runInTauri(async () => {
+        const snapshot = options?.snapshot ?? (await fetchSnapshot())
+        const rootInfo = snapshot.root
+        if (rootPathRef.current !== rootInfo.path) {
+          setRootPath(rootInfo.path)
+        }
+        if (rootKindRef.current !== rootInfo.kind) {
+          setRootKind(rootInfo.kind)
+        }
 
-      let nextEntries = snapshot.entries
-      if (rootInfo.kind !== 'single' && !nextEntries.some(isFile)) {
-        const fallbackName = 'Untitled.md'
-        await invoke('fs_create_file', { path: fallbackName })
-        const refreshed = await fetchSnapshot()
-        nextEntries = refreshed.entries
-        if (rootPathRef.current !== refreshed.root.path) {
-          setRootPath(refreshed.root.path)
-          rootPathRef.current = refreshed.root.path
+        let nextEntries = snapshot.entries
+        if (rootInfo.kind !== 'single' && !nextEntries.some(isFile)) {
+          const fallbackName = 'Untitled.md'
+          await fsApi.createFile(fallbackName)
+          const refreshed = await fetchSnapshot()
+          nextEntries = refreshed.entries
+          if (rootPathRef.current !== refreshed.root.path) {
+            setRootPath(refreshed.root.path)
+          }
+          if (rootKindRef.current !== refreshed.root.kind) {
+            setRootKind(refreshed.root.kind)
+          }
         }
-        if (rootKindRef.current !== refreshed.root.kind) {
-          setRootKind(refreshed.root.kind)
-          rootKindRef.current = refreshed.root.kind
-        }
-      }
 
-      if (!areEntriesEqual(entriesRef.current, nextEntries)) {
-        setEntries(nextEntries)
-        entriesRef.current = nextEntries
-      }
-      const filesOnly = nextEntries.filter(isFile)
+        if (!areEntriesEqual(entriesRef.current, nextEntries)) {
+          setEntries(nextEntries)
+        }
+        const filesOnly = nextEntries.filter(isFile)
 
-      if (filesOnly.length > 0) {
-        const available = new Set(filesOnly.map((file) => file.path))
-        const defaultPath = filesOnly[0].path
-        const nextTabs = tabsRef.current.filter((tab) => available.has(tab))
-        const finalTabs = nextTabs.length > 0 ? nextTabs : [defaultPath]
-        if (!arePathListsEqual(tabsRef.current, finalTabs)) {
-          setTabs(finalTabs)
-          tabsRef.current = finalTabs
+        if (filesOnly.length > 0) {
+          const available = new Set(filesOnly.map((file) => file.path))
+          const defaultPath = filesOnly[0].path
+          const nextTabs = tabsRef.current.filter((tab) => available.has(tab))
+          const finalTabs = nextTabs.length > 0 ? nextTabs : [defaultPath]
+          if (!arePathListsEqual(tabsRef.current, finalTabs)) {
+            setTabs(finalTabs)
+          }
+          const currentActivePath = activePathRef.current
+          const nextActive =
+            currentActivePath && available.has(currentActivePath) ? currentActivePath : defaultPath
+          if (nextActive !== currentActivePath) {
+            setActivePath(nextActive)
+          }
+          const nextRoute = pathToRoute(nextActive)
+          if (locationPathnameRef.current !== nextRoute) {
+            navigate(nextRoute, { replace: true })
+          }
         }
-        const currentActivePath = activePathRef.current
-        const nextActive = currentActivePath && available.has(currentActivePath) ? currentActivePath : defaultPath
-        if (nextActive !== currentActivePath) {
-          setActivePath(nextActive)
-          activePathRef.current = nextActive
-        }
-        const nextRoute = pathToRoute(nextActive)
-        if (locationPathnameRef.current !== nextRoute) {
-          navigate(nextRoute, { replace: true })
-        }
-      }
+      })
     },
     [
+      activePathRef,
+      entriesRef,
+      locationPathnameRef,
       navigate,
+      rootKindRef,
+      rootPathRef,
       setActivePath,
       setEntries,
       setRootKind,
       setRootPath,
       setTabs,
+      tabsRef,
     ],
   )
 
   const openFolder = useCallback(
     async (path: string) => {
-      if (!isTauri()) return
-      await invoke('fs_set_root', { path })
-      touchRecentProject(path)
+      await runInTauri(async () => {
+        await fsApi.setRoot(path)
+        touchRecentProject(path)
+      })
     },
     [touchRecentProject],
   )
 
   const onSelectFolder = useCallback(async () => {
-    if (!isTauri()) return
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t('dialog.selectProjectTitle'),
+    await runInTauri(async () => {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('dialog.selectProjectTitle'),
+      })
+      if (typeof selected === 'string') {
+        await openFolder(selected)
+      }
     })
-    if (typeof selected === 'string') {
-      await openFolder(selected)
-    }
   }, [openFolder, t])
 
   const onSelectSingleFile = useCallback(async () => {
-    if (!isTauri()) return
-    const selected = await open({
-      directory: false,
-      multiple: false,
-      title: t('dialog.selectFileTitle'),
-      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    await runInTauri(async () => {
+      const selected = await open({
+        directory: false,
+        multiple: false,
+        title: t('dialog.selectFileTitle'),
+        filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+      })
+      if (typeof selected === 'string') {
+        await fsApi.setSingleFile(selected)
+        touchRecentProject(selected)
+      }
     })
-    if (typeof selected === 'string') {
-      await invoke('fs_set_single_file', { path: selected })
-      touchRecentProject(selected)
-    }
   }, [t, touchRecentProject])
 
   const onUseInternalRoot = useCallback(async () => {
-    if (!isTauri()) return
-    await invoke('fs_set_root', { path: null })
+    await runInTauri(() => fsApi.setRoot(null))
   }, [])
 
   const createFile = useCallback(async (path: string) => {
-    if (!isTauri()) return
-    const normalized = path.endsWith('.md') || path.endsWith('.markdown') ? path : `${path}.md`
-    await invoke('fs_create_file', { path: normalized })
+    await runInTauri(async () => {
+      const normalized = path.endsWith('.md') || path.endsWith('.markdown') ? path : `${path}.md`
+      await fsApi.createFile(normalized)
+    })
   }, [])
 
   const createFolder = useCallback(async (path: string) => {
-    if (!isTauri()) return
-    await invoke('fs_create_dir', { path })
+    await runInTauri(() => fsApi.createDir(path))
   }, [])
 
   const renamePath = useCallback(async (from: string, to: string) => {
-    if (!isTauri()) return
-    await invoke('fs_rename_path', { from, to })
+    await runInTauri(() => fsApi.renamePath(from, to))
   }, [])
 
   const deletePath = useCallback(async (path: string) => {
-    if (!isTauri()) return
-    await invoke('fs_delete_path', { path })
+    await runInTauri(() => fsApi.deletePath(path))
   }, [])
 
   return {

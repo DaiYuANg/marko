@@ -19,13 +19,13 @@ type TabsBarProps = {
   onChangeView: (mode: ViewMode) => void
 }
 
-function formatTabLabel(path: string, compact: boolean) {
+const formatTabLabel = (path: string, compact: boolean) => {
   const label = createFileLabel(path)
   if (!compact || label.length <= 12) return label
   return `${label.slice(0, 11)}…`
 }
 
-function TabsBarComponent({
+const TabsBarComponent = ({
   tabs,
   dirtyPaths,
   activePath,
@@ -33,7 +33,7 @@ function TabsBarComponent({
   onCloseTab,
   viewMode,
   onChangeView,
-}: TabsBarProps) {
+}: TabsBarProps) => {
   const { t } = useI18n()
   const activeTab = activePath ?? ''
   const compact = tabs.length >= 8

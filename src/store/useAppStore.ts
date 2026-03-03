@@ -4,7 +4,7 @@ import type { Locale } from '@/i18n/resources'
 import { getInitialLocale } from '@/i18n/utils'
 
 export type ViewMode = 'wysiwyg' | 'source' | 'graph'
-export type ThemeMode = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'marko-light' | 'marko-dark'
 
 export type FileEntry = {
   path: string
@@ -74,10 +74,13 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'marko.app',
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
-        const normalizedTheme: ThemeMode = state.theme === 'dark' ? 'dark' : 'light'
+        const normalizedTheme: ThemeMode =
+          state.theme === 'dark' || state.theme === 'marko-light' || state.theme === 'marko-dark'
+            ? (state.theme as ThemeMode)
+            : 'light'
         const normalizedViewMode: ViewMode =
           state.viewMode === 'graph' || state.viewMode === 'source' ? state.viewMode : 'wysiwyg'
         return {

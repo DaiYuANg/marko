@@ -1,15 +1,27 @@
 import {
+  CircleHelp,
   FileText,
   FolderOpen,
+  GitGraph,
   Languages,
   PanelLeft,
   PanelRight,
   Palette,
+  PenLine,
   Search,
 } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { isTauri } from '@tauri-apps/api/core'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from '@/components/ui/command'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,11 +31,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ThemeMode } from '@/store/useAppStore'
 import { useI18n } from '@/i18n/useI18n'
 import type { Locale } from '@/i18n/resources'
+import { appApi, type AppPlatform } from '@/services/appApi'
+import AppMenuBar from '@/components/AppMenuBar'
+import { inferPlatformFromUserAgent, isTauriRuntime } from '@/utils/tauri'
 
 type TitlebarProps = {
   onToggleSidebar: () => void
@@ -46,12 +62,126 @@ export default function Titlebar({
   theme,
   setTheme,
 }: TitlebarProps) {
-  const getAppWindow = () => (isTauri() ? getCurrentWindow() : null)
+  const getAppWindow = () => (isTauriRuntime() ? getCurrentWindow() : null)
   const { t, locale, setLocale } = useI18n()
+  const [platform, setPlatform] = useState<AppPlatform>(inferPlatformFromUserAgent())
+  const [commandOpen, setCommandOpen] = useState(false)
   const isWindows =
     typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('windows')
-  const onOpenSearch = () => {
+  const showInlineMenu = platform === 'windows' || platform === 'linux'
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return
+    void appApi
+      .getPlatform()
+      .then((next) => setPlatform(next))
+      .catch(() => {})
+  }, [])
+  useEffect(() => {
+    const onHotkey = (event: KeyboardEvent) => {
+      const withCommand = event.ctrlKey || event.metaKey
+      if (!withCommand || event.key.toLowerCase() !== 'p') return
+      event.preventDefault()
+      setCommandOpen(true)
+    }
+    window.addEventListener('keydown', onHotkey)
+    return () => {
+      window.removeEventListener('keydown', onHotkey)
+    }
+  }, [])
+
+  const menuGroups = useMemo(
+    () => [
+      {
+        label: 'File',
+        items: [
+          { id: 'file.new', label: 'New File' },
+          { id: 'file.open_project', label: t('actions.openProject') },
+          { id: 'file.open_file', label: t('actions.openFile') },
+        ],
+      },
+      {
+        label: 'Edit',
+        items: [
+          { id: 'edit.undo', label: 'Undo' },
+          { id: 'edit.redo', label: 'Redo' },
+          { id: 'edit.cut', label: 'Cut' },
+          { id: 'edit.copy', label: 'Copy' },
+          { id: 'edit.paste', label: 'Paste' },
+          { id: 'edit.select_all', label: 'Select All' },
+        ],
+      },
+      {
+        label: 'View',
+        items: [
+          { id: 'view.wysiwyg', label: t('editor.modeWysiwyg') },
+          { id: 'view.source', label: t('editor.modeSource') },
+          { id: 'view.graph', label: t('tabs.workspaceGraph') },
+          { id: 'view.toggle_sidebar', label: t('actions.toggleSidebar') },
+          { id: 'view.toggle_right_sidebar', label: t('actions.toggleRightSidebar') },
+        ],
+      },
+      {
+        label: 'Theme',
+        items: [
+          { id: 'theme.light', label: t('theme.light') },
+          { id: 'theme.dark', label: t('theme.dark') },
+          { id: 'theme.marko-light', label: t('theme.markoLight') },
+          { id: 'theme.marko-dark', label: t('theme.markoDark') },
+        ],
+      },
+      {
+        label: 'Help',
+        items: [{ id: 'help.about', label: 'About marko' }],
+      },
+    ],
+    [t],
+  )
+
+  const onMenuAction = (id: string) => {
+    if (!isTauriRuntime()) return
+    void appApi.menuDispatch(id)
+  }
+  const onFocusFileSearch = () => {
     window.dispatchEvent(new CustomEvent('marko:focus-file-search'))
+  }
+  const onOpenSearch = () => {
+    setCommandOpen(true)
+  }
+  const onCommandAction = (id: string) => {
+    setCommandOpen(false)
+    if (id === 'file.open_project') {
+      onSelectProject()
+      return
+    }
+    if (id === 'file.open_file') {
+      onSelectSingleFile()
+      return
+    }
+    if (id === 'view.toggle_sidebar') {
+      onToggleSidebar()
+      return
+    }
+    if (id === 'view.toggle_right_sidebar') {
+      onToggleRightSidebar()
+      return
+    }
+    if (id === 'view.focus_file_search') {
+      onFocusFileSearch()
+      return
+    }
+    if (
+      id === 'theme.light' ||
+      id === 'theme.dark' ||
+      id === 'theme.marko-light' ||
+      id === 'theme.marko-dark'
+    ) {
+      setTheme(id as ThemeMode)
+      return
+    }
+    if (id === 'help.about') {
+      onMenuAction(id)
+    }
   }
 
   return (
@@ -81,21 +211,25 @@ export default function Titlebar({
               {t('titlebar.subtitle')}
             </div>
           </div>
+          {showInlineMenu && <AppMenuBar groups={menuGroups} onAction={onMenuAction} />}
         </div>
         <div className="mx-2 hidden flex-1 items-center justify-center md:flex">
-          <button
+          <Button
             type="button"
-            className="h-7 w-full max-w-sm rounded-lg border border-border/80 bg-muted/40 px-3 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-full max-w-sm justify-start rounded-lg border border-border/80 bg-muted/40 px-3 text-left text-xs text-muted-foreground hover:bg-muted/70"
             onClick={onOpenSearch}
           >
             <span className="inline-flex items-center gap-2">
               <Search className="h-3.5 w-3.5" />
               <span>{t('sidebar.search')}</span>
-              <span className="ml-auto rounded border border-border/70 px-1.5 py-0.5 text-[10px]">
-                Ctrl+P
-              </span>
+              <KbdGroup className="ml-auto">
+                <Kbd>{isWindows ? 'Ctrl' : 'Cmd'}</Kbd>
+                <Kbd>P</Kbd>
+              </KbdGroup>
             </span>
-          </button>
+          </Button>
         </div>
         <div className="flex items-center gap-0.5">
           <Tooltip>
@@ -153,12 +287,32 @@ export default function Titlebar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuLabel>{t('menu.theme')}</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                {t('theme.groupShadcn')}
+              </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={theme}
                 onValueChange={(value) => setTheme(value as ThemeMode)}
               >
                 <DropdownMenuRadioItem value="light">{t('theme.light')}</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">{t('theme.dark')}</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                {t('theme.groupMarko')}
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={theme}
+                onValueChange={(value) => setTheme(value as ThemeMode)}
+              >
+                <DropdownMenuRadioItem value="marko-light">
+                  <PenLine className="mr-1 h-3.5 w-3.5" />
+                  {t('theme.markoLight')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="marko-dark">
+                  <GitGraph className="mr-1 h-3.5 w-3.5" />
+                  {t('theme.markoDark')}
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{t('menu.language')}</DropdownMenuLabel>
@@ -175,6 +329,16 @@ export default function Titlebar({
                   {t('language.en')}
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => onMenuAction('help.about')}
+              >
+                <CircleHelp className="mr-2 h-3.5 w-3.5" />
+                About marko
+              </Button>
             </DropdownMenuContent>
           </DropdownMenu>
           <Tooltip>
@@ -193,6 +357,59 @@ export default function Titlebar({
           </Tooltip>
         </div>
       </TooltipProvider>
+      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <CommandInput placeholder={t('sidebar.search')} />
+        <CommandList>
+          <CommandEmpty>{t('center.noFile')}</CommandEmpty>
+          <CommandGroup heading="File">
+            <CommandItem onSelect={() => onCommandAction('file.open_project')}>
+              <FolderOpen className="h-4 w-4" />
+              {t('actions.openProject')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('file.open_file')}>
+              <FileText className="h-4 w-4" />
+              {t('actions.openFile')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('view.focus_file_search')}>
+              <Search className="h-4 w-4" />
+              {t('sidebar.searchAction')}
+            </CommandItem>
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="View">
+            <CommandItem onSelect={() => onCommandAction('view.toggle_sidebar')}>
+              <PanelLeft className="h-4 w-4" />
+              {t('actions.toggleSidebar')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('view.toggle_right_sidebar')}>
+              <PanelRight className="h-4 w-4" />
+              {t('actions.toggleRightSidebar')}
+            </CommandItem>
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading={t('menu.theme')}>
+            <CommandItem onSelect={() => onCommandAction('theme.light')}>
+              {t('theme.light')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('theme.dark')}>
+              {t('theme.dark')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('theme.marko-light')}>
+              {t('theme.markoLight')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('theme.marko-dark')}>
+              {t('theme.markoDark')}
+            </CommandItem>
+          </CommandGroup>
+          <CommandSeparator />
+          <CommandGroup heading="Help">
+            <CommandItem onSelect={() => onCommandAction('help.about')}>
+              <CircleHelp className="h-4 w-4" />
+              About marko
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
       <div className="window-controls flex items-center">
         <Separator orientation="vertical" className="mr-1 h-6" />
         <Button

@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import { LanguageDescription, LanguageSupport, StreamLanguage } from '@codemirror/language'
 import { Crepe } from '@milkdown/crepe'
+import { codeBlockConfig } from '@milkdown/kit/component/code-block'
 import { editorViewCtx, parserCtx } from '@milkdown/kit/core'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { Slice } from '@milkdown/kit/prose/model'
 import { Selection } from '@milkdown/kit/prose/state'
+import mermaid from 'mermaid'
 
 type MarkdownEditorProps = {
   value: string
@@ -11,8 +14,61 @@ type MarkdownEditorProps = {
 }
 
 const THROTTLE_MS = 200
+const MERMAID_ALIASES = new Set(['mermaid', 'mmd'])
+let mermaidRenderSequence = 0
 
-function createThrottledEmitter(onChange: (value: string) => void) {
+const mermaidSupport = new LanguageSupport(
+  StreamLanguage.define({
+    token: (stream) => {
+      stream.skipToEnd()
+      return null
+    },
+  }),
+)
+
+const mermaidLanguage = LanguageDescription.of({
+  name: 'Mermaid',
+  alias: ['mermaid', 'mmd'],
+  extensions: ['mmd', 'mermaid'],
+  support: mermaidSupport,
+})
+
+const hasMermaidLanguage = (language: LanguageDescription) => {
+  if (language.name.toLowerCase() === 'mermaid') return true
+  return language.alias.some((alias) => MERMAID_ALIASES.has(alias.toLowerCase()))
+}
+
+const ensureMermaidLanguage = (languages: LanguageDescription[]) => {
+  if (languages.some(hasMermaidLanguage)) return languages
+  return [...languages, mermaidLanguage]
+}
+
+const isMermaidLanguage = (language: string) => {
+  return MERMAID_ALIASES.has(language.trim().toLowerCase())
+}
+
+const resolveMermaidTheme = () => {
+  const theme = document.documentElement.dataset.theme?.toLowerCase() ?? ''
+  if (theme.includes('dark')) return 'dark'
+  if (theme.includes('light')) return 'default'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+const escapeHtml = (value: string) => {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+const createThrottledEmitter = (onChange: (value: string) => void) => {
   let lastCall = 0
   let timer: number | null = null
   let pending: string | null = null
@@ -74,6 +130,41 @@ export default function MarkdownEditor({ value, onChange }: MarkdownEditorProps)
           if (markdown === latestValue.current) return
           emitChangeRef.current(markdown)
         })
+
+        ctx.update(codeBlockConfig.key, (prev) => ({
+          ...prev,
+          languages: ensureMermaidLanguage(prev.languages),
+          renderPreview: (language, content, applyPreview) => {
+            if (!isMermaidLanguage(language)) {
+              return prev.renderPreview(language, content, applyPreview)
+            }
+
+            const source = content.trim()
+            if (!source) return null
+
+            const currentRender = ++mermaidRenderSequence
+            mermaid.initialize({
+              startOnLoad: false,
+              securityLevel: 'strict',
+              theme: resolveMermaidTheme(),
+            })
+
+            void mermaid
+              .render(`marko-mermaid-${currentRender}`, source)
+              .then((result) => {
+                if (currentRender !== mermaidRenderSequence) return
+                const preview = document.createElement('div')
+                preview.className = 'milkdown-mermaid-preview'
+                preview.innerHTML = result.svg
+                applyPreview(preview)
+              })
+              .catch((error) => {
+                if (currentRender !== mermaidRenderSequence) return
+                const message = escapeHtml(getErrorMessage(error))
+                applyPreview(`<pre class="milkdown-mermaid-error">${message}</pre>`)
+              })
+          },
+        }))
       })
       .use(listener)
 

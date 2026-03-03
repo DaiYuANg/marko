@@ -4,7 +4,7 @@ import EditorPage from '@/pages/EditorPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { pathToRoute, routeToPath } from '@/logic/routing'
 
-function EditorRoute() {
+const EditorRoute = () => {
   const params = useParams()
   const routeSegment = params['*']
   const { activePath, editorValue, onEditorChange, files, onOpenFile, graph, currentView } =

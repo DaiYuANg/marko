@@ -6,19 +6,9 @@ import { pathToRoute, routeToPath } from '@/logic/routing'
 import { useProjectLoader } from '@/app/useProjectLoader'
 import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
+import { fsSnapshotSchema } from '@/services/fsApi'
 
 export function useAppLayoutState() {
-  type FsSnapshot = {
-    root: {
-      kind: 'internal' | 'external' | 'single'
-      path: string
-    }
-    entries: Array<{
-      path: string
-      kind: 'file' | 'folder'
-    }>
-  }
-
   const rootPath = useAppStore((s) => s.rootPath)
   const rootKind = useAppStore((s) => s.rootKind)
   const recentProjects = useAppStore((s) => s.recentProjects)
@@ -126,9 +116,11 @@ export function useAppLayoutState() {
     let unlisten: (() => void) | undefined
     const setup = async () => {
       const { listen } = await import('@tauri-apps/api/event')
-      unlisten = await listen<FsSnapshot>('fs-changed', (event) => {
+      unlisten = await listen<unknown>('fs-changed', (event) => {
+        const parsed = fsSnapshotSchema.safeParse(event.payload)
+        if (!parsed.success) return
         void loadWorkspace({
-          snapshot: event.payload,
+          snapshot: parsed.data,
         })
       })
     }

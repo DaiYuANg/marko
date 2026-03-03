@@ -2,11 +2,104 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import '@milkdown/crepe/theme/common/style.css';
-@import '@milkdown/crepe/theme/nord.css';
 @plugin 'tailwindcss-animate';
 
 @layer base {
   :root {
+    color-scheme: light;
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    --radius: 0.5rem;
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --sidebar: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  :root[data-theme='marko-light'] {
     color-scheme: light;
     --background: 210 33% 98%;
     --foreground: 224 22% 14%;
@@ -38,38 +131,7 @@
     --radius: 0.75rem;
   }
 
-  :root[data-theme='light'] {
-    color-scheme: light;
-    --background: 210 33% 98%;
-    --foreground: 224 22% 14%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 22% 14%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 22% 14%;
-    --primary: 205 82% 43%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 214 35% 94%;
-    --secondary-foreground: 224 22% 14%;
-    --muted: 210 30% 94%;
-    --muted-foreground: 218 13% 43%;
-    --accent: 198 73% 92%;
-    --accent-foreground: 210 50% 25%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 214 28% 86%;
-    --input: 214 28% 86%;
-    --ring: 205 82% 43%;
-    --sidebar: 210 36% 97%;
-    --sidebar-foreground: 220 21% 18%;
-    --sidebar-primary: 205 82% 43%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 200 65% 92%;
-    --sidebar-accent-foreground: 211 48% 25%;
-    --sidebar-border: 214 28% 86%;
-    --sidebar-ring: 205 82% 43%;
-  }
-
-  :root[data-theme='dark'] {
+  :root[data-theme='marko-dark'] {
     color-scheme: dark;
     --background: 220 22% 10%;
     --foreground: 210 20% 94%;
@@ -98,6 +160,7 @@
     --sidebar-accent-foreground: 190 100% 93%;
     --sidebar-border: 219 15% 26%;
     --sidebar-ring: 198 84% 58%;
+    --radius: 0.75rem;
   }
 
   html,
@@ -115,18 +178,14 @@
 }
 
 .app-shell {
-  background:
-    radial-gradient(1100px 650px at 90% -10%, hsl(198 80% 88% / 0.45), transparent 65%),
-    radial-gradient(800px 550px at -20% 100%, hsl(210 70% 92% / 0.55), transparent 60%),
-    hsl(var(--background));
+  background: hsl(var(--background));
 }
 
 .panel-surface {
-  border-radius: calc(var(--radius) + 0.1rem);
-  background: color-mix(in srgb, hsl(var(--background)) 88%, white 12%);
-  box-shadow:
-    0 10px 34px -25px rgba(15, 23, 42, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
   transition:
     background-color 170ms ease,
     border-color 170ms ease,
@@ -143,15 +202,33 @@
     box-shadow 180ms ease;
 }
 
-:root[data-theme='dark'] .app-shell {
+:root[data-theme='marko-light'] .app-shell {
+  background:
+    radial-gradient(1100px 650px at 90% -10%, hsl(198 80% 88% / 0.45), transparent 65%),
+    radial-gradient(800px 550px at -20% 100%, hsl(210 70% 92% / 0.55), transparent 60%),
+    hsl(var(--background));
+}
+
+:root[data-theme='marko-light'] .panel-surface {
+  border-radius: calc(var(--radius) + 0.1rem);
+  background: color-mix(in srgb, hsl(var(--background)) 88%, white 12%);
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 10px 34px -25px rgba(15, 23, 42, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+:root[data-theme='marko-dark'] .app-shell {
   background:
     radial-gradient(1000px 600px at 90% -10%, hsl(204 70% 26% / 0.35), transparent 65%),
     radial-gradient(780px 520px at -10% 100%, hsl(225 48% 20% / 0.4), transparent 62%),
     hsl(var(--background));
 }
 
-:root[data-theme='dark'] .panel-surface {
+:root[data-theme='marko-dark'] .panel-surface {
+  border-radius: calc(var(--radius) + 0.1rem);
   background: color-mix(in srgb, hsl(var(--background)) 86%, hsl(221 18% 18%) 14%);
+  border: 1px solid hsl(var(--border));
   box-shadow:
     0 12px 32px -26px rgba(3, 7, 18, 0.85),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -193,6 +270,127 @@
 .crepe,
 .crepe .milkdown {
   min-height: 100%;
+}
+
+.crepe .milkdown {
+  --crepe-color-background: hsl(var(--background));
+  --crepe-color-on-background: hsl(var(--foreground));
+  --crepe-color-surface: hsl(var(--card));
+  --crepe-color-surface-low: color-mix(in srgb, hsl(var(--muted)) 80%, hsl(var(--background)));
+  --crepe-color-on-surface: hsl(var(--card-foreground));
+  --crepe-color-on-surface-variant: hsl(var(--muted-foreground));
+  --crepe-color-outline: hsl(var(--border));
+  --crepe-color-primary: hsl(var(--primary));
+  --crepe-color-secondary: hsl(var(--secondary));
+  --crepe-color-on-secondary: hsl(var(--secondary-foreground));
+  --crepe-color-inverse: hsl(var(--foreground));
+  --crepe-color-on-inverse: hsl(var(--background));
+  --crepe-color-inline-code: hsl(var(--destructive));
+  --crepe-color-error: hsl(var(--destructive));
+  --crepe-color-hover: color-mix(in srgb, hsl(var(--accent)) 78%, hsl(var(--background)));
+  --crepe-color-selected: color-mix(in srgb, hsl(var(--accent)) 92%, hsl(var(--background)));
+  --crepe-color-inline-area: hsl(var(--input));
+  --crepe-font-title: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-default: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --crepe-shadow-1: 0 1px 2px rgba(2, 8, 23, 0.12), 0 1px 3px rgba(2, 8, 23, 0.08);
+  --crepe-shadow-2: 0 6px 18px rgba(2, 8, 23, 0.16), 0 2px 6px rgba(2, 8, 23, 0.1);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--background));
+}
+
+.crepe .milkdown .ProseMirror {
+  color: hsl(var(--foreground));
+}
+
+.crepe .milkdown .milkdown-toolbar,
+.crepe .milkdown .milkdown-link-preview > .link-preview,
+.crepe .milkdown .milkdown-link-edit > .link-edit,
+.crepe .milkdown .milkdown-slash-menu,
+.crepe .milkdown .milkdown-code-block .list-wrapper {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 10px 24px -18px rgba(2, 8, 23, 0.45);
+}
+
+.crepe .milkdown .milkdown-toolbar .toolbar-item,
+.crepe .milkdown .milkdown-block-handle .operation-item,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .button,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .link-icon,
+.crepe .milkdown .milkdown-link-edit > .link-edit > .button {
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.crepe .milkdown .milkdown-toolbar .toolbar-item:hover,
+.crepe .milkdown .milkdown-block-handle .operation-item:hover,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .button:hover,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .link-icon:hover,
+.crepe .milkdown .milkdown-link-edit > .link-edit > .button:hover,
+.crepe .milkdown .milkdown-slash-menu .menu-groups .menu-group li.hover,
+.crepe .milkdown .milkdown-slash-menu .menu-groups .menu-group li.active {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.crepe .milkdown .milkdown-link-edit > .link-edit > .input-area {
+  color: hsl(var(--foreground));
+}
+
+.crepe .milkdown .milkdown-code-block {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+}
+
+.crepe .milkdown .milkdown-code-block .tools .language-button,
+.crepe .milkdown .milkdown-code-block .tools .tools-button-group button {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+.crepe .milkdown .milkdown-code-block .tools .language-button:hover,
+.crepe .milkdown .milkdown-code-block .tools .tools-button-group button:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.crepe .milkdown .milkdown-code-block .search-box {
+  border-radius: calc(var(--radius) - 4px);
+  outline: 1px solid hsl(var(--ring));
+}
+
+.crepe .milkdown .milkdown-code-block .search-box:has(input:focus) {
+  outline: 2px solid hsl(var(--ring));
+}
+
+.crepe .milkdown .milkdown-mermaid-preview {
+  border-top: 1px dashed hsl(var(--border));
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.crepe .milkdown .milkdown-mermaid-preview svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.crepe .milkdown .milkdown-mermaid-error {
+  margin: 0;
+  border-top: 1px dashed hsl(var(--border));
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--destructive));
+  background: color-mix(in srgb, hsl(var(--destructive)) 8%, hsl(var(--card)));
 }
 
 .playground-cm .cm-editor,

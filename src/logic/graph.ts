@@ -69,7 +69,10 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
           data: { label: heading.text, subtitle: `H${heading.level}` },
           position: { x: 0, y: 0 },
         })
-        while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= heading.level) {
+        while (
+          headingStack.length > 0 &&
+          headingStack[headingStack.length - 1].level >= heading.level
+        ) {
           headingStack.pop()
         }
         const parentId = headingStack[headingStack.length - 1]?.id ?? sourceId
@@ -159,7 +162,7 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
   return { nodes, edges }
 }
 
-function applyGraphLayout(nodes: Node[], edges: Edge[]) {
+const applyGraphLayout = (nodes: Node[], edges: Edge[]) => {
   const nodeIds = new Set(nodes.map((node) => node.id))
   const levels = buildHierarchyLevels(nodes, edges, nodeIds)
   const positioned = buildInitialLayout(nodes, levels)
@@ -177,7 +180,7 @@ function applyGraphLayout(nodes: Node[], edges: Edge[]) {
   })
 }
 
-function buildHierarchyLevels(nodes: Node[], edges: Edge[], nodeIds: Set<string>) {
+const buildHierarchyLevels = (nodes: Node[], edges: Edge[], nodeIds: Set<string>) => {
   const incomingCount = new Map<string, number>()
   const outgoing = new Map<string, string[]>()
   const levels = new Map<string, number>()
@@ -229,7 +232,7 @@ function buildHierarchyLevels(nodes: Node[], edges: Edge[], nodeIds: Set<string>
   return levels
 }
 
-function buildInitialLayout(nodes: Node[], levels: Map<string, number>): LayoutNode[] {
+const buildInitialLayout = (nodes: Node[], levels: Map<string, number>): LayoutNode[] => {
   const levelBuckets = new Map<number, LayoutNode[]>()
 
   nodes.forEach((node) => {
@@ -269,7 +272,7 @@ function buildInitialLayout(nodes: Node[], levels: Map<string, number>): LayoutN
   return sortedLevels.flatMap((level) => levelBuckets.get(level) ?? [])
 }
 
-function runForceRelaxation(nodes: LayoutNode[], edges: Edge[]) {
+const runForceRelaxation = (nodes: LayoutNode[], edges: Edge[]) => {
   const idToIndex = new Map<string, number>()
   nodes.forEach((node, index) => idToIndex.set(node.id, index))
 
@@ -333,7 +336,7 @@ function runForceRelaxation(nodes: LayoutNode[], edges: Edge[]) {
   }
 }
 
-function normalizeLayout(nodes: LayoutNode[]) {
+const normalizeLayout = (nodes: LayoutNode[]) => {
   if (nodes.length === 0) return
   let minX = Number.POSITIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
@@ -349,14 +352,14 @@ function normalizeLayout(nodes: LayoutNode[]) {
   })
 }
 
-function classifyNodeKind(node: Node): NodeKind {
+const classifyNodeKind = (node: Node): NodeKind => {
   if (node.id.startsWith('file:')) return 'file'
   if (node.type === 'heading' || node.id.startsWith('heading:')) return 'heading'
   if (node.type === 'external' || node.id.startsWith('ext:')) return 'external'
   return 'missing'
 }
 
-function nodeKindWeight(kind: NodeKind) {
+const nodeKindWeight = (kind: NodeKind) => {
   if (kind === 'file') return 0
   if (kind === 'heading') return 1
   if (kind === 'missing') return 2

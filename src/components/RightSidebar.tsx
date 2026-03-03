@@ -1,4 +1,3 @@
-import { invoke, isTauri } from '@tauri-apps/api/core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,6 +16,8 @@ import {
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileLabel } from '@/logic/paths'
 import type { ViewMode } from '@/store/useAppStore'
+import { fsApi, type FsPathMetadata } from '@/services/fsApi'
+import { isTauriRuntime } from '@/utils/tauri'
 
 type RightSidebarProps = {
   collapsed: boolean
@@ -30,16 +31,7 @@ type RightSidebarProps = {
   onChangeView: (mode: ViewMode) => void
 }
 
-type FsPathMetadata = {
-  path: string
-  absolute_path: string
-  kind: string
-  size_bytes: number
-  modified_ms: number | null
-  readonly: boolean
-}
-
-function formatBytes(size: number) {
+const formatBytes = (size: number) => {
   if (!Number.isFinite(size) || size <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
   let value = size
@@ -51,7 +43,7 @@ function formatBytes(size: number) {
   return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
-function RightSidebarComponent({
+const RightSidebarComponent = ({
   collapsed,
   activePath,
   inspectedPath,
@@ -61,9 +53,9 @@ function RightSidebarComponent({
   onOpenFile,
   viewMode,
   onChangeView,
-}: RightSidebarProps) {
+}: RightSidebarProps) => {
   const { t } = useI18n()
-  const tauriAvailable = isTauri()
+  const tauriAvailable = isTauriRuntime()
   const [metadata, setMetadata] = useState<FsPathMetadata | null>(null)
   const [resolvedMetadataPath, setResolvedMetadataPath] = useState<string | null>(null)
   const loadIdRef = useRef(0)
@@ -113,7 +105,8 @@ function RightSidebarComponent({
 
     loadIdRef.current += 1
     const currentLoadId = loadIdRef.current
-    void invoke<FsPathMetadata>('fs_get_path_metadata', { path: targetPath })
+    void fsApi
+      .getPathMetadata(targetPath)
       .then((next) => {
         if (currentLoadId !== loadIdRef.current) return
         setMetadata(next)

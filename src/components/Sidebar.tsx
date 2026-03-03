@@ -75,7 +75,7 @@ type ContextLabels = {
   deleteFolderConfirm: string
 }
 
-function filterTree(nodes: FileTreeNode[], query: string): FileTreeNode[] {
+const filterTree = (nodes: FileTreeNode[], query: string): FileTreeNode[] => {
   const normalized = query.trim().toLowerCase()
   if (!normalized) return nodes
 
@@ -94,7 +94,11 @@ function filterTree(nodes: FileTreeNode[], query: string): FileTreeNode[] {
     .filter((node): node is FileTreeNode => node !== null)
 }
 
-function flattenTree(nodes: FileTreeNode[], depth: number, openDirs: Set<string>): FlatTreeNode[] {
+const flattenTree = (
+  nodes: FileTreeNode[],
+  depth: number,
+  openDirs: Set<string>,
+): FlatTreeNode[] => {
   const result: FlatTreeNode[] = []
   nodes.forEach((node) => {
     result.push({ node, depth })
@@ -120,7 +124,7 @@ type TreeRowProps = {
   onInspectPath: (path: string) => void
 }
 
-function TreeRow({
+const TreeRow = ({
   index,
   style,
   ariaAttributes,
@@ -144,7 +148,7 @@ function TreeRow({
     'aria-setsize': number
     role: 'listitem'
   }
-} & TreeRowProps) {
+} & TreeRowProps) => {
   const { node, depth } = flattened[index]
   const isFolder = node.type === 'folder'
   const isOpen = isFolder && openDirs.has(node.path)
@@ -344,18 +348,9 @@ const SidebarComponent = ({
       filterInputRef.current?.select()
     }
 
-    const onHotkey = (event: KeyboardEvent) => {
-      const withCommand = event.ctrlKey || event.metaKey
-      if (!withCommand || event.key.toLowerCase() !== 'p') return
-      event.preventDefault()
-      focusFilter()
-    }
-
     window.addEventListener('marko:focus-file-search', focusFilter as EventListener)
-    window.addEventListener('keydown', onHotkey)
     return () => {
       window.removeEventListener('marko:focus-file-search', focusFilter as EventListener)
-      window.removeEventListener('keydown', onHotkey)
     }
   }, [])
 
@@ -366,6 +361,10 @@ const SidebarComponent = ({
       else next.add(path)
       return next
     })
+  }
+  const focusFilterInput = () => {
+    filterInputRef.current?.focus()
+    filterInputRef.current?.select()
   }
 
   return (
@@ -398,8 +397,7 @@ const SidebarComponent = ({
                   size="icon"
                   className="h-8 w-8 rounded-lg"
                   onClick={() => {
-                    filterInputRef.current?.focus()
-                    filterInputRef.current?.select()
+                    focusFilterInput()
                   }}
                 >
                   <FileSearch className="h-4 w-4" />
@@ -408,9 +406,15 @@ const SidebarComponent = ({
               <TooltipContent>{t('sidebar.searchAction')}</TooltipContent>
             </Tooltip>
             <div className="ml-auto">
-              <Badge variant="secondary" className="rounded-md px-1.5 text-[10px]">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 rounded-md px-1.5 text-[10px] hover:cursor-pointer"
+                onClick={focusFilterInput}
+                aria-label={t('sidebar.searchAction')}
+              >
                 {fileCount}
-              </Badge>
+              </Button>
             </div>
           </div>
         </TooltipProvider>
