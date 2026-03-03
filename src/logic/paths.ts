@@ -58,3 +58,17 @@ export function extractLinks(content: string) {
 
   return links
 }
+
+export function extractHeadings(content: string) {
+  const headings: Array<{ level: number; text: string }> = []
+  const headingRegex = /^(#{1,6})\s+(.+)$/gm
+  let match = headingRegex.exec(content)
+  while (match) {
+    headings.push({
+      level: match[1].length,
+      text: match[2].trim(),
+    })
+    match = headingRegex.exec(content)
+  }
+  return headings
+}

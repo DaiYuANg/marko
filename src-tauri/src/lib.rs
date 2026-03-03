@@ -1,15 +1,20 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
 use tauri::{Listener, Manager};
-use crate::commands::fs::{fs_create_dir, fs_create_file, fs_delete_path, fs_get_root_info, fs_get_snapshot, fs_list_entries, fs_read_file, fs_rename_path, fs_set_root, fs_write_file};
+use crate::commands::fs::{
+  fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers, fs_get_path_metadata,
+  fs_get_root_info, fs_get_snapshot, fs_list_entries, fs_open_file, fs_read_file, fs_rename_path,
+  fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
+};
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
 
 mod commands;
 mod models;
 mod state;
 
-use crate::state::{FsState, FsStateData, FsWatcherState, FsWriteQueue};
+use crate::state::{FsBufferState, FsState, FsStateData, FsWatcherState, FsWriteQueue};
 
 fn run_impl() {
   tauri::Builder::default()
@@ -17,8 +22,10 @@ fn run_impl() {
       root_kind: "internal".to_string(),
       root_path: PathBuf::new(),
       internal_root: PathBuf::new(),
+      single_file: None,
     })))
     .manage(FsWatcherState(Mutex::new(None)))
+    .manage(FsBufferState(Mutex::new(HashMap::new())))
     // new write queue state; worker will be spawned during setup below
     .manage(FsWriteQueue(Mutex::new(None)))
     .setup(|app| {
@@ -43,6 +50,7 @@ fn run_impl() {
       ) {
         commands::fs::start_fs_watcher(&app_handle, &state, &watcher_state)?;
       }
+      commands::fs::start_buffer_flush_worker(&app_handle);
 
       // -------------------------------------------------------------
       // spawn the background write worker and register its sender
@@ -81,6 +89,16 @@ fn run_impl() {
       }
       Ok(())
     })
+    .on_window_event(|window, event| {
+      if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+        let app = window.app_handle();
+        if let (Some(state), Some(buffer_state)) =
+          (app.try_state::<FsState>(), app.try_state::<FsBufferState>())
+        {
+          let _ = commands::fs::flush_all_buffers(&state, &buffer_state);
+        }
+      }
+    })
     .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
       list_markdown_files,
@@ -89,8 +107,13 @@ fn run_impl() {
       fs_get_root_info,
       fs_get_snapshot,
       fs_set_root,
+      fs_set_single_file,
       fs_list_entries,
       fs_read_file,
+      fs_open_file,
+      fs_update_buffer,
+      fs_flush_buffers,
+      fs_get_path_metadata,
       fs_write_file,
       fs_create_file,
       fs_create_dir,

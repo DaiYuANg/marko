@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
-const SAVE_DEBOUNCE_MS = 600
+const BUFFER_SYNC_DEBOUNCE_MS = 140
 
 type UseEditorBufferArgs = {
   activePath: string | null
@@ -11,67 +11,93 @@ type UseEditorBufferArgs = {
 export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArgs) {
   const [fileContents, setFileContents] = useState<Record<string, string>>({})
   const [editorValue, setEditorValue] = useState('')
-  const saveTimer = useRef<number | null>(null)
-  const lastActiveRef = useRef<string | null>(null)
-  const editorRef = useRef<string>('')
-  const bufferRef = useRef<Record<string, string>>({})
+  const fileContentsRef = useRef<Record<string, string>>({})
+  const activePathRef = useRef<string | null>(activePath)
+  const syncTimers = useRef<Record<string, number>>({})
+  const loadToken = useRef(0)
 
   useEffect(() => {
-    if (!activePath) return
-    const content = fileContents[activePath] ?? ''
-    if (lastActiveRef.current !== activePath) {
-      lastActiveRef.current = activePath
-      editorRef.current = bufferRef.current[activePath] ?? content
-      bufferRef.current[activePath] = editorRef.current
-      setEditorValue(editorRef.current)
-    }
-  }, [activePath, fileContents])
+    fileContentsRef.current = fileContents
+  }, [fileContents])
 
   useEffect(() => {
-    lastActiveRef.current = null
-    bufferRef.current = {}
+    activePathRef.current = activePath
+  }, [activePath])
+
+  useEffect(() => {
+    if (!isTauri()) return
+    Object.values(syncTimers.current).forEach((timer) => window.clearTimeout(timer))
+    syncTimers.current = {}
+    setEditorValue('')
+    setFileContents({})
+    fileContentsRef.current = {}
+    loadToken.current += 1
+    void invoke('fs_flush_buffers').catch((error) => {
+      console.error('flush buffers on workspace switch failed', error)
+    })
   }, [workspaceKey])
 
-  const onEditorChange = useCallback(
-    (value: string) => {
-      if (!activePath) return
-      editorRef.current = value
-      bufferRef.current[activePath] = value
-    },
-    [activePath],
-  )
+  useEffect(() => {
+    if (!activePath) {
+      setEditorValue('')
+      return
+    }
+    const cached = fileContentsRef.current[activePath]
+    setEditorValue(cached ?? '')
+    if (!isTauri()) {
+      return
+    }
+
+    const token = loadToken.current + 1
+    loadToken.current = token
+    void invoke<string>('fs_open_file', { path: activePath })
+      .then((content) => {
+        if (loadToken.current !== token) return
+        setFileContents((prev) => {
+          if (prev[activePath] === content) return prev
+          return { ...prev, [activePath]: content }
+        })
+        if (activePathRef.current === activePath) {
+          setEditorValue(content)
+        }
+      })
+      .catch((error) => {
+        console.error('open file failed', error)
+      })
+  }, [activePath])
 
   useEffect(() => {
-    if (!activePath || !isTauri()) return
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current)
-    }
-    saveTimer.current = window.setTimeout(async () => {
-      const content = bufferRef.current[activePath] ?? editorRef.current
-
-      // if file already has same content, skip writing
-      setFileContents((prev) => {
-        if (prev[activePath] === content) return prev
-        return { ...prev, [activePath]: content }
-      })
-      const existing = fileContents[activePath]
-      if (existing !== undefined && existing === content) {
-        return
-      }
-
-      try {
-        await invoke('fs_write_file', { path: activePath, content })
-      } catch (err) {
-        console.error('write failed', err)
-        // optional: show a toast or UI indicator
-      }
-    }, SAVE_DEBOUNCE_MS)
     return () => {
-      if (saveTimer.current) {
-        window.clearTimeout(saveTimer.current)
+      Object.values(syncTimers.current).forEach((timer) => window.clearTimeout(timer))
+      syncTimers.current = {}
+      if (isTauri()) {
+        void invoke('fs_flush_buffers').catch((error) => {
+          console.error('flush buffers on unmount failed', error)
+        })
       }
     }
-  }, [activePath, fileContents])
+  }, [])
+
+  const onEditorChange = useCallback((value: string) => {
+    const path = activePathRef.current
+    if (!path) return
+
+    setEditorValue(value)
+    setFileContents((prev) => ({ ...prev, [path]: value }))
+
+    if (!isTauri()) return
+    const currentTimer = syncTimers.current[path]
+    if (currentTimer) {
+      window.clearTimeout(currentTimer)
+    }
+    syncTimers.current[path] = window.setTimeout(() => {
+      const latestValue = fileContentsRef.current[path] ?? value
+      void invoke('fs_update_buffer', { path, content: latestValue }).catch((error) => {
+        console.error('update buffer failed', error)
+      })
+      delete syncTimers.current[path]
+    }, BUFFER_SYNC_DEBOUNCE_MS)
+  }, [])
 
   return {
     fileContents,

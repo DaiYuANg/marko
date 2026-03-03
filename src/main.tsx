@@ -6,8 +6,9 @@ import '@/i18n/setup'
 import App from '@/App.tsx'
 import { isDevelopment } from '@/utils/share.ts'
 
+const enableReactScan = isDevelopment()
 scan({
-  enabled: isDevelopment(),
+  enabled: enableReactScan,
 })
 
 if (isDevelopment()) {

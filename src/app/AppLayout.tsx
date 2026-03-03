@@ -5,8 +5,9 @@ import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
-import type { FileEntry, ThemeMode } from '@/store/useAppStore'
+import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
 import { useEffect, useMemo } from 'react'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 
 export type LayoutContext = {
   activePath: string | null
@@ -14,15 +15,19 @@ export type LayoutContext = {
   graph: GraphData
   onEditorChange: (value: string) => void
   onOpenFile: (path: string) => void
-  getSlugForPath: (path: string) => string
   theme: ThemeMode
   setTheme: (theme: ThemeMode) => void
-  slugToPath: Map<string, string>
   files: FileEntry[]
+  currentView: ViewMode
+  onChangeView: (mode: ViewMode) => void
 }
 
 export default function AppLayout() {
   const state = useAppLayoutState()
+  const totalFiles = useMemo(
+    () => state.files.reduce((count, file) => count + (file.kind === 'file' ? 1 : 0), 0),
+    [state.files],
+  )
 
   // memoize the context object so that consumers (routes) don't re-render
   // on every layout update; only when the referenced values actually change.
@@ -33,11 +38,11 @@ export default function AppLayout() {
       graph: state.graph,
       onEditorChange: state.onEditorChange,
       onOpenFile: state.onOpenFile,
-      getSlugForPath: (path: string) => state.routeMaps.pathToSlug.get(path) ?? path,
       theme: state.theme,
       setTheme: state.setTheme,
-      slugToPath: state.routeMaps.slugToPath,
       files: state.files,
+      currentView: state.viewMode,
+      onChangeView: state.setViewMode,
     } as LayoutContext
   }, [
     state.activePath,
@@ -45,10 +50,11 @@ export default function AppLayout() {
     state.graph,
     state.onEditorChange,
     state.onOpenFile,
-    state.routeMaps,
     state.theme,
     state.setTheme,
     state.files,
+    state.viewMode,
+    state.setViewMode,
   ])
 
   useEffect(() => {
@@ -65,12 +71,24 @@ export default function AppLayout() {
     void import('@tauri-apps/api/event').then(({ emit }) => emit('app-ready'))
   }, [])
 
+  useEffect(() => {
+    if (!isTauri()) return
+    const flushOnClose = () => {
+      void invoke('fs_flush_buffers')
+    }
+    window.addEventListener('beforeunload', flushOnClose)
+    return () => {
+      window.removeEventListener('beforeunload', flushOnClose)
+    }
+  }, [])
+
   return (
     <div className="flex h-full flex-col">
       <Titlebar
         onToggleSidebar={state.toggleSidebar}
         onToggleRightSidebar={state.toggleRightSidebar}
         onSelectProject={state.onSelectProject}
+        onSelectSingleFile={state.onSelectSingleFile}
         isMaximized={state.isMaximized}
         setIsMaximized={state.setIsMaximized}
         theme={state.theme}
@@ -89,6 +107,8 @@ export default function AppLayout() {
           onRenamePath={state.renamePath}
           onDeletePath={state.deletePath}
           onUseInternalRoot={state.onUseInternalRoot}
+          rootKind={state.rootKind}
+          onInspectPath={state.onInspectPath}
         />
         <section className="flex flex-1 flex-col overflow-hidden">
           <TabsBar
@@ -96,8 +116,8 @@ export default function AppLayout() {
             activePath={state.activePath}
             onOpenFile={state.onOpenFile}
             onCloseTab={state.onCloseTab}
-            pathToSlug={state.routeMaps.pathToSlug}
-            slugToPath={state.routeMaps.slugToPath}
+            viewMode={state.viewMode}
+            onChangeView={state.setViewMode}
           />
           <div className="flex-1 overflow-hidden bg-background">
             <Outlet context={outletContext} />
@@ -107,8 +127,11 @@ export default function AppLayout() {
           collapsed={state.rightSidebarCollapsed}
           activePath={state.activePath}
           tabs={state.tabs}
-          totalFiles={state.files.filter((file) => file.kind === 'file').length}
+          totalFiles={totalFiles}
           onOpenFile={state.onOpenFile}
+          viewMode={state.viewMode}
+          onChangeView={state.setViewMode}
+          inspectedPath={state.inspectedPath}
         />
       </div>
     </div>

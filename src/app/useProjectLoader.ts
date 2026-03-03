@@ -1,27 +1,29 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { NavigateFunction } from 'react-router-dom'
 import type { FileEntry } from '@/store/useAppStore'
-import { buildRouteMaps } from '@/logic/routing'
+import { pathToRoute } from '@/logic/routing'
 import { useI18n } from '@/i18n/useI18n'
 
 type UseProjectLoaderArgs = {
+  rootPath: string
+  rootKind: 'internal' | 'external' | 'single'
+  entries: FileEntry[]
   tabs: string[]
   activePath: string | null
   locationPathname: string
   navigate: NavigateFunction
   setEntries: (entries: FileEntry[]) => void
-  setFileContents: (files: Record<string, string>) => void
   setRootPath: (path: string) => void
-  setRootKind: (kind: 'internal' | 'external') => void
+  setRootKind: (kind: 'internal' | 'external' | 'single') => void
   setTabs: (tabs: string[]) => void
   setActivePath: (path: string | null) => void
   touchRecentProject: (path: string) => void
 }
 
 type FsRootInfo = {
-  kind: 'internal' | 'external'
+  kind: 'internal' | 'external' | 'single'
   path: string
 }
 
@@ -32,11 +34,27 @@ type FsSnapshot = {
 
 type LoadWorkspaceOptions = {
   snapshot?: FsSnapshot
-  refreshContents?: 'all' | 'none'
 }
 
 function isFile(entry: FileEntry) {
   return entry.kind === 'file'
+}
+
+function arePathListsEqual(left: string[], right: string[]) {
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false
+  }
+  return true
+}
+
+function areEntriesEqual(left: FileEntry[], right: FileEntry[]) {
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index].path !== right[index].path) return false
+    if (left[index].kind !== right[index].kind) return false
+  }
+  return true
 }
 
 async function fetchSnapshot() {
@@ -44,12 +62,14 @@ async function fetchSnapshot() {
 }
 
 export function useProjectLoader({
+  rootPath,
+  rootKind,
+  entries,
   tabs,
   activePath,
   locationPathname,
   navigate,
   setEntries,
-  setFileContents,
   setRootPath,
   setRootKind,
   setTabs,
@@ -57,68 +77,101 @@ export function useProjectLoader({
   touchRecentProject,
 }: UseProjectLoaderArgs) {
   const { t } = useI18n()
+  const entriesRef = useRef(entries)
+  const tabsRef = useRef(tabs)
+  const activePathRef = useRef(activePath)
+  const rootPathRef = useRef(rootPath)
+  const rootKindRef = useRef(rootKind)
+  const locationPathnameRef = useRef(locationPathname)
+
+  useEffect(() => {
+    entriesRef.current = entries
+  }, [entries])
+
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
+
+  useEffect(() => {
+    activePathRef.current = activePath
+  }, [activePath])
+
+  useEffect(() => {
+    rootPathRef.current = rootPath
+  }, [rootPath])
+
+  useEffect(() => {
+    rootKindRef.current = rootKind
+  }, [rootKind])
+
+  useEffect(() => {
+    locationPathnameRef.current = locationPathname
+  }, [locationPathname])
 
   const loadWorkspace = useCallback(
     async (options?: LoadWorkspaceOptions) => {
       if (!isTauri()) return
       const snapshot = options?.snapshot ?? (await fetchSnapshot())
-      const refreshContents = options?.refreshContents ?? 'all'
       const rootInfo = snapshot.root
-      setRootPath(rootInfo.path)
-      setRootKind(rootInfo.kind)
+      if (rootPathRef.current !== rootInfo.path) {
+        setRootPath(rootInfo.path)
+        rootPathRef.current = rootInfo.path
+      }
+      if (rootKindRef.current !== rootInfo.kind) {
+        setRootKind(rootInfo.kind)
+        rootKindRef.current = rootInfo.kind
+      }
 
       let nextEntries = snapshot.entries
-      if (!nextEntries.some(isFile)) {
+      if (rootInfo.kind !== 'single' && !nextEntries.some(isFile)) {
         const fallbackName = 'Untitled.md'
         await invoke('fs_create_file', { path: fallbackName })
         const refreshed = await fetchSnapshot()
         nextEntries = refreshed.entries
-        setRootPath(refreshed.root.path)
-        setRootKind(refreshed.root.kind)
+        if (rootPathRef.current !== refreshed.root.path) {
+          setRootPath(refreshed.root.path)
+          rootPathRef.current = refreshed.root.path
+        }
+        if (rootKindRef.current !== refreshed.root.kind) {
+          setRootKind(refreshed.root.kind)
+          rootKindRef.current = refreshed.root.kind
+        }
       }
 
-      setEntries(nextEntries)
-      const filesOnly = nextEntries.filter(isFile)
-      if (refreshContents === 'all') {
-        const contentsEntries = await Promise.all(
-          filesOnly.map(async (file) => {
-            const content = await invoke<string>('fs_read_file', { path: file.path })
-            return [file.path, content] as const
-          }),
-        )
-        const nextContents: Record<string, string> = {}
-        contentsEntries.forEach(([relative, content]) => {
-          nextContents[relative] = content
-        })
-        setFileContents(nextContents)
+      if (!areEntriesEqual(entriesRef.current, nextEntries)) {
+        setEntries(nextEntries)
+        entriesRef.current = nextEntries
       }
+      const filesOnly = nextEntries.filter(isFile)
 
       if (filesOnly.length > 0) {
         const available = new Set(filesOnly.map((file) => file.path))
         const defaultPath = filesOnly[0].path
-        const nextTabs = tabs.filter((tab) => available.has(tab))
+        const nextTabs = tabsRef.current.filter((tab) => available.has(tab))
         const finalTabs = nextTabs.length > 0 ? nextTabs : [defaultPath]
-        setTabs(finalTabs)
-        const nextActive = activePath && available.has(activePath) ? activePath : defaultPath
-        setActivePath(nextActive)
-        const nextRouteMaps = buildRouteMaps(nextEntries)
-        const nextSlug = nextRouteMaps.pathToSlug.get(nextActive) ?? nextActive
-        if (locationPathname !== `/${nextSlug}`) {
-          navigate(`/${nextSlug}`, { replace: true })
+        if (!arePathListsEqual(tabsRef.current, finalTabs)) {
+          setTabs(finalTabs)
+          tabsRef.current = finalTabs
+        }
+        const currentActivePath = activePathRef.current
+        const nextActive = currentActivePath && available.has(currentActivePath) ? currentActivePath : defaultPath
+        if (nextActive !== currentActivePath) {
+          setActivePath(nextActive)
+          activePathRef.current = nextActive
+        }
+        const nextRoute = pathToRoute(nextActive)
+        if (locationPathnameRef.current !== nextRoute) {
+          navigate(nextRoute, { replace: true })
         }
       }
     },
     [
-      activePath,
-      locationPathname,
       navigate,
       setActivePath,
       setEntries,
-      setFileContents,
       setRootKind,
       setRootPath,
       setTabs,
-      tabs,
     ],
   )
 
@@ -142,6 +195,20 @@ export function useProjectLoader({
       await openFolder(selected)
     }
   }, [openFolder, t])
+
+  const onSelectSingleFile = useCallback(async () => {
+    if (!isTauri()) return
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title: t('dialog.selectFileTitle'),
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+    })
+    if (typeof selected === 'string') {
+      await invoke('fs_set_single_file', { path: selected })
+      touchRecentProject(selected)
+    }
+  }, [t, touchRecentProject])
 
   const onUseInternalRoot = useCallback(async () => {
     if (!isTauri()) return
@@ -172,6 +239,7 @@ export function useProjectLoader({
   return {
     loadWorkspace,
     onSelectFolder,
+    onSelectSingleFile,
     onUseInternalRoot,
     openFolder,
     createFile,

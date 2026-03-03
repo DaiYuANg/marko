@@ -1,3 +1,4 @@
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -5,49 +6,117 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/useI18n'
 import { BookOpen, FileText, GitGraph, LayoutGrid, Notebook, NotebookTabs } from 'lucide-react'
-import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { ViewMode } from '@/store/useAppStore'
 
 type RightSidebarProps = {
   collapsed: boolean
   activePath: string | null
+  inspectedPath: string | null
   tabs: string[]
   totalFiles: number
   onOpenFile: (path: string) => void
+  viewMode: ViewMode
+  onChangeView: (mode: ViewMode) => void
 }
 
-export default function RightSidebar({
+type FsPathMetadata = {
+  path: string
+  absolute_path: string
+  kind: string
+  size_bytes: number
+  modified_ms: number | null
+  readonly: boolean
+}
+
+function formatBytes(size: number) {
+  if (!Number.isFinite(size) || size <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = size
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
+}
+
+function RightSidebarComponent({
   collapsed,
   activePath,
+  inspectedPath,
   tabs,
   totalFiles,
   onOpenFile,
+  viewMode,
+  onChangeView,
 }: RightSidebarProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const [metadata, setMetadata] = useState<FsPathMetadata | null>(null)
+  const [loadingMetadata, setLoadingMetadata] = useState(false)
+  const loadIdRef = useRef(0)
+  const targetPath = inspectedPath ?? activePath
+
   const quickActions = useMemo(() => {
     return [
       {
         label: t('tabs.workspaceGraph'),
         icon: GitGraph,
-        onClick: () => navigate('/graph'),
+        onClick: () => onChangeView('graph'),
       },
       {
         label: t('tabs.editor'),
         icon: Notebook,
         onClick: () => {
+          onChangeView('wysiwyg')
           if (activePath) {
             onOpenFile(activePath)
           }
         },
       },
     ]
-  }, [activePath, navigate, onOpenFile, t])
+  }, [activePath, onChangeView, onOpenFile, t])
+
+  useEffect(() => {
+    if (!targetPath) {
+      setMetadata(null)
+      return
+    }
+    if (!isTauri()) {
+      setMetadata({
+        path: targetPath,
+        absolute_path: targetPath,
+        kind: 'file',
+        size_bytes: 0,
+        modified_ms: null,
+        readonly: false,
+      })
+      return
+    }
+
+    loadIdRef.current += 1
+    const currentLoadId = loadIdRef.current
+    setLoadingMetadata(true)
+    void invoke<FsPathMetadata>('fs_get_path_metadata', { path: targetPath })
+      .then((next) => {
+        if (currentLoadId !== loadIdRef.current) return
+        setMetadata(next)
+      })
+      .catch((error) => {
+        if (currentLoadId !== loadIdRef.current) return
+        console.error('Failed to load metadata', error)
+        setMetadata(null)
+      })
+      .finally(() => {
+        if (currentLoadId !== loadIdRef.current) return
+        setLoadingMetadata(false)
+      })
+  }, [targetPath])
 
   return (
     <aside
       className={`flex flex-col border-l border-border bg-background transition-all duration-300 ${
-        collapsed ? 'w-14' : 'w-72'
+        collapsed ? 'w-14' : 'w-80'
       }`}
     >
       {!collapsed ? (
@@ -63,7 +132,11 @@ export default function RightSidebar({
                 <div className="text-xs font-semibold">{tabs.length}</div>
               </div>
               <Badge variant="secondary" className="rounded-md px-2 py-0.5 text-[10px]">
-                {activePath ? t('inspector.currentFile') : t('inspector.none')}
+                {viewMode === 'graph'
+                  ? t('tabs.workspaceGraph')
+                  : activePath
+                    ? t('inspector.currentFile')
+                    : t('inspector.none')}
               </Badge>
             </div>
             <Separator className="my-1 bg-border" />
@@ -89,11 +162,58 @@ export default function RightSidebar({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              {t('tabs.editor')}
+          <div className="rounded-md border border-border bg-muted/20 p-2">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                {t('inspector.properties')}
+              </div>
+              {loadingMetadata && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {t('inspector.loading')}
+                </Badge>
+              )}
             </div>
-            <ScrollArea className="max-h-[calc(100vh-220px)]" viewportClassName="p-1">
+            {!metadata ? (
+              <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                <div>
+                  <div className="text-muted-foreground">{t('inspector.path')}</div>
+                  <div className="break-all font-medium">{metadata.path}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-muted-foreground">{t('inspector.kind')}</div>
+                    <div>{metadata.kind}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">{t('inspector.size')}</div>
+                    <div>{formatBytes(metadata.size_bytes)}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">{t('inspector.modified')}</div>
+                    <div>
+                      {metadata.modified_ms
+                        ? new Date(metadata.modified_ms).toLocaleString()
+                        : t('inspector.unknown')}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">{t('inspector.readonly')}</div>
+                    <div>{metadata.readonly ? t('common.yes') : t('common.no')}</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">{t('inspector.absolutePath')}</div>
+                  <div className="break-all">{metadata.absolute_path}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-1">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('tabs.editor')}</div>
+            <ScrollArea className="min-h-0 flex-1" viewportClassName="p-1">
               <div className="flex flex-col gap-1">
                 {tabs.length === 0 ? (
                   <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
@@ -163,3 +283,5 @@ export default function RightSidebar({
     </aside>
   )
 }
+
+export default memo(RightSidebarComponent)

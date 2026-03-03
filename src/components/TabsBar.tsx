@@ -1,6 +1,5 @@
-import { useCallback, useMemo, type WheelEvent } from 'react'
+import { memo, useCallback, useMemo, type WheelEvent } from 'react'
 import { FileText, GitGraph, PencilLine, X } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -8,34 +7,28 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import type { ViewMode } from '@/store/useAppStore'
 
 type TabsBarProps = {
   tabs: string[]
   activePath: string | null
   onOpenFile: (path: string) => void
   onCloseTab: (path: string) => void
-  pathToSlug: Map<string, string>
-  slugToPath: Map<string, string>
+  viewMode: ViewMode
+  onChangeView: (mode: ViewMode) => void
 }
 
-export default function TabsBar({
+function TabsBarComponent({
   tabs,
   activePath,
   onOpenFile,
   onCloseTab,
-  pathToSlug,
-  slugToPath,
+  viewMode,
+  onChangeView,
 }: TabsBarProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const isGraph = location.pathname.includes('graph')
-  const rawPath = location.pathname.replace(/^#?/, '')
-  const activeSlug = rawPath.startsWith('/graph') ? '' : rawPath.replace(/^\//, '')
-  const routes = useMemo(
-    () => tabs.map((tab) => ({ path: tab, slug: pathToSlug.get(tab) ?? tab })),
-    [pathToSlug, tabs],
-  )
+  const activeTab = activePath ?? ''
+  const routes = useMemo(() => tabs.map((tab) => ({ path: tab })), [tabs])
   const handleTabsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const viewport = event.currentTarget.querySelector(
       '[data-radix-scroll-area-viewport]',
@@ -61,15 +54,11 @@ export default function TabsBar({
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant={!isGraph ? 'secondary' : 'ghost'}
+              <Button
+                  variant={viewMode !== 'graph' ? 'secondary' : 'ghost'}
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => {
-                    if (activeSlug) {
-                      navigate(`/${activeSlug}`)
-                    }
-                  }}
+                  onClick={() => onChangeView('wysiwyg')}
                   aria-label={t('tabs.editor')}
                 >
                   <PencilLine className="h-3.5 w-3.5" />
@@ -79,11 +68,11 @@ export default function TabsBar({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant={isGraph ? 'secondary' : 'ghost'}
+              <Button
+                  variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => navigate('/graph')}
+                  onClick={() => onChangeView('graph')}
                   aria-label={t('tabs.workspaceGraph')}
                 >
                   <GitGraph className="h-3.5 w-3.5" />
@@ -96,9 +85,8 @@ export default function TabsBar({
       </TooltipProvider>
       <Tabs
         className="min-w-0"
-        value={activeSlug}
-        onValueChange={(slug) => {
-          const path = slugToPath.get(slug)
+        value={activeTab}
+        onValueChange={(path) => {
           if (path) {
             onOpenFile(path)
           }
@@ -111,7 +99,7 @@ export default function TabsBar({
         >
           <TabsList className="h-9 w-max min-w-full justify-start rounded-md bg-muted/40 p-1">
             {routes.map((tab) => (
-              <TabsTrigger key={tab.path} value={tab.slug} className="gap-1.5 rounded-sm px-2.5">
+              <TabsTrigger key={tab.path} value={tab.path} className="gap-1.5 rounded-sm px-2.5">
                 <FileText className="h-3.5 w-3.5" />
                 <span>{createFileLabel(tab.path)}</span>
                 <span
@@ -133,3 +121,5 @@ export default function TabsBar({
     </div>
   )
 }
+
+export default memo(TabsBarComponent)

@@ -5,15 +5,16 @@ import type { FileEntry } from '@/store/useAppStore'
 export function useGraphData(
   entries: FileEntry[],
   fileContents: Record<string, string>,
-  pathname: string,
+  enabled: boolean,
 ) {
   const [graph, setGraph] = useState<GraphData>({ nodes: [], edges: [] })
 
   useEffect(() => {
-    if (!pathname.includes('graph')) return
+    if (!enabled) return
+    // keep heavy graph generation out of regular editor typing path unless graph view is active.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGraph(buildGraph(entries, fileContents))
-  }, [entries, fileContents, pathname])
+  }, [enabled, entries, fileContents])
 
   return graph
 }

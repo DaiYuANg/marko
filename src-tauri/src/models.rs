@@ -26,6 +26,16 @@ pub struct FsSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FsPathMetadata {
+  pub path: String,
+  pub absolute_path: String,
+  pub kind: String,
+  pub size_bytes: u64,
+  pub modified_ms: Option<u128>,
+  pub readonly: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 /// represents a pending file write request. previously unused,
 /// now repurposed as the message type sent to the backend write
 /// worker, allowing the front end to enqueue updates without

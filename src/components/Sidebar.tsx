@@ -1,13 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react'
-// react-window exports are sometimes tricky under pnpm/Esm
-// use a namespace import and pull out FixedSizeList by name at runtime
-import * as RW from 'react-window'
-// react-window exports `List` as the virtualized list component (not FixedSizeList)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const List = (RW as any).List as React.ComponentType<any>
-if (!List) {
-  console.error('react-window List import failed, namespace:', RW)
-}
+import { List } from 'react-window'
 import { FileSearch, FileText, Folder, FolderOpen, Home, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { FileEntry } from '@/store/useAppStore'
@@ -47,6 +39,13 @@ type SidebarProps = {
   onRenamePath: (from: string, to: string) => void
   onDeletePath: (path: string) => void
   onUseInternalRoot: () => void
+  rootKind: 'internal' | 'external' | 'single'
+  onInspectPath: (path: string) => void
+}
+
+type FlatTreeNode = {
+  node: FileTreeNode
+  depth: number
 }
 
 function filterTree(nodes: FileTreeNode[], query: string): FileTreeNode[] {
@@ -75,8 +74,8 @@ function flattenTree(
   nodes: FileTreeNode[],
   depth = 0,
   openDirs: Set<string>,
-): Array<{ node: FileTreeNode; depth: number }> {
-  const result: Array<{ node: FileTreeNode; depth: number }> = []
+): FlatTreeNode[] {
+  const result: FlatTreeNode[] = []
   nodes.forEach((n) => {
     result.push({ node: n, depth })
     if (n.type === 'folder' && n.children && openDirs.has(n.path)) {
@@ -84,6 +83,68 @@ function flattenTree(
     }
   })
   return result
+}
+
+type TreeRowProps = {
+  flattened: FlatTreeNode[]
+  openDirs: Set<string>
+  onToggleFolder: (path: string) => void
+  onOpenFile: (path: string) => void
+  onSetContextNode: (node: FileTreeNode) => void
+}
+
+function TreeRow({
+  index,
+  style,
+  ariaAttributes,
+  flattened,
+  openDirs,
+  onToggleFolder,
+  onOpenFile,
+  onSetContextNode,
+}: {
+  index: number
+  style: React.CSSProperties
+  ariaAttributes: {
+    'aria-posinset': number
+    'aria-setsize': number
+    role: 'listitem'
+  }
+} & TreeRowProps) {
+  const { node, depth } = flattened[index]
+  const isFolder = node.type === 'folder'
+  const padding = 8 + depth * 12
+  const isOpen = isFolder && openDirs.has(node.path)
+
+  return (
+    <div style={style} key={node.path} data-tree-row {...ariaAttributes}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 w-full justify-start rounded-md"
+        style={{ paddingLeft: padding }}
+        onContextMenuCapture={() => onSetContextNode(node)}
+        onClick={() => {
+          if (isFolder) {
+            onToggleFolder(node.path)
+          } else {
+            onOpenFile(node.path)
+          }
+        }}
+      >
+        {isFolder ? (
+          isOpen ? (
+            <FolderOpen className="h-4 w-4" />
+          ) : (
+            <Folder className="h-4 w-4" />
+          )
+        ) : (
+          <FileText className="h-4 w-4" />
+        )}
+        <span className="ml-1 truncate">{node.name}</span>
+      </Button>
+    </div>
+  )
 }
 
 const SidebarComponent = ({
@@ -98,6 +159,8 @@ const SidebarComponent = ({
   onRenamePath,
   onDeletePath,
   onUseInternalRoot,
+  rootKind,
+  onInspectPath,
 }: SidebarProps) => {
   const { t } = useI18n()
   const [filter, setFilter] = useState('')
@@ -106,6 +169,17 @@ const SidebarComponent = ({
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const flattened = useMemo(() => flattenTree(filteredTree, 0, openDirs), [filteredTree, openDirs])
   const fileCount = useMemo(() => files.filter((entry) => entry.kind === 'file').length, [files])
+  const readonlyTree = rootKind === 'single'
+  const [contextNode, setContextNode] = useState<FileTreeNode | null>(null)
+
+  const toggleFolder = (path: string) => {
+    setOpenDirs((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
 
   return (
     <aside
@@ -213,59 +287,41 @@ const SidebarComponent = ({
                       {t('sidebar.noProjectLoaded')}
                     </div>
                   ) : (
-                    <List
-                      height="100%"
-                      width="100%"
-                      rowCount={flattened.length}
-                      rowHeight={28}
-                      rowProps={{}}
-                      rowComponent={({
-                        index,
-                        style,
-                      }: {
-                        index: number
-                        style: React.CSSProperties
-                      }) => {
-                        const { node, depth } = flattened[index]
-                        const isFolder = node.type === 'folder'
-                        const padding = 8 + depth * 12
-                        const isOpen = isFolder && openDirs.has(node.path)
-                        return (
-                          <div style={style} key={node.path}>
-                            <ContextMenu>
-                              <ContextMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-full justify-start rounded-md"
-                                  style={{ paddingLeft: padding }}
-                                  onClick={() => {
-                                    if (isFolder) {
-                                      setOpenDirs((prev) => {
-                                        const next = new Set(prev)
-                                        if (next.has(node.path)) next.delete(node.path)
-                                        else next.add(node.path)
-                                        return next
-                                      })
-                                    } else {
-                                      onOpenFile(node.path)
-                                    }
-                                  }}
-                                >
-                                  {isFolder ? (
-                                    isOpen ? (
-                                      <FolderOpen className="h-4 w-4" />
-                                    ) : (
-                                      <Folder className="h-4 w-4" />
-                                    )
-                                  ) : (
-                                    <FileText className="h-4 w-4" />
-                                  )}
-                                  <span className="truncate ml-1">{node.name}</span>
-                                </Button>
-                              </ContextMenuTrigger>
-                              <ContextMenuContent>
-                                {isFolder ? (
+                    <ContextMenu onOpenChange={(open) => !open && setContextNode(null)}>
+                      <ContextMenuTrigger asChild>
+                        <div
+                          className="h-full w-full"
+                          onContextMenuCapture={(event) => {
+                            const target = event.target as HTMLElement
+                            if (target.closest('[data-tree-row]')) return
+                            setContextNode(null)
+                          }}
+                        >
+                          <List
+                            className="h-full w-full"
+                            style={{ height: '100%' }}
+                            rowCount={flattened.length}
+                            rowHeight={28}
+                            overscanCount={8}
+                            rowProps={{
+                              flattened,
+                              openDirs,
+                              onToggleFolder: toggleFolder,
+                              onOpenFile,
+                              onSetContextNode: setContextNode,
+                            }}
+                            rowComponent={TreeRow}
+                          />
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        {!contextNode ? (
+                          <ContextMenuItem disabled>{t('sidebar.noProjectLoaded')}</ContextMenuItem>
+                        ) : (
+                          <>
+                            {contextNode.type === 'folder' ? (
+                              <>
+                                {!readonlyTree && (
                                   <>
                                     <ContextMenuItem
                                       onSelect={() => {
@@ -274,7 +330,7 @@ const SidebarComponent = ({
                                           'Untitled.md',
                                         )
                                         if (!name) return
-                                        const target = `${node.path}/${name}`
+                                        const target = `${contextNode.path}/${name}`
                                         onCreateFile(target)
                                       }}
                                     >
@@ -287,7 +343,7 @@ const SidebarComponent = ({
                                           'folder',
                                         )
                                         if (!name) return
-                                        const target = `${node.path}/${name}`
+                                        const target = `${contextNode.path}/${name}`
                                         onCreateFolder(target)
                                       }}
                                     >
@@ -295,21 +351,28 @@ const SidebarComponent = ({
                                     </ContextMenuItem>
                                     <ContextMenuSeparator />
                                   </>
-                                ) : (
-                                  <ContextMenuItem onSelect={() => onOpenFile(node.path)}>
-                                    {t('context.open')}
-                                  </ContextMenuItem>
                                 )}
+                              </>
+                            ) : (
+                              <ContextMenuItem onSelect={() => onOpenFile(contextNode.path)}>
+                                {t('context.open')}
+                              </ContextMenuItem>
+                            )}
+                            {!readonlyTree && (
+                              <>
                                 <ContextMenuItem
                                   onSelect={() => {
-                                    const next = window.prompt(t('context.renamePrompt'), node.name)
+                                    const next = window.prompt(
+                                      t('context.renamePrompt'),
+                                      contextNode.name,
+                                    )
                                     if (!next) return
-                                    const nextPath = node.path
+                                    const nextPath = contextNode.path
                                       .split('/')
                                       .slice(0, -1)
                                       .concat(next)
                                       .join('/')
-                                    onRenamePath(node.path, nextPath)
+                                    onRenamePath(contextNode.path, nextPath)
                                   }}
                                 >
                                   {t('context.rename')}
@@ -317,22 +380,29 @@ const SidebarComponent = ({
                                 <ContextMenuSeparator />
                                 <ContextMenuItem
                                   onSelect={() => {
-                                    const msg = isFolder
-                                      ? t('context.deleteFolderConfirm', { name: node.name })
-                                      : t('context.deleteConfirm', { name: node.name })
+                                    const msg =
+                                      contextNode.type === 'folder'
+                                        ? t('context.deleteFolderConfirm', {
+                                            name: contextNode.name,
+                                          })
+                                        : t('context.deleteConfirm', { name: contextNode.name })
                                     if (window.confirm(msg)) {
-                                      onDeletePath(node.path)
+                                      onDeletePath(contextNode.path)
                                     }
                                   }}
                                 >
                                   {t('context.delete')}
                                 </ContextMenuItem>
-                              </ContextMenuContent>
-                            </ContextMenu>
-                          </div>
-                        )
-                      }}
-                    />
+                              </>
+                            )}
+                            <ContextMenuSeparator />
+                            <ContextMenuItem onSelect={() => onInspectPath(contextNode.path)}>
+                              {t('context.properties')}
+                            </ContextMenuItem>
+                          </>
+                        )}
+                      </ContextMenuContent>
+                    </ContextMenu>
                   )}
                 </ScrollArea>
               </SidebarGroupContent>

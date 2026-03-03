@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Locale } from '@/i18n/resources'
 import { getInitialLocale } from '@/i18n/utils'
 
-export type ViewMode = 'editor' | 'graph'
+export type ViewMode = 'wysiwyg' | 'source' | 'graph'
 export type ThemeMode = 'light' | 'dark'
 
 export type FileEntry = {
@@ -13,7 +13,7 @@ export type FileEntry = {
 
 type AppState = {
   rootPath: string
-  rootKind: 'internal' | 'external'
+  rootKind: 'internal' | 'external' | 'single'
   recentProjects: string[]
   entries: FileEntry[]
   tabs: string[]
@@ -24,7 +24,7 @@ type AppState = {
   sidebarCollapsed: boolean
   rightSidebarCollapsed: boolean
   setRootPath: (path: string) => void
-  setRootKind: (kind: 'internal' | 'external') => void
+  setRootKind: (kind: 'internal' | 'external' | 'single') => void
   setEntries: (entries: FileEntry[]) => void
   setTabs: (tabs: string[]) => void
   setActivePath: (path: string | null) => void
@@ -45,7 +45,7 @@ export const useAppStore = create<AppState>()(
       entries: [],
       tabs: [],
       activePath: null,
-      viewMode: 'editor',
+      viewMode: 'wysiwyg',
       theme: 'light',
       locale: getInitialLocale(),
       sidebarCollapsed: false,
@@ -74,13 +74,16 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'marko.app',
-      version: 2,
+      version: 3,
       migrate: (persistedState) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
         const normalizedTheme: ThemeMode = state.theme === 'dark' ? 'dark' : 'light'
+        const normalizedViewMode: ViewMode =
+          state.viewMode === 'graph' || state.viewMode === 'source' ? state.viewMode : 'wysiwyg'
         return {
           ...state,
           theme: normalizedTheme,
+          viewMode: normalizedViewMode,
           rightSidebarCollapsed: state.rightSidebarCollapsed ?? false,
         } as AppState
       },

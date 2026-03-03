@@ -26,3 +26,16 @@ export function MissingNode({
     </div>
   )
 }
+
+export function HeadingNode({
+  data,
+}: NodeProps<{ label: string; subtitle?: string }>) {
+  return (
+    <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 shadow-md">
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
+      <div className="text-sm font-semibold">{data.label}</div>
+      <div className="text-xs text-sky-700">{data.subtitle}</div>
+    </div>
+  )
+}

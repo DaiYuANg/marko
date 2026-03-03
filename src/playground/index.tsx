@@ -1,5 +1,5 @@
 import { useAtomCallback } from 'jotai/utils'
-import { Suspense, useCallback } from 'react'
+import { memo, Suspense, useCallback } from 'react'
 import { focus, markdown } from '@/playground/atom'
 import CrepeEditor from '@/playground/Crepe'
 import { useI18n } from '@/i18n/useI18n'
@@ -8,7 +8,7 @@ type DualProps = {
   onMarkdownChange: (value: string) => void
 }
 
-export function Dual({ onMarkdownChange }: DualProps) {
+export const Dual = memo(function Dual({ onMarkdownChange }: DualProps) {
   const { t } = useI18n()
   const onMilkdownChange = useAtomCallback(
     useCallback(
@@ -31,4 +31,4 @@ export function Dual({ onMarkdownChange }: DualProps) {
       </div>
     </div>
   )
-}
+})

@@ -1,40 +1,56 @@
 import { HashRouter, Navigate, Route, Routes, useOutletContext, useParams } from 'react-router-dom'
 import AppLayout, { type LayoutContext } from '@/app/AppLayout'
 import EditorPage from '@/pages/EditorPage'
-import GraphPage from '@/pages/GraphPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import { pathToRoute, routeToPath } from '@/logic/routing'
 
 function EditorRoute() {
-  const { slug } = useParams()
-  const { activePath, editorValue, onEditorChange, getSlugForPath, slugToPath, files, onOpenFile } =
-    useOutletContext<LayoutContext>()
+  const params = useParams()
+  const routeSegment = params['*']
+  const {
+    activePath,
+    editorValue,
+    onEditorChange,
+    files,
+    onOpenFile,
+    graph,
+    currentView,
+    onChangeView,
+  } = useOutletContext<LayoutContext>()
+  const requestedPath = routeToPath(routeSegment)
+  const requestedPathExists =
+    requestedPath !== null &&
+    files.some((file) => file.kind === 'file' && file.path === requestedPath)
+  const hasRouteRequest = Boolean(routeSegment)
 
-  if (!slug && activePath) {
-    return <Navigate to={`/${getSlugForPath(activePath)}`} replace />
+  if (!hasRouteRequest && activePath) {
+    return <Navigate to={pathToRoute(activePath)} replace />
   }
 
-  if (slug && !slugToPath.has(slug)) {
+  if (hasRouteRequest && !requestedPathExists) {
     return (
       <NotFoundPage files={files.filter((file) => file.kind === 'file')} onOpenFile={onOpenFile} />
     )
   }
 
-  return <EditorPage activePath={activePath} editorValue={editorValue} onChange={onEditorChange} />
-}
-
-function GraphRoute() {
-  const { graph, onOpenFile } = useOutletContext<LayoutContext>()
-  return <GraphPage graph={graph} onOpenFile={onOpenFile} />
+  return (
+    <EditorPage
+      activePath={activePath}
+      editorValue={editorValue}
+      onChange={onEditorChange}
+      graph={graph}
+      onOpenFile={onOpenFile}
+      viewMode={currentView}
+      onChangeView={onChangeView}
+    />
+  )
 }
 
 const App = () => (
   <HashRouter>
     <Routes>
       <Route element={<AppLayout />}>
-        <Route path="/graph" element={<GraphRoute />} />
-        <Route path="/:slug" element={<EditorRoute />} />
-        <Route path="*" element={<NotFoundPage />} />
-        <Route path="/" element={<EditorRoute />} />
+        <Route path="/*" element={<EditorRoute />} />
       </Route>
     </Routes>
   </HashRouter>

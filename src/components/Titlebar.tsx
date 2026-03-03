@@ -1,4 +1,4 @@
-import { FolderOpen, GitBranch, Languages, PanelLeft, PanelRight, Palette } from 'lucide-react'
+import { FileText, FolderOpen, GitBranch, Languages, PanelLeft, PanelRight, Palette } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isTauri } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ type TitlebarProps = {
   onToggleSidebar: () => void
   onToggleRightSidebar: () => void
   onSelectProject: () => void
+  onSelectSingleFile: () => void
   isMaximized: boolean
   setIsMaximized: (value: boolean) => void
   theme: ThemeMode
@@ -29,6 +30,7 @@ export default function Titlebar({
   onToggleSidebar,
   onToggleRightSidebar,
   onSelectProject,
+  onSelectSingleFile,
   isMaximized,
   setIsMaximized,
   theme,
@@ -76,6 +78,20 @@ export default function Titlebar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('actions.openProject')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onSelectSingleFile}
+                aria-label={t('actions.openFile')}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.openFile')}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
