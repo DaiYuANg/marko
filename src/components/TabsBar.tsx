@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, type WheelEvent } from 'react'
-import { FileText, GitGraph, PencilLine, X } from 'lucide-react'
+import { memo, useCallback, type WheelEvent } from 'react'
+import { Code2, FileText, GitGraph, PenLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -11,6 +11,7 @@ import type { ViewMode } from '@/store/useAppStore'
 
 type TabsBarProps = {
   tabs: string[]
+  dirtyPaths: Record<string, true>
   activePath: string | null
   onOpenFile: (path: string) => void
   onCloseTab: (path: string) => void
@@ -18,8 +19,15 @@ type TabsBarProps = {
   onChangeView: (mode: ViewMode) => void
 }
 
+function formatTabLabel(path: string, compact: boolean) {
+  const label = createFileLabel(path)
+  if (!compact || label.length <= 12) return label
+  return `${label.slice(0, 11)}…`
+}
+
 function TabsBarComponent({
   tabs,
+  dirtyPaths,
   activePath,
   onOpenFile,
   onCloseTab,
@@ -28,52 +36,69 @@ function TabsBarComponent({
 }: TabsBarProps) {
   const { t } = useI18n()
   const activeTab = activePath ?? ''
-  const routes = useMemo(() => tabs.map((tab) => ({ path: tab })), [tabs])
+  const compact = tabs.length >= 8
+
   const handleTabsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const viewport = event.currentTarget.querySelector(
       '[data-radix-scroll-area-viewport]',
     ) as HTMLDivElement | null
     if (!viewport) return
-    const canScrollHorizontally = viewport.scrollWidth > viewport.clientWidth
-    if (!canScrollHorizontally) return
+    if (viewport.scrollWidth <= viewport.clientWidth) return
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
     viewport.scrollLeft += event.deltaY
     event.preventDefault()
   }, [])
 
   return (
-    <div className="border-b border-border bg-background px-2 py-1.5">
-      <TooltipProvider>
-        <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-            <div className="truncate text-sm font-medium">
-              {activePath ? createFileLabel(activePath) : t('center.noFile')}
-            </div>
+    <div className="border-b border-border/70 bg-background/85 px-2 py-1 backdrop-blur">
+      <div className="mb-1 flex items-center justify-between gap-2 px-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+          <div className="min-w-0 truncate text-sm font-medium">
+            {activePath ? createFileLabel(activePath) : t('center.noFile')}
           </div>
-          <div className="flex items-center gap-1">
+          {activePath && dirtyPaths[activePath] && (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.18)]" />
+          )}
+        </div>
+        <TooltipProvider>
+          <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-muted/35 p-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
-              <Button
-                  variant={viewMode !== 'graph' ? 'secondary' : 'ghost'}
+                <Button
+                  variant={viewMode === 'wysiwyg' ? 'secondary' : 'ghost'}
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-7 w-7 rounded-md"
+                  aria-label={t('editor.modeWysiwyg')}
                   onClick={() => onChangeView('wysiwyg')}
-                  aria-label={t('tabs.editor')}
                 >
-                  <PencilLine className="h-3.5 w-3.5" />
+                  <PenLine className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t('tabs.editor')}</TooltipContent>
+              <TooltipContent>{t('editor.modeWysiwyg')}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-              <Button
+                <Button
+                  variant={viewMode === 'source' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-7 w-7 rounded-md"
+                  aria-label={t('editor.modeSource')}
+                  onClick={() => onChangeView('source')}
+                >
+                  <Code2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('editor.modeSource')}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
                   variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
                   size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onChangeView('graph')}
+                  className="h-7 w-7 rounded-md"
                   aria-label={t('tabs.workspaceGraph')}
+                  onClick={() => onChangeView('graph')}
                 >
                   <GitGraph className="h-3.5 w-3.5" />
                 </Button>
@@ -81,8 +106,8 @@ function TabsBarComponent({
               <TooltipContent>{t('tabs.workspaceGraph')}</TooltipContent>
             </Tooltip>
           </div>
-        </div>
-      </TooltipProvider>
+        </TooltipProvider>
+      </div>
       <Tabs
         className="min-w-0"
         value={activeTab}
@@ -93,31 +118,53 @@ function TabsBarComponent({
         }}
       >
         <ScrollArea
-          className="w-full whitespace-nowrap"
+          className="w-full whitespace-nowrap rounded-lg"
           onWheel={handleTabsWheel}
           viewportClassName="w-full"
         >
-          <TabsList className="h-9 w-max min-w-full justify-start rounded-md bg-muted/40 p-1">
-            {routes.map((tab) => (
-              <TabsTrigger key={tab.path} value={tab.path} className="gap-1.5 rounded-sm px-2.5">
-                <FileText className="h-3.5 w-3.5" />
-                <span>{createFileLabel(tab.path)}</span>
-                <span
-                  className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
-                  role="presentation"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onCloseTab(tab.path)
-                  }}
+          <TabsList className="h-9 w-max min-w-full justify-start rounded-lg border border-border/50 bg-muted/35 p-0.5">
+            {tabs.map((path) => {
+              const isDirty = Boolean(dirtyPaths[path])
+              const isActive = path === activePath
+              return (
+                <TabsTrigger
+                  key={path}
+                  value={path}
+                  className="group gap-1.5 rounded-md px-2 data-[state=active]:animate-[tab-pop_160ms_cubic-bezier(0.22,1,0.36,1)] data-[state=active]:shadow-sm"
+                  title={path}
                 >
-                  <X className="h-3.5 w-3.5" />
-                </span>
-              </TabsTrigger>
-            ))}
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className={`${compact ? 'max-w-[86px]' : 'max-w-[160px]'} truncate`}>
+                    {formatTabLabel(path, compact)}
+                  </span>
+                  {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:scale-105 hover:bg-muted ${
+                      isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onCloseTab(path)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      onCloseTab(path)
+                    }}
+                    aria-label="Close tab"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </span>
+                </TabsTrigger>
+              )
+            })}
           </TabsList>
         </ScrollArea>
       </Tabs>
-      <Separator className="mt-1.5" />
+      <Separator className="mt-1" />
     </div>
   )
 }

@@ -1,12 +1,22 @@
-import { FileText, FolderOpen, GitBranch, Languages, PanelLeft, PanelRight, Palette } from 'lucide-react'
+import {
+  FileText,
+  FolderOpen,
+  Languages,
+  PanelLeft,
+  PanelRight,
+  Palette,
+  Search,
+} from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isTauri } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
@@ -40,14 +50,17 @@ export default function Titlebar({
   const { t, locale, setLocale } = useI18n()
   const isWindows =
     typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('windows')
+  const onOpenSearch = () => {
+    window.dispatchEvent(new CustomEvent('marko:focus-file-search'))
+  }
 
   return (
     <header
-      className="app-titlebar flex h-12 items-center justify-between border-b border-border bg-background px-2"
+      className="app-titlebar panel-enter flex h-11 items-center justify-between border-b border-border/70 bg-background/80 px-2 backdrop-blur"
       data-tauri-drag-region
     >
       <TooltipProvider>
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -55,14 +68,34 @@ export default function Titlebar({
                 size="icon"
                 onClick={onToggleSidebar}
                 aria-label={t('actions.toggleSidebar')}
-                className="h-8 w-8"
+                className="h-8 w-8 rounded-lg"
               >
                 <PanelLeft className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('actions.toggleSidebar')}</TooltipContent>
           </Tooltip>
-          <div className="px-1 text-sm font-medium tracking-tight">{t('app.name')}</div>
+          <div className="min-w-0 px-1">
+            <div className="truncate text-sm font-semibold tracking-tight">{t('app.name')}</div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              {t('titlebar.subtitle')}
+            </div>
+          </div>
+        </div>
+        <div className="mx-2 hidden flex-1 items-center justify-center md:flex">
+          <button
+            type="button"
+            className="h-7 w-full max-w-sm rounded-lg border border-border/80 bg-muted/40 px-3 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            onClick={onOpenSearch}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Search className="h-3.5 w-3.5" />
+              <span>{t('sidebar.search')}</span>
+              <span className="ml-auto rounded border border-border/70 px-1.5 py-0.5 text-[10px]">
+                Ctrl+P
+              </span>
+            </span>
+          </button>
         </div>
         <div className="flex items-center gap-0.5">
           <Tooltip>
@@ -70,7 +103,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 rounded-lg"
                 onClick={onSelectProject}
                 aria-label={t('actions.openProject')}
               >
@@ -84,7 +117,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 rounded-lg"
                 onClick={onSelectSingleFile}
                 aria-label={t('actions.openFile')}
               >
@@ -98,22 +131,28 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
-                onClick={onToggleRightSidebar}
-                aria-label={t('actions.toggleRightSidebar')}
+                className="h-8 w-8 rounded-lg md:hidden"
+                onClick={onOpenSearch}
+                aria-label={t('sidebar.searchAction')}
               >
-                <PanelRight className="h-4 w-4" />
+                <Search className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t('actions.toggleRightSidebar')}</TooltipContent>
+            <TooltipContent>{t('sidebar.searchAction')}</TooltipContent>
           </Tooltip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('menu.theme')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                aria-label={t('menu.theme')}
+              >
                 <Palette className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel>{t('menu.theme')}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={theme}
                 onValueChange={(value) => setTheme(value as ThemeMode)}
@@ -121,26 +160,20 @@ export default function Titlebar({
                 <DropdownMenuRadioItem value="light">{t('theme.light')}</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">{t('theme.dark')}</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label={t('menu.language')}
-              >
-                <Languages className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t('menu.language')}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={locale}
                 onValueChange={(value) => setLocale(value as Locale)}
               >
-                <DropdownMenuRadioItem value="zh-CN">{t('language.zh')}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="en-US">{t('language.en')}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="zh-CN">
+                  <Languages className="mr-1 h-3.5 w-3.5" />
+                  {t('language.zh')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="en-US">
+                  <Languages className="mr-1 h-3.5 w-3.5" />
+                  {t('language.en')}
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -149,13 +182,14 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
-                aria-label={t('actions.gitSync')}
+                className="h-8 w-8 rounded-lg"
+                onClick={onToggleRightSidebar}
+                aria-label={t('actions.toggleRightSidebar')}
               >
-                <GitBranch className="h-4 w-4" />
+                <PanelRight className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{t('actions.gitSync')}</TooltipContent>
+            <TooltipContent>{t('actions.toggleRightSidebar')}</TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>

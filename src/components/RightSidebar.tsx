@@ -5,8 +5,17 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/useI18n'
-import { BookOpen, FileText, GitGraph, LayoutGrid, Notebook, NotebookTabs } from 'lucide-react'
+import {
+  Code2,
+  FileText,
+  GitGraph,
+  LayoutGrid,
+  Notebook,
+  NotebookTabs,
+  PenLine,
+} from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { createFileLabel } from '@/logic/paths'
 import type { ViewMode } from '@/store/useAppStore'
 
 type RightSidebarProps = {
@@ -14,6 +23,7 @@ type RightSidebarProps = {
   activePath: string | null
   inspectedPath: string | null
   tabs: string[]
+  dirtyPaths: Record<string, true>
   totalFiles: number
   onOpenFile: (path: string) => void
   viewMode: ViewMode
@@ -46,82 +56,87 @@ function RightSidebarComponent({
   activePath,
   inspectedPath,
   tabs,
+  dirtyPaths,
   totalFiles,
   onOpenFile,
   viewMode,
   onChangeView,
 }: RightSidebarProps) {
   const { t } = useI18n()
+  const tauriAvailable = isTauri()
   const [metadata, setMetadata] = useState<FsPathMetadata | null>(null)
-  const [loadingMetadata, setLoadingMetadata] = useState(false)
+  const [resolvedMetadataPath, setResolvedMetadataPath] = useState<string | null>(null)
   const loadIdRef = useRef(0)
   const targetPath = inspectedPath ?? activePath
-
-  const quickActions = useMemo(() => {
-    return [
-      {
-        label: t('tabs.workspaceGraph'),
-        icon: GitGraph,
-        onClick: () => onChangeView('graph'),
-      },
-      {
-        label: t('tabs.editor'),
-        icon: Notebook,
-        onClick: () => {
-          onChangeView('wysiwyg')
-          if (activePath) {
-            onOpenFile(activePath)
-          }
-        },
-      },
-    ]
-  }, [activePath, onChangeView, onOpenFile, t])
-
-  useEffect(() => {
-    if (!targetPath) {
-      setMetadata(null)
-      return
-    }
-    if (!isTauri()) {
-      setMetadata({
+  const displayMetadata = useMemo(() => {
+    if (!targetPath) return null
+    if (!tauriAvailable) {
+      return {
         path: targetPath,
         absolute_path: targetPath,
         kind: 'file',
         size_bytes: 0,
         modified_ms: null,
         readonly: false,
-      })
-      return
+      }
     }
+    if (!metadata || metadata.path !== targetPath) return null
+    return metadata
+  }, [metadata, targetPath, tauriAvailable])
+  const loadingMetadata =
+    tauriAvailable && Boolean(targetPath) && resolvedMetadataPath !== targetPath
+
+  const quickActions = useMemo(() => {
+    return [
+      {
+        label: t('editor.modeWysiwyg'),
+        icon: PenLine,
+        onClick: () => onChangeView('wysiwyg'),
+      },
+      {
+        label: t('editor.modeSource'),
+        icon: Code2,
+        onClick: () => onChangeView('source'),
+      },
+      {
+        label: t('tabs.workspaceGraph'),
+        icon: GitGraph,
+        onClick: () => {
+          onChangeView('graph')
+        },
+      },
+    ]
+  }, [onChangeView, t])
+
+  useEffect(() => {
+    if (!targetPath || !tauriAvailable) return
 
     loadIdRef.current += 1
     const currentLoadId = loadIdRef.current
-    setLoadingMetadata(true)
     void invoke<FsPathMetadata>('fs_get_path_metadata', { path: targetPath })
       .then((next) => {
         if (currentLoadId !== loadIdRef.current) return
         setMetadata(next)
+        setResolvedMetadataPath(targetPath)
       })
       .catch((error) => {
         if (currentLoadId !== loadIdRef.current) return
         console.error('Failed to load metadata', error)
         setMetadata(null)
+        setResolvedMetadataPath(targetPath)
       })
-      .finally(() => {
-        if (currentLoadId !== loadIdRef.current) return
-        setLoadingMetadata(false)
-      })
-  }, [targetPath])
+  }, [targetPath, tauriAvailable])
 
   return (
     <aside
-      className={`flex flex-col border-l border-border bg-background transition-all duration-300 ${
-        collapsed ? 'w-14' : 'w-80'
+      className={`layout-rail panel-surface panel-enter flex flex-col border-l border-border/70 bg-background/85 ${
+        collapsed ? 'w-14' : 'w-72'
       }`}
+      data-collapsed={collapsed ? 'true' : 'false'}
     >
       {!collapsed ? (
-        <div className="flex h-full flex-col gap-2 p-2">
-          <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-2">
+        <div className="flex h-full flex-col gap-1.5 p-1.5">
+          <div className="flex flex-col gap-1.5 rounded-xl border border-border/70 bg-muted/25 p-2">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <LayoutGrid className="h-4 w-4 text-muted-foreground" />
@@ -148,7 +163,13 @@ function RightSidebarComponent({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className={`h-7 w-7 rounded-lg ${
+                          (viewMode === 'graph' && action.icon === GitGraph) ||
+                          (viewMode === 'source' && action.icon === Code2) ||
+                          (viewMode === 'wysiwyg' && action.icon === PenLine)
+                            ? 'bg-accent/60 text-accent-foreground'
+                            : ''
+                        }`}
                         onClick={action.onClick}
                         aria-label={action.label}
                       >
@@ -162,7 +183,7 @@ function RightSidebarComponent({
             </div>
           </div>
 
-          <div className="rounded-md border border-border bg-muted/20 p-2">
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-2">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 {t('inspector.properties')}
@@ -173,46 +194,48 @@ function RightSidebarComponent({
                 </Badge>
               )}
             </div>
-            {!metadata ? (
+            {!displayMetadata ? (
               <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
             ) : (
               <div className="space-y-2 text-xs">
                 <div>
                   <div className="text-muted-foreground">{t('inspector.path')}</div>
-                  <div className="break-all font-medium">{metadata.path}</div>
+                  <div className="break-all font-medium">{displayMetadata.path}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-muted-foreground">{t('inspector.kind')}</div>
-                    <div>{metadata.kind}</div>
+                    <div>{displayMetadata.kind}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">{t('inspector.size')}</div>
-                    <div>{formatBytes(metadata.size_bytes)}</div>
+                    <div>{formatBytes(displayMetadata.size_bytes)}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">{t('inspector.modified')}</div>
                     <div>
-                      {metadata.modified_ms
-                        ? new Date(metadata.modified_ms).toLocaleString()
+                      {displayMetadata.modified_ms
+                        ? new Date(displayMetadata.modified_ms).toLocaleString()
                         : t('inspector.unknown')}
                     </div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">{t('inspector.readonly')}</div>
-                    <div>{metadata.readonly ? t('common.yes') : t('common.no')}</div>
+                    <div>{displayMetadata.readonly ? t('common.yes') : t('common.no')}</div>
                   </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">{t('inspector.absolutePath')}</div>
-                  <div className="break-all">{metadata.absolute_path}</div>
+                  <div className="break-all">{displayMetadata.absolute_path}</div>
                 </div>
               </div>
             )}
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-1">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('tabs.editor')}</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t('tabs.editor')}
+            </div>
             <ScrollArea className="min-h-0 flex-1" viewportClassName="p-1">
               <div className="flex flex-col gap-1">
                 {tabs.length === 0 ? (
@@ -221,28 +244,26 @@ function RightSidebarComponent({
                   tabs.map((tab) => (
                     <div
                       key={tab}
-                      className="flex items-center justify-between gap-2 rounded-md border border-border bg-white/5 px-2 py-1"
+                      className={`flex items-center justify-between gap-2 rounded-lg border border-border/70 px-2 py-1 ${
+                        tab === activePath ? 'bg-accent/40' : 'bg-white/5'
+                      }`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="truncate text-sm">{tab}</span>
+                        <span className="truncate text-sm" title={tab}>
+                          {createFileLabel(tab)}
+                        </span>
+                        {dirtyPaths[tab] && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-7 w-7 rounded-md"
                           onClick={() => onOpenFile(tab)}
                           aria-label={t('tabs.editor')}
-                        >
-                          <BookOpen className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => onOpenFile(tab)}
-                          aria-label={t('inspector.openTabs')}
                         >
                           <Notebook className="h-3.5 w-3.5" />
                         </Button>

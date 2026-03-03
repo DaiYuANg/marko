@@ -19,7 +19,6 @@ export type LayoutContext = {
   setTheme: (theme: ThemeMode) => void
   files: FileEntry[]
   currentView: ViewMode
-  onChangeView: (mode: ViewMode) => void
 }
 
 export default function AppLayout() {
@@ -42,7 +41,6 @@ export default function AppLayout() {
       setTheme: state.setTheme,
       files: state.files,
       currentView: state.viewMode,
-      onChangeView: state.setViewMode,
     } as LayoutContext
   }, [
     state.activePath,
@@ -54,7 +52,6 @@ export default function AppLayout() {
     state.setTheme,
     state.files,
     state.viewMode,
-    state.setViewMode,
   ])
 
   useEffect(() => {
@@ -83,7 +80,7 @@ export default function AppLayout() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="app-shell flex h-full flex-col">
       <Titlebar
         onToggleSidebar={state.toggleSidebar}
         onToggleRightSidebar={state.toggleRightSidebar}
@@ -94,12 +91,13 @@ export default function AppLayout() {
         theme={state.theme}
         setTheme={state.setTheme}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden p-1.5 pt-1">
         <Sidebar
           collapsed={state.sidebarCollapsed}
           recentProjects={state.recentProjects}
           files={state.files}
           fileTree={state.fileTree}
+          activePath={state.activePath}
           onOpenFile={state.onOpenFile}
           onOpenProject={state.onOpenProject}
           onCreateFile={state.createFile}
@@ -110,16 +108,17 @@ export default function AppLayout() {
           rootKind={state.rootKind}
           onInspectPath={state.onInspectPath}
         />
-        <section className="flex flex-1 flex-col overflow-hidden">
+        <section className="panel-surface panel-enter mx-2 flex flex-1 flex-col overflow-hidden">
           <TabsBar
             tabs={state.tabs}
+            dirtyPaths={state.dirtyPaths}
             activePath={state.activePath}
             onOpenFile={state.onOpenFile}
             onCloseTab={state.onCloseTab}
             viewMode={state.viewMode}
             onChangeView={state.setViewMode}
           />
-          <div className="flex-1 overflow-hidden bg-background">
+          <div className="flex-1 overflow-hidden bg-background/70">
             <Outlet context={outletContext} />
           </div>
         </section>
@@ -127,6 +126,7 @@ export default function AppLayout() {
           collapsed={state.rightSidebarCollapsed}
           activePath={state.activePath}
           tabs={state.tabs}
+          dirtyPaths={state.dirtyPaths}
           totalFiles={totalFiles}
           onOpenFile={state.onOpenFile}
           viewMode={state.viewMode}

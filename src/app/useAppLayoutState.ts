@@ -50,13 +50,13 @@ export function useAppLayoutState() {
   const routeSegment = params['*']
   const routePath = useMemo(() => routeToPath(routeSegment), [routeSegment])
   const isRouteFile = useMemo(
-    () => routePath !== null && entries.some((entry) => entry.kind === 'file' && entry.path === routePath),
+    () =>
+      routePath !== null &&
+      entries.some((entry) => entry.kind === 'file' && entry.path === routePath),
     [entries, routePath],
   )
   const currentPath = isRouteFile ? routePath : activePath
-  const viewMode: ViewMode = currentPath
-    ? (tabViewModes[currentPath] ?? 'wysiwyg')
-    : 'wysiwyg'
+  const viewMode: ViewMode = currentPath ? (tabViewModes[currentPath] ?? 'wysiwyg') : 'wysiwyg'
   const setViewMode = useCallback(
     (mode: ViewMode) => {
       if (!currentPath) return
@@ -66,7 +66,7 @@ export function useAppLayoutState() {
   )
 
   const workspaceKey = `${rootKind}:${rootPath}`
-  const { fileContents, editorValue, onEditorChange } = useEditorBuffer({
+  const { fileContents, editorValue, dirtyPaths, onEditorChange } = useEditorBuffer({
     activePath: currentPath,
     workspaceKey,
   })
@@ -188,15 +188,7 @@ export function useAppLayoutState() {
         }
       }
     },
-    [
-      currentPath,
-      inspectedPath,
-      location.pathname,
-      navigate,
-      setActivePath,
-      setTabs,
-      tabs,
-    ],
+    [currentPath, inspectedPath, location.pathname, navigate, setActivePath, setTabs, tabs],
   )
 
   const fileTree = useMemo(() => buildFileTree(entries), [entries])
@@ -207,6 +199,7 @@ export function useAppLayoutState() {
     recentProjects,
     files: entries,
     tabs,
+    dirtyPaths,
     activePath: currentPath,
     sidebarCollapsed,
     rightSidebarCollapsed,

@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,200..700,0..1,-50..200');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import '@milkdown/crepe/theme/common/style.css';
 @import '@milkdown/crepe/theme/nord.css';
@@ -7,96 +8,96 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 210 33% 98%;
+    --foreground: 224 22% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 224 22% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
+    --popover-foreground: 224 22% 14%;
+    --primary: 205 82% 43%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --secondary: 214 35% 94%;
+    --secondary-foreground: 224 22% 14%;
+    --muted: 210 30% 94%;
+    --muted-foreground: 218 13% 43%;
+    --accent: 198 73% 92%;
+    --accent-foreground: 210 50% 25%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --sidebar: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --border: 214 28% 86%;
+    --input: 214 28% 86%;
+    --ring: 205 82% 43%;
+    --sidebar: 210 36% 97%;
+    --sidebar-foreground: 220 21% 18%;
+    --sidebar-primary: 205 82% 43%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --radius: 0.5rem;
+    --sidebar-accent: 200 65% 92%;
+    --sidebar-accent-foreground: 211 48% 25%;
+    --sidebar-border: 214 28% 86%;
+    --sidebar-ring: 205 82% 43%;
+    --radius: 0.75rem;
   }
 
   :root[data-theme='light'] {
     color-scheme: light;
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 210 33% 98%;
+    --foreground: 224 22% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 224 22% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
+    --popover-foreground: 224 22% 14%;
+    --primary: 205 82% 43%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --secondary: 214 35% 94%;
+    --secondary-foreground: 224 22% 14%;
+    --muted: 210 30% 94%;
+    --muted-foreground: 218 13% 43%;
+    --accent: 198 73% 92%;
+    --accent-foreground: 210 50% 25%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --sidebar: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --border: 214 28% 86%;
+    --input: 214 28% 86%;
+    --ring: 205 82% 43%;
+    --sidebar: 210 36% 97%;
+    --sidebar-foreground: 220 21% 18%;
+    --sidebar-primary: 205 82% 43%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 200 65% 92%;
+    --sidebar-accent-foreground: 211 48% 25%;
+    --sidebar-border: 214 28% 86%;
+    --sidebar-ring: 205 82% 43%;
   }
 
   :root[data-theme='dark'] {
     color-scheme: dark;
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 220 22% 10%;
+    --foreground: 210 20% 94%;
+    --card: 220 19% 13%;
+    --card-foreground: 210 20% 94%;
+    --popover: 220 19% 12%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 198 84% 58%;
+    --primary-foreground: 219 28% 10%;
+    --secondary: 220 17% 19%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 220 16% 17%;
+    --muted-foreground: 215 15% 70%;
+    --accent: 199 44% 24%;
+    --accent-foreground: 190 100% 93%;
+    --destructive: 0 74% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --sidebar: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 219 15% 26%;
+    --input: 219 15% 26%;
+    --ring: 198 84% 58%;
+    --sidebar: 220 23% 12%;
+    --sidebar-foreground: 210 20% 94%;
+    --sidebar-primary: 198 84% 58%;
+    --sidebar-primary-foreground: 219 28% 10%;
+    --sidebar-accent: 201 41% 21%;
+    --sidebar-accent-foreground: 190 100% 93%;
+    --sidebar-border: 219 15% 26%;
+    --sidebar-ring: 198 84% 58%;
   }
 
   html,
@@ -108,8 +109,52 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
   }
+}
+
+.app-shell {
+  background:
+    radial-gradient(1100px 650px at 90% -10%, hsl(198 80% 88% / 0.45), transparent 65%),
+    radial-gradient(800px 550px at -20% 100%, hsl(210 70% 92% / 0.55), transparent 60%),
+    hsl(var(--background));
+}
+
+.panel-surface {
+  border-radius: calc(var(--radius) + 0.1rem);
+  background: color-mix(in srgb, hsl(var(--background)) 88%, white 12%);
+  box-shadow:
+    0 10px 34px -25px rgba(15, 23, 42, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition:
+    background-color 170ms ease,
+    border-color 170ms ease,
+    box-shadow 170ms ease;
+}
+
+.panel-enter {
+  animation: panel-enter 220ms ease-out both;
+}
+
+.layout-rail {
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+}
+
+:root[data-theme='dark'] .app-shell {
+  background:
+    radial-gradient(1000px 600px at 90% -10%, hsl(204 70% 26% / 0.35), transparent 65%),
+    radial-gradient(780px 520px at -10% 100%, hsl(225 48% 20% / 0.4), transparent 62%),
+    hsl(var(--background));
+}
+
+:root[data-theme='dark'] .panel-surface {
+  background: color-mix(in srgb, hsl(var(--background)) 86%, hsl(221 18% 18%) 14%);
+  box-shadow:
+    0 12px 32px -26px rgba(3, 7, 18, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .app-titlebar {
@@ -161,6 +206,60 @@
     'wght' 400,
     'GRAD' 0,
     'opsz' 24;
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.997);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tab-pop {
+  from {
+    transform: translateY(1px) scale(0.985);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes menu-float {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes view-fade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-enter {
+    animation: none;
+  }
+
+  .layout-rail {
+    transition: none;
+  }
 }
 
 @theme inline {

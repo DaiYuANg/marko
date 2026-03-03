@@ -7,16 +7,8 @@ import { pathToRoute, routeToPath } from '@/logic/routing'
 function EditorRoute() {
   const params = useParams()
   const routeSegment = params['*']
-  const {
-    activePath,
-    editorValue,
-    onEditorChange,
-    files,
-    onOpenFile,
-    graph,
-    currentView,
-    onChangeView,
-  } = useOutletContext<LayoutContext>()
+  const { activePath, editorValue, onEditorChange, files, onOpenFile, graph, currentView } =
+    useOutletContext<LayoutContext>()
   const requestedPath = routeToPath(routeSegment)
   const requestedPathExists =
     requestedPath !== null &&
@@ -41,7 +33,6 @@ function EditorRoute() {
       graph={graph}
       onOpenFile={onOpenFile}
       viewMode={currentView}
-      onChangeView={onChangeView}
     />
   )
 }
