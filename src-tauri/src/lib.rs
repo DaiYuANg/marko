@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, RwLock};
+use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, Mutex, RwLock};
 use tauri::{Emitter, Listener, Manager};
 use crate::commands::app::{app_get_platform, menu_dispatch};
 use crate::commands::fs::{
@@ -75,10 +75,46 @@ fn run_impl() {
         app_handle.get_webview_window("splashscreen"),
         app_handle.get_webview_window("main"),
       ) {
-        app_handle.listen("app-ready", move |_| {
+        // On macOS, WKWebView suspends JavaScript when the window is hidden.
+        // Show the main window (splash has alwaysOnTop so stays on top) so the
+        // WebView can load; otherwise app-ready is never emitted.
+        #[cfg(target_os = "macos")]
+        {
           let _ = main.show();
-          let _ = main.set_focus();
-          let _ = splash.close();
+        }
+
+        let splash_done = Arc::new(AtomicBool::new(false));
+        let splash_done_clone = Arc::clone(&splash_done);
+
+        app_handle.listen("app-ready", move |_| {
+          if splash_done_clone
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+          {
+            let _ = main.show();
+            let _ = main.set_focus();
+            let _ = splash.close();
+          }
+        });
+
+        // Fallback: if app-ready is never received (e.g. WebView fails to load),
+        // close splash and show main after 5 seconds.
+        let app_handle_timeout = app_handle.clone();
+        tauri::async_runtime::spawn(async move {
+          tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+          if splash_done
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+          {
+            if let (Some(splash), Some(main)) = (
+              app_handle_timeout.get_webview_window("splashscreen"),
+              app_handle_timeout.get_webview_window("main"),
+            ) {
+              let _ = main.show();
+              let _ = main.set_focus();
+              let _ = splash.close();
+            }
+          }
         });
       }
 
