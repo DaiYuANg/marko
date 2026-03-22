@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { Dual } from '@/playground'
 import { crepeAPI, markdown } from '@/playground/atom'
+import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
 import { useI18n } from '@/i18n/useI18n'
 import MarkdownSourceEditor from '@/components/MarkdownSourceEditor'
 import GraphPage from '@/pages/GraphPage'
@@ -26,7 +27,7 @@ export default function EditorPage({
   viewMode,
 }: EditorPageProps) {
   const [value, setValue] = useAtom(markdown)
-  const crepe = useAtomValue(crepeAPI)
+  const crepeApi = useAtomValue(crepeAPI)
   const lastWysiwygValueRef = useRef<string | null>(null)
   const { t } = useI18n()
 
@@ -47,15 +48,42 @@ export default function EditorPage({
 
   useEffect(() => {
     if (!activePath) return
-    if (!crepe.loaded) return
+    if (!crepeApi.loaded) return
     if (viewMode !== 'wysiwyg') return
     if (lastWysiwygValueRef.current === editorValue) return
-    crepe.update(editorValue)
-  }, [activePath, crepe, editorValue, viewMode])
+    crepeApi.update(editorValue)
+  }, [activePath, crepeApi, editorValue, viewMode])
 
   useEffect(() => {
     lastWysiwygValueRef.current = null
   }, [activePath])
+
+  const crepeRef = useRef(crepeApi)
+  const editorValueRef = useRef(editorValue)
+  const viewModeRef = useRef(viewMode)
+  const activePathRef = useRef(activePath)
+
+  useEffect(() => {
+    crepeRef.current = crepeApi
+    editorValueRef.current = editorValue
+    viewModeRef.current = viewMode
+    activePathRef.current = activePath
+  })
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { expectedActivePath, respond } = (e as CustomEvent<ExportContentRequest>).detail ?? {}
+      if (typeof respond !== 'function') return
+      // Only respond if we're showing the requested file (avoid wrong-tab export)
+      if (expectedActivePath != null && activePathRef.current !== expectedActivePath) return
+      const { loaded, getMarkdown } = crepeRef.current
+      const content =
+        viewModeRef.current === 'wysiwyg' && loaded ? getMarkdown() : editorValueRef.current
+      respond(content)
+    }
+    window.addEventListener(EXPORT_CONTENT_EVENT, handler)
+    return () => window.removeEventListener(EXPORT_CONTENT_EVENT, handler)
+  }, [])
 
   const handleSourceChange = useCallback(
     (nextValue: string) => {

@@ -11,7 +11,7 @@ import {
   Search,
 } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   CommandDialog,
@@ -98,6 +98,9 @@ export default function Titlebar({
           { id: 'file.new', label: 'New File' },
           { id: 'file.open_project', label: t('actions.openProject') },
           { id: 'file.open_file', label: t('actions.openFile') },
+          { id: 'file.export_pdf', label: t('actions.exportPdf') },
+          { id: 'file.export_docx', label: t('actions.exportDocx') },
+          { id: 'file.export_html', label: t('actions.exportHtml') },
         ],
       },
       {
@@ -181,15 +184,34 @@ export default function Titlebar({
     }
     if (id === 'help.about') {
       onMenuAction(id)
+      return
+    }
+    if (id.startsWith('file.export_')) {
+      onMenuAction(id)
+      return
     }
   }
 
   const isMacTauri = platform === 'macos' && isTauriRuntime()
 
+  const handleTitlebarMouseDown = (e: ReactMouseEvent) => {
+    if (!isTauriRuntime() || platform !== 'macos') return
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    if (
+      target.closest(
+        'button, a, input, select, textarea, [role="button"], [role="menuitem"], [data-no-drag]',
+      )
+    )
+      return
+    void getCurrentWindow().startDragging()
+  }
+
   return (
     <header
       className={`app-titlebar panel-enter flex h-11 items-center justify-between border-b border-border/70 bg-background/80 px-2 backdrop-blur ${isMacTauri ? 'pl-[68px]' : ''}`}
       data-tauri-drag-region
+      onMouseDown={handleTitlebarMouseDown}
     >
       <TooltipProvider>
         <div className="flex min-w-0 items-center gap-1">
@@ -375,6 +397,18 @@ export default function Titlebar({
             <CommandItem onSelect={() => onCommandAction('view.focus_file_search')}>
               <Search className="h-4 w-4" />
               {t('sidebar.searchAction')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('file.export_pdf')}>
+              <FileText className="h-4 w-4" />
+              {t('actions.exportPdf')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('file.export_docx')}>
+              <FileText className="h-4 w-4" />
+              {t('actions.exportDocx')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('file.export_html')}>
+              <FileText className="h-4 w-4" />
+              {t('actions.exportHtml')}
             </CommandItem>
           </CommandGroup>
           <CommandSeparator />

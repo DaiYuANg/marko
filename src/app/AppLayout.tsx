@@ -6,8 +6,10 @@ import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { exportApi } from '@/services/exportApi'
 import { fsApi } from '@/services/fsApi'
+import { requestExportContent } from '@/utils/exportContent'
 import { isTauriRuntime } from '@/utils/tauri'
 
 export type LayoutContext = {
@@ -24,6 +26,19 @@ export type LayoutContext = {
 
 export default function AppLayout() {
   const state = useAppLayoutState()
+
+  // Ref for export: always use latest active tab (avoids stale closure when menu opens)
+  const exportStateRef = useRef({
+    activePath: state.activePath,
+    rootPath: state.rootPath,
+    editorValue: state.editorValue,
+  })
+  exportStateRef.current = {
+    activePath: state.activePath,
+    rootPath: state.rootPath,
+    editorValue: state.editorValue,
+  }
+
   const totalFiles = useMemo(
     () => state.files.reduce((count, file) => count + (file.kind === 'file' ? 1 : 0), 0),
     [state.files],
@@ -121,6 +136,22 @@ export default function AppLayout() {
       if (id === 'file.new') {
         const next = createUntitledPath()
         void state.createFile(next).then(() => state.onOpenFile(next))
+        return
+      }
+      if (id === 'file.export_pdf' || id === 'file.export_docx' || id === 'file.export_html') {
+        if (!isTauriRuntime()) return
+        const format =
+          id === 'file.export_pdf' ? 'pdf' : id === 'file.export_docx' ? 'docx' : 'html'
+        const { activePath, rootPath, editorValue } = exportStateRef.current
+        void (async () => {
+          const content = await requestExportContent(editorValue, {
+            expectedActivePath: activePath,
+          })
+          await exportApi.exportMarkdown(content, format, {
+            rootPath,
+            activePath,
+          })
+        })().catch((err) => window.alert(String(err)))
         return
       }
       if (id === 'view.wysiwyg') state.setViewMode('wysiwyg')

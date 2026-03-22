@@ -15,10 +15,14 @@ pub fn setup_native_menu(app: &AppHandle) -> Result<(), String> {
   use tauri::menu::{MenuBuilder, SubmenuBuilder};
 
   let file = SubmenuBuilder::new(app, "File")
+    .text("file.open_project", "Open Folder…")
+    .text("file.open_file", "Open File…")
+    .separator()
     .text("file.new", "New File")
     .separator()
-    .text("file.open_project", "Open Project…")
-    .text("file.open_file", "Open File…")
+    .text("file.export_pdf", "Export to PDF…")
+    .text("file.export_docx", "Export to Word…")
+    .text("file.export_html", "Export to HTML…")
     .build()
     .map_err(|err| err.to_string())?;
 

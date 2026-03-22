@@ -187,6 +187,7 @@ export function useAppLayoutState() {
   const graph = useGraphData(entries, fileContents, viewMode === 'graph')
 
   return {
+    rootPath,
     rootKind,
     recentProjects,
     files: entries,

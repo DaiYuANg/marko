@@ -6,10 +6,12 @@ export const crepeAPI = atom<{
   loaded: boolean
   onShare: () => void
   update: (markdown: string) => void
+  getMarkdown: () => string
 }>({
   loaded: false,
   onShare: () => {},
   update: () => {},
+  getMarkdown: () => '',
 })
 
 export const cmAPI = atom<{

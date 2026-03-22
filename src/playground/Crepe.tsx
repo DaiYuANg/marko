@@ -77,6 +77,10 @@ export default function CrepeEditor({ onChange }: MilkdownProps) {
       readyRef.current = true
       setCrepeAPI({
         loaded: true,
+        getMarkdown: () => {
+          if (!readyRef.current) return ''
+          return crepe.editor.action(getMarkdown()) ?? ''
+        },
         onShare: () => {
           if (!readyRef.current) return
           const content = crepe.editor.action(getMarkdown())
@@ -121,6 +125,7 @@ export default function CrepeEditor({ onChange }: MilkdownProps) {
         loaded: false,
         onShare: () => {},
         update: () => {},
+        getMarkdown: () => '',
       })
     }
   }, [darkMode, setCrepeAPI])

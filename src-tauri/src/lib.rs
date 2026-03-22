@@ -9,6 +9,7 @@ use crate::commands::fs::{
   fs_get_root_info, fs_get_snapshot, fs_list_entries, fs_open_file, fs_read_file, fs_rename_path,
   fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
 };
+use crate::commands::export::export_markdown;
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
 
 mod commands;
@@ -134,6 +135,9 @@ fn run_impl() {
         "file.new"
           | "file.open_project"
           | "file.open_file"
+          | "file.export_pdf"
+          | "file.export_docx"
+          | "file.export_html"
           | "view.wysiwyg"
           | "view.source"
           | "view.graph"
@@ -180,7 +184,8 @@ fn run_impl() {
       fs_delete_path,
       fs_rename_path,
       app_get_platform,
-      menu_dispatch
+      menu_dispatch,
+      export_markdown
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
