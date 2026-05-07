@@ -13,6 +13,7 @@ const EditorRoute = () => {
     onEditorChange,
     files,
     fileContents,
+    workspaceIndex,
     onOpenFile,
     graph,
     currentView,
@@ -41,6 +42,7 @@ const EditorRoute = () => {
       graph={graph}
       files={files}
       fileContents={fileContents}
+      workspaceIndex={workspaceIndex}
       onOpenFile={onOpenFile}
       viewMode={currentView}
     />

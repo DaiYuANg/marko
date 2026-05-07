@@ -23,6 +23,38 @@ const baseFiles = [
   { path: 'source.md', kind: 'file' },
 ] satisfies RightSidebarProps['files']
 
+const workspaceIndex = {
+  files: [
+    {
+      path: 'target.md',
+      headings: [
+        { path: 'target.md', level: 1, text: 'Indexed Target', slug: 'indexed-target', line: 1 },
+        { path: 'target.md', level: 2, text: 'Indexed Detail', slug: 'indexed-detail', line: 2 },
+      ],
+      links: [],
+    },
+    {
+      path: 'source.md',
+      headings: [],
+      links: [
+        {
+          source_path: 'source.md',
+          text: 'Target',
+          target: 'target.md',
+          link_type: 'markdown',
+          target_path: 'target.md',
+          target_anchor: null,
+          target_heading_slug: null,
+          is_external: false,
+          context: 'See [Target](target.md) from index',
+          line: 3,
+          column: 5,
+        },
+      ],
+    },
+  ],
+} satisfies NonNullable<RightSidebarProps['workspaceIndex']>
+
 const createProps = (overrides: Partial<RightSidebarProps> = {}): RightSidebarProps => ({
   collapsed: false,
   activePath: 'target.md',
@@ -36,6 +68,7 @@ const createProps = (overrides: Partial<RightSidebarProps> = {}): RightSidebarPr
   tabs: ['target.md'],
   totalFiles: 2,
   onOpenFile: vi.fn(),
+  workspaceIndex: null,
   viewMode: 'wysiwyg',
   onChangeView: vi.fn(),
   ...overrides,
@@ -110,5 +143,26 @@ describe('RightSidebar', () => {
     } finally {
       window.removeEventListener(FOCUS_SOURCE_POSITION_EVENT, listener)
     }
+  })
+
+  it('uses the shared workspace index for inspected outline and backlinks', async () => {
+    render(
+      <RightSidebar
+        {...createProps({
+          activePath: 'source.md',
+          inspectedPath: 'target.md',
+          editorValue: '# Source\n',
+          fileContents: {},
+          workspaceIndex,
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Indexed Detail')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('tab', { name: /backlinks/i }))
+
+    expect(await screen.findByText('source')).toBeInTheDocument()
+    expect(screen.getByText('See [Target](target.md) from index')).toBeInTheDocument()
   })
 })

@@ -25,9 +25,8 @@ import {
   splitLinkTarget,
 } from '@/logic/paths'
 import type { FileEntry, ViewMode } from '@/store/useAppStore'
-import { fsApi, type FsPathMetadata } from '@/services/fsApi'
+import { fsApi, type FsPathMetadata, type FsWorkspaceIndex } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
-import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
 import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
 import {
   requestFocusHeading,
@@ -43,6 +42,7 @@ type RightSidebarProps = {
   editorValue: string
   files: FileEntry[]
   fileContents: Record<string, string>
+  workspaceIndex?: FsWorkspaceIndex | null
   tabs: string[]
   totalFiles: number
   onOpenFile: (path: string) => void
@@ -100,6 +100,7 @@ const RightSidebarComponent = ({
   editorValue,
   files,
   fileContents,
+  workspaceIndex,
   tabs,
   totalFiles,
   onOpenFile,
@@ -132,7 +133,6 @@ const RightSidebarComponent = ({
   }, [metadata, targetPath, tauriAvailable])
   const loadingMetadata =
     tauriAvailable && Boolean(targetPath) && resolvedMetadataPath !== targetPath
-  const workspaceIndex = useWorkspaceIndex(files, !collapsed)
   const indexedFilesByPath = useMemo(() => {
     if (!workspaceIndex) return null
     return new Map(workspaceIndex.files.map((file) => [file.path, file]))

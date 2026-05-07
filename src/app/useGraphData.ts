@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
 import { buildGraph, buildGraphFromWorkspaceIndex, type GraphData } from '@/logic/graph'
+import type { FsWorkspaceIndex } from '@/services/fsApi'
 import type { FileEntry } from '@/store/useAppStore'
 import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
-import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
 
 export function useGraphData(
   entries: FileEntry[],
   fileContents: Record<string, string>,
   enabled: boolean,
+  workspaceIndex: FsWorkspaceIndex | null,
 ) {
   const [graph, setGraph] = useState<GraphData>({ nodes: [], edges: [] })
-  const workspaceIndex = useWorkspaceIndex(entries, enabled)
   const workspaceContents = useWorkspaceMarkdownContents(
     entries,
     fileContents,

@@ -4,8 +4,8 @@ import { useI18n } from '@/i18n/useI18n'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import type { GraphData } from '@/logic/graph'
+import type { FsWorkspaceIndex } from '@/services/fsApi'
 import type { FileEntry, ViewMode } from '@/store/useAppStore'
-import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
@@ -18,6 +18,7 @@ type EditorPageProps = {
   graph: GraphData
   files: FileEntry[]
   fileContents: Record<string, string>
+  workspaceIndex: FsWorkspaceIndex | null
   onOpenFile: (path: string) => void
   viewMode: ViewMode
 }
@@ -29,12 +30,12 @@ export default function EditorPage({
   graph,
   files,
   fileContents,
+  workspaceIndex,
   onOpenFile,
   viewMode,
 }: EditorPageProps) {
   const { t } = useI18n()
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
-  const workspaceIndex = useWorkspaceIndex(files, viewMode === 'source')
 
   const handleMarkdownChange = useCallback(
     (nextValue: string) => {

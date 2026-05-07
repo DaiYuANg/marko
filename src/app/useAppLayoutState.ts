@@ -7,6 +7,7 @@ import { useProjectLoader } from '@/app/useProjectLoader'
 import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
 import { fsSnapshotSchema } from '@/services/fsApi'
+import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
 
 export function useAppLayoutState() {
   const rootPath = useAppStore((s) => s.rootPath)
@@ -184,7 +185,11 @@ export function useAppLayoutState() {
   )
 
   const fileTree = useMemo(() => buildFileTree(entries), [entries])
-  const graph = useGraphData(entries, fileContents, viewMode === 'graph')
+  const workspaceIndex = useWorkspaceIndex(
+    entries,
+    viewMode === 'graph' || viewMode === 'source' || !rightSidebarCollapsed,
+  )
+  const graph = useGraphData(entries, fileContents, viewMode === 'graph', workspaceIndex)
 
   return {
     rootPath,
@@ -202,6 +207,7 @@ export function useAppLayoutState() {
     viewMode,
     fileTree,
     graph,
+    workspaceIndex,
     inspectedPath,
     editorValue,
     isMaximized,
