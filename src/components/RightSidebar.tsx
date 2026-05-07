@@ -27,6 +27,7 @@ import {
 import type { FileEntry, ViewMode } from '@/store/useAppStore'
 import { fsApi, type FsPathMetadata } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
+import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
 import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
 import {
   requestFocusHeading,
@@ -131,15 +132,45 @@ const RightSidebarComponent = ({
   }, [metadata, targetPath, tauriAvailable])
   const loadingMetadata =
     tauriAvailable && Boolean(targetPath) && resolvedMetadataPath !== targetPath
-  const workspaceContents = useWorkspaceMarkdownContents(files, fileContents, !collapsed)
+  const workspaceIndex = useWorkspaceIndex(files, !collapsed)
+  const indexedFilesByPath = useMemo(() => {
+    if (!workspaceIndex) return null
+    return new Map(workspaceIndex.files.map((file) => [file.path, file]))
+  }, [workspaceIndex])
+  const indexedTargetFile = targetPath ? indexedFilesByPath?.get(targetPath) : undefined
+  const workspaceContents = useWorkspaceMarkdownContents(
+    files,
+    fileContents,
+    !collapsed && !workspaceIndex,
+  )
   const targetContent = useMemo(() => {
     if (!targetPath) return ''
     if (targetPath === activePath) return editorValue
     return workspaceContents[targetPath] ?? ''
   }, [activePath, editorValue, targetPath, workspaceContents])
-  const outline = useMemo(() => extractHeadings(targetContent), [targetContent])
+  const outline = useMemo(() => {
+    if (targetPath && targetPath !== activePath && indexedTargetFile) {
+      return indexedTargetFile.headings
+    }
+    return extractHeadings(targetContent)
+  }, [activePath, indexedTargetFile, targetContent, targetPath])
   const backlinks = useMemo<Backlink[]>(() => {
     if (!targetPath) return []
+
+    if (workspaceIndex) {
+      return workspaceIndex.files.flatMap((file) => {
+        if (file.path === targetPath) return []
+        return file.links
+          .filter((link) => !link.is_external && link.target_path === targetPath)
+          .map((link) => ({
+            sourcePath: file.path,
+            text: link.text || link.target,
+            context: link.context,
+            line: link.line,
+            column: link.column,
+          }))
+      })
+    }
 
     const nameIndex = new Map<string, string>()
     files
@@ -167,7 +198,7 @@ const RightSidebarComponent = ({
         })
       })
     return results
-  }, [activePath, editorValue, files, targetPath, workspaceContents])
+  }, [activePath, editorValue, files, targetPath, workspaceContents, workspaceIndex])
 
   const quickActions = useMemo(() => {
     return [

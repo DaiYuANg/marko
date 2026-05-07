@@ -43,6 +43,42 @@ pub struct FsBufferStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FsMarkdownHeading {
+  pub path: String,
+  pub level: u8,
+  pub text: String,
+  pub slug: String,
+  pub line: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsMarkdownLink {
+  pub source_path: String,
+  pub text: String,
+  pub target: String,
+  pub link_type: String,
+  pub target_path: Option<String>,
+  pub target_anchor: Option<String>,
+  pub target_heading_slug: Option<String>,
+  pub is_external: bool,
+  pub context: String,
+  pub line: usize,
+  pub column: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsIndexedMarkdownFile {
+  pub path: String,
+  pub headings: Vec<FsMarkdownHeading>,
+  pub links: Vec<FsMarkdownLink>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsWorkspaceIndex {
+  pub files: Vec<FsIndexedMarkdownFile>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 /// represents a pending file write request. previously unused,
 /// now repurposed as the message type sent to the backend write
 /// worker, allowing the front end to enqueue updates without

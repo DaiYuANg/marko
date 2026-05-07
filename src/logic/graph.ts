@@ -1,5 +1,6 @@
 import type { Edge, Node } from 'reactflow'
 import type { FileEntry } from '@/store/useAppStore'
+import type { FsWorkspaceIndex } from '@/services/fsApi'
 import {
   createFileLabel,
   extractHeadings,
@@ -178,6 +179,131 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
         })
       })
     })
+
+  const nodes = [
+    ...fileNodes.values(),
+    ...headingNodes.values(),
+    ...externalNodes.values(),
+    ...missingNodes.values(),
+  ]
+  if (nodes.length === 0) {
+    return { nodes, edges }
+  }
+
+  applyGraphLayout(nodes, edges)
+  return { nodes, edges }
+}
+
+export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData {
+  const edges: Edge[] = []
+  const fileNodes = new Map<string, Node>()
+  const externalNodes = new Map<string, Node>()
+  const missingNodes = new Map<string, Node>()
+  const headingNodes = new Map<string, Node>()
+  const headingSlugIndex = new Map<string, Map<string, string>>()
+
+  index.files.forEach((file) => {
+    const label = createFileLabel(file.path)
+    fileNodes.set(file.path, {
+      id: `file:${file.path}`,
+      data: { label },
+      position: { x: 0, y: 0 },
+    })
+  })
+
+  index.files.forEach((file) => {
+    const sourceId = `file:${file.path}`
+    const headingIdsBySlug = new Map<string, string>()
+    headingSlugIndex.set(file.path, headingIdsBySlug)
+
+    const headingStack: Array<{ level: number; id: string }> = []
+    file.headings.forEach((heading) => {
+      const headingId = `heading:${file.path}:${heading.slug}`
+      headingIdsBySlug.set(heading.slug, headingId)
+      headingNodes.set(headingId, {
+        id: headingId,
+        type: 'heading',
+        data: { label: heading.text, subtitle: `H${heading.level}` },
+        position: { x: 0, y: 0 },
+      })
+      while (
+        headingStack.length > 0 &&
+        headingStack[headingStack.length - 1].level >= heading.level
+      ) {
+        headingStack.pop()
+      }
+      const parentId = headingStack[headingStack.length - 1]?.id ?? sourceId
+      edges.push({
+        id: `${parentId}->${headingId}-${edges.length}`,
+        source: parentId,
+        target: headingId,
+      })
+      headingStack.push({ level: heading.level, id: headingId })
+    })
+  })
+
+  index.files.forEach((file) => {
+    const sourceId = `file:${file.path}`
+    file.links.forEach((link) => {
+      if (link.is_external) {
+        const url = link.target
+        if (!externalNodes.has(url)) {
+          const hostname = url.replace(/^https?:\/\//i, '').split('/')[0] ?? url
+          externalNodes.set(url, {
+            id: `ext:${url}`,
+            type: 'external',
+            data: { label: link.text || hostname, subtitle: hostname, url },
+            position: { x: 0, y: 0 },
+          })
+        }
+        edges.push({
+          id: `${sourceId}->ext:${url}-${edges.length}`,
+          source: sourceId,
+          target: `ext:${url}`,
+        })
+        return
+      }
+
+      const targetPath = link.target_path
+      if (!targetPath) return
+
+      const targetHeadingId = link.target_heading_slug
+        ? headingSlugIndex.get(targetPath)?.get(link.target_heading_slug)
+        : undefined
+      if (targetHeadingId) {
+        edges.push({
+          id: `${sourceId}->${targetHeadingId}-${edges.length}`,
+          source: sourceId,
+          target: targetHeadingId,
+        })
+        return
+      }
+
+      if (fileNodes.has(targetPath)) {
+        edges.push({
+          id: `${sourceId}->file:${targetPath}-${edges.length}`,
+          source: sourceId,
+          target: `file:${targetPath}`,
+        })
+        return
+      }
+
+      if (!missingNodes.has(targetPath)) {
+        missingNodes.set(targetPath, {
+          id: `missing:${targetPath}`,
+          type: 'missing',
+          data: { label: createFileLabel(targetPath), subtitle: targetPath },
+          position: { x: 0, y: 0 },
+        })
+      }
+
+      edges.push({
+        id: `${sourceId}->missing:${targetPath}-${edges.length}`,
+        source: sourceId,
+        target: `missing:${targetPath}`,
+      })
+    })
+  })
 
   const nodes = [
     ...fileNodes.values(),

@@ -32,12 +32,48 @@ export const fsBufferStatusSchema = z.object({
   dirty: z.boolean(),
 })
 
+export const fsMarkdownHeadingSchema = z.object({
+  path: z.string(),
+  level: z.number(),
+  text: z.string(),
+  slug: z.string(),
+  line: z.number(),
+})
+
+export const fsMarkdownLinkSchema = z.object({
+  source_path: z.string(),
+  text: z.string(),
+  target: z.string(),
+  link_type: z.enum(['markdown', 'wiki']),
+  target_path: z.string().nullable().optional(),
+  target_anchor: z.string().nullable().optional(),
+  target_heading_slug: z.string().nullable().optional(),
+  is_external: z.boolean(),
+  context: z.string(),
+  line: z.number(),
+  column: z.number(),
+})
+
+export const fsIndexedMarkdownFileSchema = z.object({
+  path: z.string(),
+  headings: z.array(fsMarkdownHeadingSchema),
+  links: z.array(fsMarkdownLinkSchema),
+})
+
+export const fsWorkspaceIndexSchema = z.object({
+  files: z.array(fsIndexedMarkdownFileSchema),
+})
+
 export type FsRootKind = z.infer<typeof fsRootInfoSchema>['kind']
 export type FsEntry = z.infer<typeof fsEntrySchema>
 export type FsRootInfo = z.infer<typeof fsRootInfoSchema>
 export type FsSnapshot = z.infer<typeof fsSnapshotSchema>
 export type FsPathMetadata = z.infer<typeof fsPathMetadataSchema>
 export type FsBufferStatus = z.infer<typeof fsBufferStatusSchema>
+export type FsMarkdownHeading = z.infer<typeof fsMarkdownHeadingSchema>
+export type FsMarkdownLink = z.infer<typeof fsMarkdownLinkSchema>
+export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
+export type FsWorkspaceIndex = z.infer<typeof fsWorkspaceIndexSchema>
 
 export const fsApi = {
   async getSnapshot() {
@@ -57,6 +93,10 @@ export const fsApi = {
   },
   readFile(path: string) {
     return invoke<string>('fs_read_file', { path })
+  },
+  async getWorkspaceIndex() {
+    const result = await invoke<unknown>('fs_get_workspace_index')
+    return fsWorkspaceIndexSchema.parse(result)
   },
   async updateBuffer(path: string, content: string) {
     const result = await invoke<unknown>('fs_update_buffer', { path, content })
