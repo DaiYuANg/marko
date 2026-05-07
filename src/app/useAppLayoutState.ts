@@ -187,7 +187,7 @@ export function useAppLayoutState() {
   const fileTree = useMemo(() => buildFileTree(entries), [entries])
   const workspaceIndex = useWorkspaceIndex(
     entries,
-    viewMode === 'graph' || viewMode === 'source' || !rightSidebarCollapsed,
+    entries.some((entry) => entry.kind === 'file'),
   )
   const graph = useGraphData(entries, fileContents, viewMode === 'graph', workspaceIndex)
 

@@ -6,12 +6,13 @@ import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { exportApi } from '@/services/exportApi'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { requestExportContent } from '@/utils/exportContent'
 import { isTauriRuntime } from '@/utils/tauri'
 import type { SaveState } from '@/app/useEditorBuffer'
+import { requestFocusHeading, type FocusHeadingRequest } from '@/utils/editorNavigation'
 
 export type LayoutContext = {
   activePath: string | null
@@ -30,6 +31,7 @@ export type LayoutContext = {
 
 export default function AppLayout() {
   const state = useAppLayoutState()
+  const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
 
   // Ref for export: always use latest active tab (avoids stale closure when menu opens)
   const exportStateRef = useRef({
@@ -83,6 +85,31 @@ export default function AppLayout() {
   useEffect(() => {
     document.documentElement.dataset.theme = state.theme
   }, [state.theme])
+
+  const openHeading = useCallback(
+    (path: string, slug: string) => {
+      state.onOpenFile(path)
+      state.setViewMode('wysiwyg')
+      setPendingHeading({ path, slug })
+    },
+    [state],
+  )
+
+  useEffect(() => {
+    if (!pendingHeading) return
+    if (state.activePath !== pendingHeading.path || state.viewMode !== 'wysiwyg') return
+
+    const timer = window.setTimeout(() => {
+      requestFocusHeading(pendingHeading)
+      setPendingHeading((current) =>
+        current?.path === pendingHeading.path && current.slug === pendingHeading.slug
+          ? null
+          : current,
+      )
+    }, 80)
+
+    return () => window.clearTimeout(timer)
+  }, [pendingHeading, state.activePath, state.viewMode])
 
   useEffect(() => {
     const isTauri =
@@ -209,6 +236,11 @@ export default function AppLayout() {
         onToggleRightSidebar={state.toggleRightSidebar}
         onSelectProject={state.onSelectProject}
         onSelectSingleFile={state.onSelectSingleFile}
+        onOpenFile={state.onOpenFile}
+        onOpenHeading={openHeading}
+        onChangeView={state.setViewMode}
+        files={state.files}
+        workspaceIndex={state.workspaceIndex}
         isMaximized={state.isMaximized}
         setIsMaximized={state.setIsMaximized}
         theme={state.theme}

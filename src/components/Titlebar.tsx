@@ -4,6 +4,7 @@ import {
   FolderOpen,
   GitGraph,
   Languages,
+  ListTree,
   PanelLeft,
   PanelRight,
   Palette,
@@ -34,18 +35,25 @@ import {
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import type { ThemeMode } from '@/store/useAppStore'
+import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
 import { useI18n } from '@/i18n/useI18n'
 import type { Locale } from '@/i18n/resources'
 import { appApi, type AppPlatform } from '@/services/appApi'
 import AppMenuBar from '@/components/AppMenuBar'
 import { inferPlatformFromUserAgent, isTauriRuntime } from '@/utils/tauri'
+import type { FsWorkspaceIndex } from '@/services/fsApi'
+import { createFileLabel } from '@/logic/paths'
 
 type TitlebarProps = {
   onToggleSidebar: () => void
   onToggleRightSidebar: () => void
   onSelectProject: () => void
   onSelectSingleFile: () => void
+  onOpenFile: (path: string) => void
+  onOpenHeading: (path: string, slug: string) => void
+  onChangeView: (mode: ViewMode) => void
+  files: FileEntry[]
+  workspaceIndex: FsWorkspaceIndex | null
   isMaximized: boolean
   setIsMaximized: (value: boolean) => void
   theme: ThemeMode
@@ -57,6 +65,11 @@ export default function Titlebar({
   onToggleRightSidebar,
   onSelectProject,
   onSelectSingleFile,
+  onOpenFile,
+  onOpenHeading,
+  onChangeView,
+  files,
+  workspaceIndex,
   isMaximized,
   setIsMaximized,
   theme,
@@ -141,6 +154,30 @@ export default function Titlebar({
     [t],
   )
 
+  const commandFiles = useMemo(() => {
+    const paths = workspaceIndex
+      ? workspaceIndex.files.map((file) => file.path)
+      : files.filter((file) => file.kind === 'file').map((file) => file.path)
+
+    return paths.map((path) => ({
+      path,
+      label: createFileLabel(path),
+    }))
+  }, [files, workspaceIndex])
+
+  const commandHeadings = useMemo(() => {
+    if (!workspaceIndex) return []
+    return workspaceIndex.files.flatMap((file) =>
+      file.headings.map((heading) => ({
+        path: file.path,
+        slug: heading.slug,
+        text: heading.text,
+        level: heading.level,
+        label: createFileLabel(file.path),
+      })),
+    )
+  }, [workspaceIndex])
+
   const onMenuAction = (id: string) => {
     if (!isTauriRuntime()) return
     void appApi.menuDispatch(id)
@@ -153,6 +190,18 @@ export default function Titlebar({
   }
   const onCommandAction = (id: string) => {
     setCommandOpen(false)
+    if (id === 'view.wysiwyg') {
+      onChangeView('wysiwyg')
+      return
+    }
+    if (id === 'view.source') {
+      onChangeView('source')
+      return
+    }
+    if (id === 'view.graph') {
+      onChangeView('graph')
+      return
+    }
     if (id === 'file.open_project') {
       onSelectProject()
       return
@@ -190,6 +239,16 @@ export default function Titlebar({
       onMenuAction(id)
       return
     }
+  }
+
+  const onCommandOpenFile = (path: string) => {
+    setCommandOpen(false)
+    onOpenFile(path)
+  }
+
+  const onCommandOpenHeading = (path: string, slug: string) => {
+    setCommandOpen(false)
+    onOpenHeading(path, slug)
   }
 
   const isMacTauri = platform === 'macos' && isTauriRuntime()
@@ -385,6 +444,52 @@ export default function Titlebar({
         <CommandInput placeholder={t('sidebar.search')} />
         <CommandList>
           <CommandEmpty>{t('center.noFile')}</CommandEmpty>
+          {commandFiles.length > 0 && (
+            <>
+              <CommandGroup heading={t('command.files')}>
+                {commandFiles.map((file) => (
+                  <CommandItem
+                    key={file.path}
+                    value={`${file.label} ${file.path}`}
+                    onSelect={() => onCommandOpenFile(file.path)}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="min-w-0">
+                      <span className="block truncate">{file.label}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {file.path}
+                      </span>
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandSeparator />
+            </>
+          )}
+          {commandHeadings.length > 0 && (
+            <>
+              <CommandGroup heading={t('command.headings')}>
+                {commandHeadings.map((heading) => (
+                  <CommandItem
+                    key={`${heading.path}#${heading.slug}`}
+                    value={`${heading.text} ${heading.slug} ${heading.path}`}
+                    onSelect={() => onCommandOpenHeading(heading.path, heading.slug)}
+                  >
+                    <ListTree className="h-4 w-4" />
+                    <span className="min-w-0">
+                      <span className="block truncate">
+                        {'#'.repeat(Math.min(heading.level, 6))} {heading.text}
+                      </span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {heading.label}#{heading.slug}
+                      </span>
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandSeparator />
+            </>
+          )}
           <CommandGroup heading="File">
             <CommandItem onSelect={() => onCommandAction('file.open_project')}>
               <FolderOpen className="h-4 w-4" />
@@ -413,6 +518,18 @@ export default function Titlebar({
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="View">
+            <CommandItem onSelect={() => onCommandAction('view.wysiwyg')}>
+              <PenLine className="h-4 w-4" />
+              {t('editor.modeWysiwyg')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('view.source')}>
+              <FileText className="h-4 w-4" />
+              {t('editor.modeSource')}
+            </CommandItem>
+            <CommandItem onSelect={() => onCommandAction('view.graph')}>
+              <GitGraph className="h-4 w-4" />
+              {t('tabs.workspaceGraph')}
+            </CommandItem>
             <CommandItem onSelect={() => onCommandAction('view.toggle_sidebar')}>
               <PanelLeft className="h-4 w-4" />
               {t('actions.toggleSidebar')}
