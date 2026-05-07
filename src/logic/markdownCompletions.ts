@@ -1,4 +1,5 @@
 import type { FileEntry } from '@/store/useAppStore'
+import type { FsIndexedMarkdownFile, FsWorkspaceIndex } from '@/services/fsApi'
 import {
   createFileLabel,
   extractHeadings,
@@ -24,6 +25,7 @@ type MarkdownCompletionContext = {
   column: number
   files: FileEntry[]
   fileContents: Record<string, string>
+  workspaceIndex?: FsWorkspaceIndex | null
 }
 
 const LANGUAGE_COMPLETIONS = [
@@ -62,6 +64,7 @@ export function getMarkdownCompletions({
   column,
   files,
   fileContents,
+  workspaceIndex,
 }: MarkdownCompletionContext): MarkdownCompletionItem[] {
   const currentLine = getLine(content, line)
   const prefix = currentLine.slice(0, Math.max(0, column - 1))
@@ -76,6 +79,7 @@ export function getMarkdownCompletions({
     return fileCompletions({
       activePath,
       files,
+      workspaceIndex,
       query: wikiContext.query,
       replacementStartColumn: wikiContext.replacementStartColumn,
       mode: 'wiki',
@@ -90,12 +94,18 @@ export function getMarkdownCompletions({
     const targetBeforeHash = markdownLinkContext.target.slice(0, hashIndex)
     const query = markdownLinkContext.target.slice(hashIndex + 1)
     const targetPath = targetBeforeHash.trim()
-      ? resolveLinkedFilePath(activePath, targetBeforeHash, files)
+      ? resolveLinkedFilePath(activePath, targetBeforeHash, files, workspaceIndex)
       : activePath
-    const source =
-      !targetBeforeHash.trim() || targetPath === activePath
-        ? content
-        : (fileContents[targetPath ?? ''] ?? '')
+    if (targetBeforeHash.trim() && targetPath !== activePath && workspaceIndex) {
+      return headingCompletionsFromIndex({
+        file: workspaceIndex.files.find((file) => file.path === targetPath),
+        query,
+        detailPath: targetPath ?? undefined,
+        replacementStartColumn: markdownLinkContext.replacementStartColumn + hashIndex + 1,
+      })
+    }
+
+    const source = targetPath === activePath ? content : (fileContents[targetPath ?? ''] ?? '')
     return headingCompletions({
       content: source,
       query,
@@ -107,6 +117,7 @@ export function getMarkdownCompletions({
   return fileCompletions({
     activePath,
     files,
+    workspaceIndex,
     query: markdownLinkContext.target,
     replacementStartColumn: markdownLinkContext.replacementStartColumn,
     mode: 'markdown',
@@ -172,33 +183,39 @@ function matchesLanguageQuery(language: string, query: string) {
 function fileCompletions({
   activePath,
   files,
+  workspaceIndex,
   query,
   replacementStartColumn,
   mode,
 }: {
   activePath: string | null
   files: FileEntry[]
+  workspaceIndex?: FsWorkspaceIndex | null
   query: string
   replacementStartColumn: number
   mode: 'markdown' | 'wiki'
 }) {
   const normalizedQuery = query.toLowerCase()
-  return files
-    .filter((file) => file.kind === 'file' && MARKDOWN_EXTENSIONS.test(file.path))
-    .filter((file) => {
-      const label = createFileLabel(file.path)
+  const paths = workspaceIndex
+    ? workspaceIndex.files.map((file) => file.path)
+    : files
+        .filter((file) => file.kind === 'file' && MARKDOWN_EXTENSIONS.test(file.path))
+        .map((file) => file.path)
+  return paths
+    .filter((path) => {
+      const label = createFileLabel(path)
       return (
-        file.path.toLowerCase().includes(normalizedQuery) ||
+        path.toLowerCase().includes(normalizedQuery) ||
         label.toLowerCase().includes(normalizedQuery)
       )
     })
-    .map((file) => {
-      const label = createFileLabel(file.path)
+    .map((path) => {
+      const label = createFileLabel(path)
       return {
         label,
         kind: 'file' as const,
-        insertText: mode === 'wiki' ? label : createRelativeLinkTarget(activePath, file.path),
-        detail: file.path,
+        insertText: mode === 'wiki' ? label : createRelativeLinkTarget(activePath, path),
+        detail: path,
         replacementStartColumn,
       }
     })
@@ -218,6 +235,36 @@ function headingCompletions({
   const normalizedQuery = normalizeHeadingAnchor(query)
   const lowerQuery = query.toLowerCase()
   return extractHeadings(content)
+    .filter((heading) => {
+      if (!query) return true
+      return (
+        heading.slug.includes(normalizedQuery) || heading.text.toLowerCase().includes(lowerQuery)
+      )
+    })
+    .map((heading) => ({
+      label: heading.text,
+      kind: 'heading' as const,
+      insertText: heading.slug,
+      detail: detailPath ? `${detailPath}#${heading.slug}` : `#${heading.slug}`,
+      replacementStartColumn,
+    }))
+}
+
+function headingCompletionsFromIndex({
+  file,
+  query,
+  detailPath,
+  replacementStartColumn,
+}: {
+  file?: FsIndexedMarkdownFile
+  query: string
+  detailPath?: string
+  replacementStartColumn: number
+}) {
+  if (!file) return []
+  const normalizedQuery = normalizeHeadingAnchor(query)
+  const lowerQuery = query.toLowerCase()
+  return file.headings
     .filter((heading) => {
       if (!query) return true
       return (
@@ -254,7 +301,12 @@ function createRelativeLinkTarget(activePath: string | null, targetPath: string)
   return [...up, ...down, targetFile].join('/') || targetPath
 }
 
-function resolveLinkedFilePath(activePath: string | null, target: string, files: FileEntry[]) {
+function resolveLinkedFilePath(
+  activePath: string | null,
+  target: string,
+  files: FileEntry[],
+  workspaceIndex?: FsWorkspaceIndex | null,
+) {
   if (!activePath) return null
   if (!target.trim()) return activePath
 
@@ -264,6 +316,10 @@ function resolveLinkedFilePath(activePath: string | null, target: string, files:
     MARKDOWN_EXTENSIONS.test(normalized) ? normalized : `${normalized}.md`,
     MARKDOWN_EXTENSIONS.test(normalized) ? normalized : `${normalized}.markdown`,
   ].map(normalizePath)
-  const existing = new Set(files.filter((file) => file.kind === 'file').map((file) => file.path))
+  const existing = new Set(
+    workspaceIndex
+      ? workspaceIndex.files.map((file) => file.path)
+      : files.filter((file) => file.kind === 'file').map((file) => file.path),
+  )
   return candidates.find((candidate) => existing.has(candidate)) ?? candidates[0]
 }

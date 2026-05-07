@@ -4,6 +4,7 @@ import type { editor as MonacoEditor, IPosition, languages as MonacoLanguages } 
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { getMarkdownCompletions } from '@/logic/markdownCompletions'
 import type { FileEntry } from '@/store/useAppStore'
+import type { FsWorkspaceIndex } from '@/services/fsApi'
 import {
   FOCUS_SOURCE_POSITION_EVENT,
   type FocusSourcePositionRequest,
@@ -14,6 +15,7 @@ type MarkdownSourceEditorProps = {
   value: string
   files: FileEntry[]
   fileContents: Record<string, string>
+  workspaceIndex?: FsWorkspaceIndex | null
   onChange: (value: string) => void
 }
 
@@ -22,16 +24,17 @@ export default function MarkdownSourceEditor({
   value,
   files,
   fileContents,
+  workspaceIndex,
   onChange,
 }: MarkdownSourceEditorProps) {
   const darkMode = useDarkMode()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null)
-  const completionContextRef = useRef({ activePath, files, fileContents })
+  const completionContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
 
   useEffect(() => {
-    completionContextRef.current = { activePath, files, fileContents }
-  }, [activePath, fileContents, files])
+    completionContextRef.current = { activePath, files, fileContents, workspaceIndex }
+  }, [activePath, fileContents, files, workspaceIndex])
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor

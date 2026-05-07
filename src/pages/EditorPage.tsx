@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import type { GraphData } from '@/logic/graph'
 import type { FileEntry, ViewMode } from '@/store/useAppStore'
+import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
@@ -33,6 +34,7 @@ export default function EditorPage({
 }: EditorPageProps) {
   const { t } = useI18n()
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
+  const workspaceIndex = useWorkspaceIndex(files, viewMode === 'source')
 
   const handleMarkdownChange = useCallback(
     (nextValue: string) => {
@@ -103,6 +105,7 @@ export default function EditorPage({
                     ...fileContents,
                     ...(activePath ? { [activePath]: editorValue } : {}),
                   }}
+                  workspaceIndex={workspaceIndex}
                   onChange={handleSourceChange}
                 />
               </Suspense>

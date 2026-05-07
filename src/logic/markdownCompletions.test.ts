@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getMarkdownCompletions } from '@/logic/markdownCompletions'
 import type { FileEntry } from '@/store/useAppStore'
+import type { FsWorkspaceIndex } from '@/services/fsApi'
 
 const files: FileEntry[] = [
   { path: 'notes/current.md', kind: 'file' },
@@ -14,6 +15,35 @@ const fileContents = {
   'notes/target.md': '# Target\n## Details\n## API & UI\n',
   'daily/today.md': '# Today\n',
 }
+
+const workspaceIndex = {
+  files: [
+    {
+      path: 'notes/current.md',
+      headings: [{ path: 'notes/current.md', level: 1, text: 'Current', slug: 'current', line: 1 }],
+      links: [],
+    },
+    {
+      path: 'notes/target.md',
+      headings: [
+        { path: 'notes/target.md', level: 1, text: 'Target', slug: 'target', line: 1 },
+        {
+          path: 'notes/target.md',
+          level: 2,
+          text: 'Indexed Details',
+          slug: 'indexed-details',
+          line: 2,
+        },
+      ],
+      links: [],
+    },
+    {
+      path: 'daily/today.md',
+      headings: [{ path: 'daily/today.md', level: 1, text: 'Today', slug: 'today', line: 1 }],
+      links: [],
+    },
+  ],
+} satisfies FsWorkspaceIndex
 
 describe('markdown completions', () => {
   it('suggests markdown file links relative to the active file', () => {
@@ -72,6 +102,28 @@ describe('markdown completions', () => {
     ])
   })
 
+  it('suggests heading anchors from the workspace index for other files', () => {
+    expect(
+      getMarkdownCompletions({
+        activePath: 'notes/current.md',
+        content: 'See [Target](target.md#index',
+        line: 1,
+        column: 29,
+        files,
+        fileContents: {},
+        workspaceIndex,
+      }),
+    ).toEqual([
+      {
+        label: 'Indexed Details',
+        kind: 'heading',
+        insertText: 'indexed-details',
+        detail: 'notes/target.md#indexed-details',
+        replacementStartColumn: 24,
+      },
+    ])
+  })
+
   it('suggests heading anchors from the current unsaved content', () => {
     expect(
       getMarkdownCompletions({
@@ -81,6 +133,7 @@ describe('markdown completions', () => {
         column: 17,
         files,
         fileContents,
+        workspaceIndex,
       }),
     ).toEqual([
       {
