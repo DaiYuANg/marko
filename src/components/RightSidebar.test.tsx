@@ -165,4 +165,36 @@ describe('RightSidebar', () => {
     expect(await screen.findByText('source')).toBeInTheDocument()
     expect(screen.getByText('See [Target](target.md) from index')).toBeInTheDocument()
   })
+
+  it('lists markdown link problems and switches to source on click', async () => {
+    const onOpenFile = vi.fn()
+    const onChangeView = vi.fn()
+    render(
+      <RightSidebar
+        {...createProps({
+          activePath: 'target.md',
+          inspectedPath: 'target.md',
+          editorValue:
+            '# Target\n\n[missing](missing.md)\n[missing-heading](#missing-anchor)\n[[Unknown]]\n',
+          onOpenFile,
+          onChangeView,
+          viewMode: 'wysiwyg',
+        })}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('tab', { name: /problems/i }))
+
+    expect(await screen.findByText('Error')).toBeInTheDocument()
+    expect(screen.getAllByText('Warning').length).toBeGreaterThan(0)
+    expect(screen.getByText('Cannot find linked file "missing.md"')).toBeInTheDocument()
+    expect(screen.getByText('Cannot find linked note "Unknown"')).toBeInTheDocument()
+
+    const errorButton = screen.getByText('Error').closest('button')
+    expect(errorButton).toBeInTheDocument()
+    fireEvent.click(errorButton!)
+
+    expect(onOpenFile).not.toHaveBeenCalled()
+    expect(onChangeView).toHaveBeenCalledWith('source')
+  })
 })

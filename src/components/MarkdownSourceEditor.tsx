@@ -3,6 +3,10 @@ import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditor, IPosition, languages as MonacoLanguages } from 'monaco-editor'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { getMarkdownCompletions } from '@/logic/markdownCompletions'
+import {
+  getMarkdownSourceDiagnostics,
+  MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER,
+} from '@/logic/markdownDiagnostics'
 import type { FileEntry } from '@/store/useAppStore'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
 import {
@@ -29,15 +33,54 @@ export default function MarkdownSourceEditor({
 }: MarkdownSourceEditorProps) {
   const darkMode = useDarkMode()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const diagnosticHostRef = useRef<{
+    editor: Parameters<OnMount>[0]
+    monaco: typeof import('monaco-editor')
+  } | null>(null)
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  const diagnosticsDisposableRef = useRef<{ dispose: () => void } | null>(null)
   const completionContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
+  const diagnosticsContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
 
   useEffect(() => {
     completionContextRef.current = { activePath, files, fileContents, workspaceIndex }
+    diagnosticsContextRef.current = { activePath, files, fileContents, workspaceIndex }
   }, [activePath, fileContents, files, workspaceIndex])
+
+  const refreshDiagnostics = () => {
+    const host = diagnosticHostRef.current
+    const editor = host?.editor
+    const monaco = host?.monaco
+    const model = editor?.getModel()
+    if (!host || !model || !monaco) return
+
+    const markers = getMarkdownSourceDiagnostics({
+      ...diagnosticsContextRef.current,
+      content: model.getValue(),
+    }).map((diagnostic) => ({
+      severity:
+        diagnostic.severity === 'error'
+          ? monaco.MarkerSeverity.Error
+          : monaco.MarkerSeverity.Warning,
+      message: diagnostic.message,
+      startLineNumber: diagnostic.line,
+      startColumn: diagnostic.startColumn,
+      endLineNumber: diagnostic.line,
+      endColumn: Math.max(diagnostic.startColumn + 1, diagnostic.endColumn),
+      source: 'markdown',
+      code: diagnostic.severity === 'error' ? 'M001' : 'M002',
+    }))
+    monaco.editor.setModelMarkers(model, MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER, markers)
+  }
+
+  useEffect(() => {
+    refreshDiagnostics()
+  }, [activePath, files, fileContents, workspaceIndex])
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
+    diagnosticHostRef.current = { editor, monaco: monaco as typeof import('monaco-editor') }
+
     completionDisposableRef.current?.dispose()
     completionDisposableRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
       triggerCharacters: ['[', '(', '#', '/', '`'],
@@ -68,12 +111,25 @@ export default function MarkdownSourceEditor({
         return { suggestions }
       },
     })
+    diagnosticsDisposableRef.current?.dispose()
+    diagnosticsDisposableRef.current = editor.onDidChangeModelContent(() => refreshDiagnostics())
+
+    refreshDiagnostics()
   }
 
   useEffect(() => {
     return () => {
       completionDisposableRef.current?.dispose()
       completionDisposableRef.current = null
+      diagnosticsDisposableRef.current?.dispose()
+      diagnosticsDisposableRef.current = null
+
+      const host = diagnosticHostRef.current
+      const model = host?.editor.getModel()
+      if (host && model) {
+        host.monaco.editor.setModelMarkers(model, MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER, [])
+      }
+      diagnosticHostRef.current = null
     }
   }, [])
 

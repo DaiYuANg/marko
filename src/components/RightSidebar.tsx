@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/useI18n'
 import {
+  CircleAlert,
+  CircleX,
   Code2,
   FileText,
   GitGraph,
@@ -34,6 +36,10 @@ import {
   type FocusHeadingRequest,
   type FocusSourcePositionRequest,
 } from '@/utils/editorNavigation'
+import {
+  getMarkdownSourceDiagnostics,
+  type MarkdownSourceDiagnostic,
+} from '@/logic/markdownDiagnostics'
 
 type RightSidebarProps = {
   collapsed: boolean
@@ -91,6 +97,14 @@ const normalizeLinkedPath = (
   return normalized.endsWith('.md') || normalized.endsWith('.markdown')
     ? normalized
     : `${normalized}.md`
+}
+
+const problemIcon = (severity: MarkdownSourceDiagnostic['severity']) => {
+  return severity === 'error' ? CircleX : CircleAlert
+}
+
+const problemClasses = (severity: MarkdownSourceDiagnostic['severity']) => {
+  return severity === 'error' ? 'text-destructive' : 'text-amber-500'
 }
 
 const RightSidebarComponent = ({
@@ -199,6 +213,15 @@ const RightSidebarComponent = ({
       })
     return results
   }, [activePath, editorValue, files, targetPath, workspaceContents, workspaceIndex])
+  const problems = useMemo(() => {
+    return getMarkdownSourceDiagnostics({
+      activePath: targetPath,
+      content: targetContent,
+      files,
+      fileContents: workspaceContents,
+      workspaceIndex,
+    })
+  }, [files, workspaceIndex, targetPath, targetContent, workspaceContents])
 
   const quickActions = useMemo(() => {
     return [
@@ -241,6 +264,21 @@ const RightSidebarComponent = ({
     })
     if (backlink.sourcePath !== activePath) {
       onOpenFile(backlink.sourcePath)
+    }
+    if (viewMode !== 'source') {
+      onChangeView('source')
+    }
+  }
+
+  const handleOpenProblem = (problem: MarkdownSourceDiagnostic) => {
+    if (!targetPath) return
+    setPendingSourcePosition({
+      path: targetPath,
+      line: problem.line,
+      column: problem.startColumn,
+    })
+    if (targetPath !== activePath) {
+      onOpenFile(targetPath)
     }
     if (viewMode !== 'source') {
       onChangeView('source')
@@ -358,7 +396,7 @@ const RightSidebarComponent = ({
           </div>
 
           <Tabs defaultValue="outline" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="grid h-8 w-full grid-cols-3 rounded-lg bg-muted/50 p-1">
+            <TabsList className="grid h-8 w-full grid-cols-4 rounded-lg bg-muted/50 p-1">
               <TabsTrigger value="outline" className="gap-1 px-1">
                 <ListTree className="h-3.5 w-3.5" />
                 {t('inspector.outline')}
@@ -366,6 +404,10 @@ const RightSidebarComponent = ({
               <TabsTrigger value="backlinks" className="gap-1 px-1">
                 <Link2 className="h-3.5 w-3.5" />
                 {t('inspector.backlinks')}
+              </TabsTrigger>
+              <TabsTrigger value="problems" className="gap-1 px-1">
+                <CircleAlert className="h-3.5 w-3.5" />
+                {t('inspector.problems')}
               </TabsTrigger>
               <TabsTrigger value="properties" className="gap-1 px-1">
                 <FileText className="h-3.5 w-3.5" />
@@ -436,6 +478,48 @@ const RightSidebarComponent = ({
                         </span>
                       </Button>
                     ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="problems" className="mt-1.5 min-h-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full" viewportClassName="p-1">
+                {!targetPath ? (
+                  <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
+                ) : problems.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">{t('inspector.noProblems')}</div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {problems.map((problem, index) => {
+                      const Icon = problemIcon(problem.severity)
+                      return (
+                        <Button
+                          key={`${problem.line}-${problem.startColumn}-${index}`}
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto min-h-9 w-full justify-start rounded-lg px-2 py-1 text-left"
+                          onClick={() => handleOpenProblem(problem)}
+                        >
+                          <Icon
+                            className={`h-4 w-4 shrink-0 ${problemClasses(problem.severity)}`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium">
+                              {problem.severity === 'error'
+                                ? t('inspector.problemError')
+                                : t('inspector.problemWarning')}
+                            </span>
+                            <span className="block truncate text-[11px] text-muted-foreground">
+                              {problem.message}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/80">
+                              {t('tabs.editor')} · line {problem.line}:{problem.startColumn}
+                            </span>
+                          </span>
+                        </Button>
+                      )
+                    })}
                   </div>
                 )}
               </ScrollArea>

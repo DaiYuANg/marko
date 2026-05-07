@@ -16,9 +16,18 @@ const monacoEditor = vi.hoisted(() => ({
   setPosition: vi.fn(),
   revealLineInCenter: vi.fn(),
   focus: vi.fn(),
+  getModel: vi.fn(),
+  onDidChangeModelContent: vi.fn(() => ({ dispose: vi.fn() })),
 }))
 
 const monaco = vi.hoisted(() => ({
+  editor: {
+    MarkerSeverity: {
+      Error: 1,
+      Warning: 2,
+    },
+    setModelMarkers: vi.fn(),
+  },
   Range: class Range {
     startLineNumber: number
     startColumn: number
@@ -45,6 +54,10 @@ const monaco = vi.hoisted(() => ({
     },
     registerCompletionItemProvider: vi.fn(() => ({ dispose: vi.fn() })),
   },
+  MarkerSeverity: {
+    Error: 1,
+    Warning: 2,
+  },
 }))
 
 vi.mock('@monaco-editor/react', () => ({
@@ -57,6 +70,10 @@ vi.mock('@monaco-editor/react', () => ({
     onChange?: (value?: string) => void
     value: string
   }) => {
+    monacoEditor.getModel = vi.fn(() => ({
+      getValue: () => value,
+    }))
+    monacoEditor.onDidChangeModelContent = vi.fn(() => ({ dispose: vi.fn() }))
     onMount?.(monacoEditor, monaco)
     return (
       <textarea
@@ -73,6 +90,8 @@ beforeEach(() => {
   monacoEditor.revealLineInCenter.mockClear()
   monacoEditor.focus.mockClear()
   monaco.languages.registerCompletionItemProvider.mockClear()
+  monacoEditor.onDidChangeModelContent?.mockClear()
+  monaco.editor.setModelMarkers.mockClear()
 })
 
 describe('MarkdownSourceEditor', () => {
@@ -111,6 +130,57 @@ describe('MarkdownSourceEditor', () => {
         endColumn: 14,
       },
     })
+  })
+
+  it('publishes link diagnostics for missing targets', () => {
+    render(
+      <MarkdownSourceEditor
+        activePath="notes/current.md"
+        value="See [Missing](notes/missing.md) and [Bad Heading](notes/target.md#unknown)\n[[Unknown]]"
+        files={[
+          { path: 'notes/current.md', kind: 'file' },
+          { path: 'notes/target.md', kind: 'file' },
+        ]}
+        fileContents={{
+          'notes/current.md':
+            'See [Missing](notes/missing.md) and [Bad Heading](notes/target.md#unknown)\n[[Unknown]]',
+        }}
+        workspaceIndex={{
+          files: [
+            {
+              path: 'notes/target.md',
+              headings: [
+                { path: 'notes/target.md', level: 1, text: 'Present', slug: 'present', line: 1 },
+              ],
+              links: [],
+            },
+          ],
+        }}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const markers = monaco.editor.setModelMarkers.mock.calls.at(-1)?.[2] ?? []
+    expect(markers).toHaveLength(3)
+    expect(markers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: 'Cannot find linked file "notes/missing.md"',
+          severity: monaco.MarkerSeverity.Error,
+          startLineNumber: 1,
+        }),
+        expect.objectContaining({
+          message: 'Cannot find heading "unknown" in notes/target.md',
+          severity: monaco.MarkerSeverity.Warning,
+          startLineNumber: 1,
+        }),
+        expect.objectContaining({
+          message: 'Cannot find linked note "Unknown"',
+          severity: monaco.MarkerSeverity.Error,
+          startLineNumber: 2,
+        }),
+      ]),
+    )
   })
 
   it('focuses the requested source position for the active file', () => {
