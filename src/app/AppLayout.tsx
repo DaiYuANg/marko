@@ -21,6 +21,7 @@ export type LayoutContext = {
   theme: ThemeMode
   setTheme: (theme: ThemeMode) => void
   files: FileEntry[]
+  fileContents: Record<string, string>
   currentView: ViewMode
 }
 
@@ -56,6 +57,7 @@ export default function AppLayout() {
       theme: state.theme,
       setTheme: state.setTheme,
       files: state.files,
+      fileContents: state.fileContents,
       currentView: state.viewMode,
     } as LayoutContext
   }, [
@@ -67,6 +69,7 @@ export default function AppLayout() {
     state.theme,
     state.setTheme,
     state.files,
+    state.fileContents,
     state.viewMode,
   ])
 

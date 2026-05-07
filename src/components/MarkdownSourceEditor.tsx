@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
+import type { editor as MonacoEditor, IPosition, languages as MonacoLanguages } from 'monaco-editor'
 import { useDarkMode } from '@/hooks/useDarkMode'
+import { getMarkdownCompletions } from '@/logic/markdownCompletions'
+import type { FileEntry } from '@/store/useAppStore'
 import {
   FOCUS_SOURCE_POSITION_EVENT,
   type FocusSourcePositionRequest,
@@ -9,20 +12,67 @@ import {
 type MarkdownSourceEditorProps = {
   activePath: string | null
   value: string
+  files: FileEntry[]
+  fileContents: Record<string, string>
   onChange: (value: string) => void
 }
 
 export default function MarkdownSourceEditor({
   activePath,
   value,
+  files,
+  fileContents,
   onChange,
 }: MarkdownSourceEditorProps) {
   const darkMode = useDarkMode()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const completionDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  const completionContextRef = useRef({ activePath, files, fileContents })
 
-  const handleMount: OnMount = (editor) => {
+  useEffect(() => {
+    completionContextRef.current = { activePath, files, fileContents }
+  }, [activePath, fileContents, files])
+
+  const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
+    completionDisposableRef.current?.dispose()
+    completionDisposableRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
+      triggerCharacters: ['[', '(', '#', '/', '`'],
+      provideCompletionItems: (model: MonacoEditor.ITextModel, position: IPosition) => {
+        const context = completionContextRef.current
+        const suggestions: MonacoLanguages.CompletionItem[] = getMarkdownCompletions({
+          ...context,
+          content: model.getValue(),
+          line: position.lineNumber,
+          column: position.column,
+        }).map((item) => ({
+          label: item.label,
+          kind:
+            item.kind === 'file'
+              ? monaco.languages.CompletionItemKind.File
+              : item.kind === 'heading'
+                ? monaco.languages.CompletionItemKind.Reference
+                : monaco.languages.CompletionItemKind.Keyword,
+          insertText: item.insertText,
+          detail: item.detail,
+          range: new monaco.Range(
+            position.lineNumber,
+            item.replacementStartColumn,
+            position.lineNumber,
+            position.column,
+          ),
+        }))
+        return { suggestions }
+      },
+    })
   }
+
+  useEffect(() => {
+    return () => {
+      completionDisposableRef.current?.dispose()
+      completionDisposableRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const handler = (event: Event) => {

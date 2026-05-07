@@ -4,7 +4,7 @@ import { useI18n } from '@/i18n/useI18n'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import type { GraphData } from '@/logic/graph'
-import type { ViewMode } from '@/store/useAppStore'
+import type { FileEntry, ViewMode } from '@/store/useAppStore'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
@@ -15,6 +15,8 @@ type EditorPageProps = {
   editorValue: string
   onChange: (value: string) => void
   graph: GraphData
+  files: FileEntry[]
+  fileContents: Record<string, string>
   onOpenFile: (path: string) => void
   viewMode: ViewMode
 }
@@ -24,6 +26,8 @@ export default function EditorPage({
   editorValue,
   onChange,
   graph,
+  files,
+  fileContents,
   onOpenFile,
   viewMode,
 }: EditorPageProps) {
@@ -94,6 +98,11 @@ export default function EditorPage({
                 <MarkdownSourceEditor
                   activePath={activePath}
                   value={editorValue}
+                  files={files}
+                  fileContents={{
+                    ...fileContents,
+                    ...(activePath ? { [activePath]: editorValue } : {}),
+                  }}
                   onChange={handleSourceChange}
                 />
               </Suspense>
