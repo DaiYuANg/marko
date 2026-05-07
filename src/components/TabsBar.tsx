@@ -1,6 +1,7 @@
 import { memo, useCallback, type WheelEvent } from 'react'
 import { Code2, FileText, GitGraph, PenLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,10 +9,12 @@ import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ViewMode } from '@/store/useAppStore'
+import type { SaveState } from '@/app/useEditorBuffer'
 
 type TabsBarProps = {
   tabs: string[]
   dirtyPaths: Record<string, true>
+  saveStates: Record<string, SaveState>
   activePath: string | null
   onOpenFile: (path: string) => void
   onCloseTab: (path: string) => void
@@ -25,9 +28,25 @@ const formatTabLabel = (path: string, compact: boolean) => {
   return `${label.slice(0, 11)}…`
 }
 
+const getSaveLabelKey = (state?: SaveState) => {
+  if (!state) return null
+  if (state.status === 'saved') return 'save.saved'
+  if (state.status === 'saving') return 'save.saving'
+  if (state.status === 'error') return 'save.error'
+  return 'save.unsaved'
+}
+
+const getSaveBadgeClassName = (state?: SaveState) => {
+  if (state?.status === 'saved') return 'border-emerald-500/30 text-emerald-600'
+  if (state?.status === 'saving') return 'border-sky-500/30 text-sky-600'
+  if (state?.status === 'error') return 'border-destructive/30 text-destructive'
+  return 'border-amber-500/30 text-amber-600'
+}
+
 const TabsBarComponent = ({
   tabs,
   dirtyPaths,
+  saveStates,
   activePath,
   onOpenFile,
   onCloseTab,
@@ -37,6 +56,8 @@ const TabsBarComponent = ({
   const { t } = useI18n()
   const activeTab = activePath ?? ''
   const compact = tabs.length >= 8
+  const activeSaveState = activePath ? saveStates[activePath] : undefined
+  const activeSaveLabelKey = getSaveLabelKey(activeSaveState)
 
   const handleTabsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const viewport = event.currentTarget.querySelector(
@@ -59,6 +80,15 @@ const TabsBarComponent = ({
           </div>
           {activePath && dirtyPaths[activePath] && (
             <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.18)]" />
+          )}
+          {activeSaveLabelKey && (
+            <Badge
+              variant="outline"
+              className={`hidden h-5 shrink-0 px-2 text-[10px] font-medium md:inline-flex ${getSaveBadgeClassName(activeSaveState)}`}
+              title={activeSaveState?.message}
+            >
+              {t(activeSaveLabelKey)}
+            </Badge>
           )}
         </div>
         <TooltipProvider>

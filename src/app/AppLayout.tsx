@@ -11,6 +11,7 @@ import { exportApi } from '@/services/exportApi'
 import { fsApi } from '@/services/fsApi'
 import { requestExportContent } from '@/utils/exportContent'
 import { isTauriRuntime } from '@/utils/tauri'
+import type { SaveState } from '@/app/useEditorBuffer'
 
 export type LayoutContext = {
   activePath: string | null
@@ -22,6 +23,7 @@ export type LayoutContext = {
   setTheme: (theme: ThemeMode) => void
   files: FileEntry[]
   fileContents: Record<string, string>
+  saveStates: Record<string, SaveState>
   currentView: ViewMode
 }
 
@@ -58,6 +60,7 @@ export default function AppLayout() {
       setTheme: state.setTheme,
       files: state.files,
       fileContents: state.fileContents,
+      saveStates: state.saveStates,
       currentView: state.viewMode,
     } as LayoutContext
   }, [
@@ -70,6 +73,7 @@ export default function AppLayout() {
     state.setTheme,
     state.files,
     state.fileContents,
+    state.saveStates,
     state.viewMode,
   ])
 
@@ -228,6 +232,7 @@ export default function AppLayout() {
           <TabsBar
             tabs={state.tabs}
             dirtyPaths={state.dirtyPaths}
+            saveStates={state.saveStates}
             activePath={state.activePath}
             onOpenFile={state.onOpenFile}
             onCloseTab={state.onCloseTab}

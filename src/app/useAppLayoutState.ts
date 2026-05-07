@@ -56,7 +56,7 @@ export function useAppLayoutState() {
   )
 
   const workspaceKey = `${rootKind}:${rootPath}`
-  const { fileContents, editorValue, dirtyPaths, onEditorChange } = useEditorBuffer({
+  const { fileContents, editorValue, dirtyPaths, saveStates, onEditorChange } = useEditorBuffer({
     activePath: currentPath,
     workspaceKey,
   })
@@ -194,6 +194,7 @@ export function useAppLayoutState() {
     fileContents,
     tabs,
     dirtyPaths,
+    saveStates,
     activePath: currentPath,
     sidebarCollapsed,
     rightSidebarCollapsed,

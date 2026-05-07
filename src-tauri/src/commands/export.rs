@@ -44,7 +44,11 @@ impl ExportFormat {
 
 /// Export Markdown to the given format. Uses in-process Rust libraries only.
 #[tauri::command]
-pub fn export_markdown(markdown: String, format: String, output_path: String) -> Result<(), String> {
+pub fn export_markdown(
+  markdown: String,
+  format: String,
+  output_path: String,
+) -> Result<(), String> {
   let fmt = ExportFormat::from_str(&format)
     .ok_or_else(|| format!("Unsupported export format: {format}"))?;
 
@@ -67,7 +71,11 @@ fn sanitize_markdown_for_pdf(md: &str) -> String {
   while i < bytes.len() {
     let c = bytes[i] as char;
     let prev = if i > 0 { bytes[i - 1] as char } else { ' ' };
-    let next = if i + 1 < bytes.len() { bytes[i + 1] as char } else { ' ' };
+    let next = if i + 1 < bytes.len() {
+      bytes[i + 1] as char
+    } else {
+      ' '
+    };
 
     if in_code_block > 0 {
       out.push(c);
@@ -207,11 +215,7 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
   let mut strike = false;
   let mut heading_style: Option<String> = None;
 
-  fn flush_para(
-    docx: Docx,
-    run_buf: &mut Vec<Run>,
-    heading_style: &Option<String>,
-  ) -> Docx {
+  fn flush_para(docx: Docx, run_buf: &mut Vec<Run>, heading_style: &Option<String>) -> Docx {
     if run_buf.is_empty() {
       return docx;
     }
@@ -227,53 +231,49 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
 
   for event in parser {
     match event {
-      Event::Start(tag) => {
-        match &tag {
-          Tag::Heading { level, .. } => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-            heading_style = Some(format!("Heading{}", (*level as u8)));
-          }
-          Tag::Paragraph => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-            heading_style = None;
-          }
-          Tag::CodeBlock(_) => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-            heading_style = None;
-          }
-          Tag::BlockQuote => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-          }
-          Tag::List(_) | Tag::Item => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-            heading_style = None;
-          }
-          Tag::Table(_) | Tag::TableHead | Tag::TableRow | Tag::TableCell => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-            heading_style = None;
-          }
-          Tag::Emphasis => italic = true,
-          Tag::Strong => bold = true,
-          Tag::Strikethrough => strike = true,
-          Tag::Link { .. } | Tag::Image { .. } => {}
-          _ => {}
+      Event::Start(tag) => match &tag {
+        Tag::Heading { level, .. } => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+          heading_style = Some(format!("Heading{}", (*level as u8)));
         }
-      }
-      Event::End(end_tag) => {
-        match end_tag {
-          TagEnd::Paragraph | TagEnd::Heading(_) => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-            heading_style = None;
-          }
-          TagEnd::CodeBlock => {
-            docx = flush_para(docx, &mut run_buf, &heading_style);
-          }
-          TagEnd::Emphasis => italic = false,
-          TagEnd::Strong => bold = false,
-          TagEnd::Strikethrough => strike = false,
-          _ => {}
+        Tag::Paragraph => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+          heading_style = None;
         }
-      }
+        Tag::CodeBlock(_) => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+          heading_style = None;
+        }
+        Tag::BlockQuote => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+        }
+        Tag::List(_) | Tag::Item => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+          heading_style = None;
+        }
+        Tag::Table(_) | Tag::TableHead | Tag::TableRow | Tag::TableCell => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+          heading_style = None;
+        }
+        Tag::Emphasis => italic = true,
+        Tag::Strong => bold = true,
+        Tag::Strikethrough => strike = true,
+        Tag::Link { .. } | Tag::Image { .. } => {}
+        _ => {}
+      },
+      Event::End(end_tag) => match end_tag {
+        TagEnd::Paragraph | TagEnd::Heading(_) => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+          heading_style = None;
+        }
+        TagEnd::CodeBlock => {
+          docx = flush_para(docx, &mut run_buf, &heading_style);
+        }
+        TagEnd::Emphasis => italic = false,
+        TagEnd::Strong => bold = false,
+        TagEnd::Strikethrough => strike = false,
+        _ => {}
+      },
       Event::Text(text) => {
         let t = text.to_string();
         let mut run = Run::new().add_text(t);
@@ -291,7 +291,9 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
       Event::Code(text) => {
         let t = text.to_string();
         run_buf.push(
-          Run::new().add_text(t).fonts(RunFonts::new().ascii("Consolas")),
+          Run::new()
+            .add_text(t)
+            .fonts(RunFonts::new().ascii("Consolas")),
         );
       }
       Event::SoftBreak => {
@@ -299,9 +301,8 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
       }
       Event::HardBreak => {
         docx = flush_para(docx, &mut run_buf, &heading_style);
-        docx = docx.add_paragraph(
-          Paragraph::new().add_run(Run::new().add_break(BreakType::TextWrapping)),
-        );
+        docx = docx
+          .add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::TextWrapping)));
       }
       Event::Rule => {
         docx = flush_para(docx, &mut run_buf, &heading_style);
@@ -313,7 +314,11 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
 
   docx = flush_para(docx, &mut run_buf, &heading_style);
 
-  let file = std::fs::File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
-  docx.build().pack(file).map_err(|e| format!("Failed to write DOCX: {}", e))?;
+  let file =
+    std::fs::File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
+  docx
+    .build()
+    .pack(file)
+    .map_err(|e| format!("Failed to write DOCX: {}", e))?;
   Ok(())
 }

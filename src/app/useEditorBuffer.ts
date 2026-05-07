@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLatest, useUnmount } from 'ahooks'
 import { produce } from 'immer'
-import { fsApi } from '@/services/fsApi'
+import { fsApi, fsBufferStatusSchema } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
 
-const BUFFER_SYNC_DEBOUNCE_MS = 140
+const BUFFER_SYNC_DEBOUNCE_MS = 800
 const EMPTY_FILE_CONTENTS: Record<string, string> = {}
 const EMPTY_DIRTY_PATHS: Record<string, true> = {}
+const EMPTY_SAVE_STATES: Record<string, SaveState> = {}
+
+export type SaveState = {
+  status: 'saved' | 'saving' | 'unsaved' | 'error'
+  message?: string
+}
 
 type UseEditorBufferArgs = {
   activePath: string | null
@@ -15,10 +21,12 @@ type UseEditorBufferArgs = {
 
 type WorkspaceContents = Record<string, Record<string, string>>
 type WorkspaceDirtyPaths = Record<string, Record<string, true>>
+type WorkspaceSaveStates = Record<string, Record<string, SaveState>>
 
 export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArgs) {
   const [workspaceFileContents, setWorkspaceFileContents] = useState<WorkspaceContents>({})
   const [workspaceDirtyPaths, setWorkspaceDirtyPaths] = useState<WorkspaceDirtyPaths>({})
+  const [workspaceSaveStates, setWorkspaceSaveStates] = useState<WorkspaceSaveStates>({})
 
   const fileContents = useMemo(
     () => workspaceFileContents[workspaceKey] ?? EMPTY_FILE_CONTENTS,
@@ -27,6 +35,10 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
   const dirtyPaths = useMemo(
     () => workspaceDirtyPaths[workspaceKey] ?? EMPTY_DIRTY_PATHS,
     [workspaceDirtyPaths, workspaceKey],
+  )
+  const saveStates = useMemo(
+    () => workspaceSaveStates[workspaceKey] ?? EMPTY_SAVE_STATES,
+    [workspaceSaveStates, workspaceKey],
   )
   const editorValue = useMemo(
     () => (activePath ? (fileContents[activePath] ?? '') : ''),
@@ -39,7 +51,46 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
   const syncTimers = useRef<Record<string, number>>({})
   const syncedContentsRef = useRef<Record<string, string>>({})
   const changeVersionRef = useRef<Record<string, number>>({})
+  const revisionVersionRef = useRef<Record<string, Record<number, number>>>({})
+  const revisionContentRef = useRef<Record<string, Record<number, string>>>({})
   const loadToken = useRef(0)
+
+  const setPathSaveState = useCallback((workspace: string, path: string, next: SaveState) => {
+    setWorkspaceSaveStates((prev) =>
+      produce(prev, (draft) => {
+        const currentWorkspaceStates = draft[workspace] ?? (draft[workspace] = {})
+        currentWorkspaceStates[path] = next
+      }),
+    )
+  }, [])
+
+  const markPathClean = useCallback(
+    (workspace: string, path: string, content: string) => {
+      syncedContentsRef.current[path] = content
+      setWorkspaceDirtyPaths((prev) =>
+        produce(prev, (draft) => {
+          const currentWorkspaceDirty = draft[workspace]
+          if (!currentWorkspaceDirty?.[path]) return
+          delete currentWorkspaceDirty[path]
+        }),
+      )
+      setPathSaveState(workspace, path, { status: 'saved' })
+    },
+    [setPathSaveState],
+  )
+
+  const markPathDirty = useCallback(
+    (workspace: string, path: string, nextState: SaveState) => {
+      setWorkspaceDirtyPaths((prev) =>
+        produce(prev, (draft) => {
+          const currentWorkspaceDirty = draft[workspace] ?? (draft[workspace] = {})
+          currentWorkspaceDirty[path] = true
+        }),
+      )
+      setPathSaveState(workspace, path, nextState)
+    },
+    [setPathSaveState],
+  )
 
   useEffect(() => {
     if (!isTauriRuntime()) return
@@ -47,6 +98,8 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
     syncTimers.current = {}
     syncedContentsRef.current = {}
     changeVersionRef.current = {}
+    revisionVersionRef.current = {}
+    revisionContentRef.current = {}
     loadToken.current += 1
     void fsApi.flushBuffers().catch((error) => {
       console.error('flush buffers on workspace switch failed', error)
@@ -73,6 +126,8 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
           }),
         )
         syncedContentsRef.current[activePath] = content
+        revisionVersionRef.current[activePath] = {}
+        revisionContentRef.current[activePath] = {}
         setWorkspaceDirtyPaths((prev) =>
           produce(prev, (draft) => {
             const currentWorkspaceDirty = draft[currentWorkspace]
@@ -80,11 +135,58 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
             delete currentWorkspaceDirty[activePath]
           }),
         )
+        setPathSaveState(currentWorkspace, activePath, { status: 'saved' })
       })
       .catch((error) => {
         console.error('open file failed', error)
+        setPathSaveState(workspaceKeyRef.current, activePath, {
+          status: 'error',
+          message: String(error),
+        })
       })
-  }, [activePath, workspaceKey, workspaceKeyRef])
+  }, [activePath, setPathSaveState, workspaceKey, workspaceKeyRef])
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return
+
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+
+    void import('@tauri-apps/api/event').then(({ listen }) =>
+      listen<unknown>('fs-buffer-status', (event) => {
+        const parsed = fsBufferStatusSchema.safeParse(event.payload)
+        if (!parsed.success) return
+
+        const { path, revision, dirty } = parsed.data
+        const currentWorkspace = workspaceKeyRef.current
+        if (dirty) {
+          markPathDirty(currentWorkspace, path, { status: 'saving' })
+          return
+        }
+
+        const revisionVersion = revisionVersionRef.current[path]?.[revision]
+        const revisionContent = revisionContentRef.current[path]?.[revision]
+        if (revisionVersion == null || revisionContent == null) return
+
+        const hasNewChange = changeVersionRef.current[path] !== revisionVersion
+        const currentValue = fileContentsRef.current[path] ?? ''
+        if (hasNewChange || currentValue !== revisionContent) return
+
+        markPathClean(currentWorkspace, path, revisionContent)
+      }).then((nextUnlisten) => {
+        if (cancelled) {
+          nextUnlisten()
+          return
+        }
+        unlisten = nextUnlisten
+      }),
+    )
+
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [fileContentsRef, markPathClean, markPathDirty, workspaceKeyRef])
 
   useUnmount(() => {
     Object.values(syncTimers.current).forEach((timer) => window.clearTimeout(timer))
@@ -115,10 +217,10 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
       changeVersionRef.current[path] = nextVersion
 
       const syncedValue = syncedContentsRef.current[path]
+      const isDirty = syncedValue !== value
       setWorkspaceDirtyPaths((prev) =>
         produce(prev, (draft) => {
           const currentWorkspaceDirty = draft[currentWorkspace] ?? (draft[currentWorkspace] = {})
-          const isDirty = syncedValue !== value
           if (isDirty) {
             currentWorkspaceDirty[path] = true
             return
@@ -127,6 +229,7 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
           delete currentWorkspaceDirty[path]
         }),
       )
+      setPathSaveState(currentWorkspace, path, { status: isDirty ? 'unsaved' : 'saved' })
 
       if (!isTauriRuntime()) return
       const currentTimer = syncTimers.current[path]
@@ -139,32 +242,72 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
         const dispatchedVersion = changeVersionRef.current[path]
         void fsApi
           .updateBuffer(path, latestValue)
-          .then(() => {
+          .then((status) => {
+            const pathRevisions =
+              revisionVersionRef.current[path] ?? (revisionVersionRef.current[path] = {})
+            const pathContents =
+              revisionContentRef.current[path] ?? (revisionContentRef.current[path] = {})
+            pathRevisions[status.revision] = dispatchedVersion
+            pathContents[status.revision] = latestValue
+
             const hasNewChange = changeVersionRef.current[path] !== dispatchedVersion
             const currentValue = fileContentsRef.current[path] ?? ''
-            if (hasNewChange || currentValue !== latestValue) return
-            syncedContentsRef.current[path] = latestValue
-            setWorkspaceDirtyPaths((prev) =>
-              produce(prev, (draft) => {
-                const currentWorkspaceDirty = draft[currentWorkspace]
-                if (!currentWorkspaceDirty?.[path]) return
-                delete currentWorkspaceDirty[path]
-              }),
-            )
+            if (hasNewChange || currentValue !== latestValue) {
+              return
+            }
+
+            if (status.dirty) {
+              markPathDirty(currentWorkspace, path, { status: 'saving' })
+              void fsApi
+                .flushBuffers()
+                .then(() => fsApi.getBufferStatus(path))
+                .then((latestStatus) => {
+                  if (!latestStatus || latestStatus.revision !== status.revision) return
+                  if (latestStatus.dirty) return
+
+                  const revisionVersion = pathRevisions[latestStatus.revision]
+                  const revisionContent = pathContents[latestStatus.revision]
+                  if (revisionVersion == null || revisionContent == null) return
+
+                  const hasNewerChange = changeVersionRef.current[path] !== revisionVersion
+                  const latestEditorValue = fileContentsRef.current[path] ?? ''
+                  if (hasNewerChange || latestEditorValue !== revisionContent) return
+
+                  markPathClean(currentWorkspace, path, revisionContent)
+                })
+                .catch((error) => {
+                  console.error('flush buffer after update failed', error)
+                })
+              return
+            }
+
+            markPathClean(currentWorkspace, path, latestValue)
           })
           .catch((error) => {
             console.error('update buffer failed', error)
+            markPathDirty(currentWorkspace, path, {
+              status: 'error',
+              message: String(error),
+            })
           })
         delete syncTimers.current[path]
       }, BUFFER_SYNC_DEBOUNCE_MS)
     },
-    [activePathRef, fileContentsRef, workspaceKeyRef],
+    [
+      activePathRef,
+      fileContentsRef,
+      markPathClean,
+      markPathDirty,
+      setPathSaveState,
+      workspaceKeyRef,
+    ],
   )
 
   return {
     fileContents,
     editorValue,
     dirtyPaths,
+    saveStates,
     onEditorChange,
   }
 }

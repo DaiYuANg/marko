@@ -8,7 +8,7 @@ use tauri::{Emitter, Manager, State};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-use crate::models::{FsEntry, FsPathMetadata, FsRootInfo, FsSnapshot};
+use crate::models::{FsBufferStatus, FsEntry, FsPathMetadata, FsRootInfo, FsSnapshot};
 use crate::state::{FsBufferEntry, FsBufferState, FsState, FsStateData, FsWatcherState};
 
 const BUFFER_FLUSH_INTERVAL_MS: u64 = 1200;
@@ -149,25 +149,59 @@ pub fn fs_update_buffer(
   content: String,
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
-) -> Result<(), String> {
-  let state_data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  app: tauri::AppHandle,
+) -> Result<FsBufferStatus, String> {
+  let state_data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   let _ = resolve_path(&state_data, &path)?;
-  upsert_buffer(&buffer_state, &path, &content)
+  let status = upsert_buffer(&buffer_state, &path, &content)?;
+  emit_buffer_status(&app, &status)?;
+  Ok(status)
 }
 
 #[tauri::command]
 pub fn fs_flush_buffers(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
+  app: tauri::AppHandle,
 ) -> Result<usize, String> {
-  flush_all_buffers(&state, &buffer_state)
+  let statuses = flush_all_buffers_with_status(&state, &buffer_state)?;
+  emit_buffer_statuses(&app, &statuses)?;
+  Ok(statuses.len())
 }
 
 #[tauri::command]
-pub fn fs_get_path_metadata(path: String, state: State<'_, FsState>) -> Result<FsPathMetadata, String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+pub fn fs_get_buffer_status(
+  path: String,
+  buffer_state: State<'_, FsBufferState>,
+) -> Result<Option<FsBufferStatus>, String> {
+  let buffers = buffer_state
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock buffer state")?;
+  Ok(
+    buffers
+      .get(&path)
+      .map(|entry| status_from_buffer(&path, entry)),
+  )
+}
+
+#[tauri::command]
+pub fn fs_get_path_metadata(
+  path: String,
+  state: State<'_, FsState>,
+) -> Result<FsPathMetadata, String> {
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   let resolved = resolve_path(&data, &path)?;
-  let metadata = fs::metadata(&resolved).map_err(|err| format!("Failed to read metadata: {err}"))?;
+  let metadata =
+    fs::metadata(&resolved).map_err(|err| format!("Failed to read metadata: {err}"))?;
 
   let modified_ms = metadata
     .modified()
@@ -197,9 +231,13 @@ pub fn fs_write_file(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
 ) -> Result<(), String> {
-  let state_data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  let state_data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   let _ = resolve_path(&state_data, &path)?;
-  upsert_buffer(&buffer_state, &path, &content)
+  upsert_buffer(&buffer_state, &path, &content).map(|_| ())
 }
 
 #[tauri::command]
@@ -209,7 +247,11 @@ pub fn fs_create_file(
   buffer_state: State<'_, FsBufferState>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   ensure_workspace_mode(&data)?;
   let resolved = resolve_path(&data, &path)?;
   if let Some(parent) = resolved.parent() {
@@ -230,8 +272,16 @@ pub fn fs_create_file(
 }
 
 #[tauri::command]
-pub fn fs_create_dir(path: String, state: State<'_, FsState>, app: tauri::AppHandle) -> Result<(), String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+pub fn fs_create_dir(
+  path: String,
+  state: State<'_, FsState>,
+  app: tauri::AppHandle,
+) -> Result<(), String> {
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   ensure_workspace_mode(&data)?;
   let resolved = resolve_path(&data, &path)?;
   fs::create_dir_all(resolved).map_err(|err| format!("Failed to create dir: {err}"))?;
@@ -246,7 +296,11 @@ pub fn fs_delete_path(
   buffer_state: State<'_, FsBufferState>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   ensure_workspace_mode(&data)?;
   let resolved = resolve_path(&data, &path)?;
   if resolved.is_dir() {
@@ -267,7 +321,11 @@ pub fn fs_rename_path(
   buffer_state: State<'_, FsBufferState>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   ensure_workspace_mode(&data)?;
   let from_path = resolve_path(&data, &from)?;
   let to_path = resolve_path(&data, &to)?;
@@ -318,8 +376,8 @@ pub fn start_fs_watcher(
     .watch(&watch_path, mode)
     .map_err(|err| format!("Failed to watch path: {err}"))?;
 
-  let runtime =
-    Handle::try_current().map_err(|err| format!("Tokio runtime unavailable for fs watcher: {err}"))?;
+  let runtime = Handle::try_current()
+    .map_err(|err| format!("Tokio runtime unavailable for fs watcher: {err}"))?;
   let app_handle = app.clone();
   runtime.spawn(async move {
     while let Some(result) = rx.recv().await {
@@ -356,8 +414,13 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
       let buffer_state = app_handle.try_state::<FsBufferState>();
       match (state, buffer_state) {
         (Some(state), Some(buffer_state)) => {
-          if let Err(err) = flush_all_buffers(&state, &buffer_state) {
-            log::warn!("flush_all_buffers failed: {err}");
+          match flush_all_buffers_with_status(&state, &buffer_state) {
+            Ok(statuses) => {
+              if let Err(err) = emit_buffer_statuses(&app_handle, &statuses) {
+                log::warn!("emit buffer statuses failed: {err}");
+              }
+            }
+            Err(err) => log::warn!("flush_all_buffers failed: {err}"),
           }
         }
         _ => break,
@@ -388,7 +451,18 @@ pub fn ensure_default_file(root: &Path) -> Result<(), String> {
 }
 
 pub fn flush_all_buffers(state: &FsState, buffer_state: &FsBufferState) -> Result<usize, String> {
-  let state_data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  Ok(flush_all_buffers_with_status(state, buffer_state)?.len())
+}
+
+fn flush_all_buffers_with_status(
+  state: &FsState,
+  buffer_state: &FsBufferState,
+) -> Result<Vec<FsBufferStatus>, String> {
+  let state_data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
 
   let pending = {
     let buffers = buffer_state
@@ -398,28 +472,28 @@ pub fn flush_all_buffers(state: &FsState, buffer_state: &FsBufferState) -> Resul
     collect_dirty_writes(&state_data, &buffers)?
   };
   if pending.is_empty() {
-    return Ok(0);
+    return Ok(Vec::new());
   }
 
-  let mut flushed = 0usize;
   for item in &pending {
     write_to_disk(&item.absolute_path, &item.content)?;
-    flushed += 1;
   }
 
   let mut buffers = buffer_state
     .0
     .lock()
     .map_err(|_| "Failed to lock buffer state")?;
+  let mut statuses = Vec::new();
   for item in pending {
     if let Some(entry) = buffers.get_mut(&item.path) {
       if entry.revision == item.revision {
         entry.dirty = false;
+        statuses.push(status_from_buffer(&item.path, entry));
       }
     }
   }
 
-  Ok(flushed)
+  Ok(statuses)
 }
 
 // helper used by the old write queue worker.
@@ -522,12 +596,20 @@ fn read_from_buffer(path: &str, buffer_state: &FsBufferState) -> Result<Option<S
 }
 
 fn read_from_disk(path: &str, state: &FsState) -> Result<String, String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   let resolved = resolve_path(&data, path)?;
   fs::read_to_string(resolved).map_err(|err| format!("Failed to read file: {err}"))
 }
 
-fn upsert_buffer(buffer_state: &FsBufferState, path: &str, content: &str) -> Result<(), String> {
+fn upsert_buffer(
+  buffer_state: &FsBufferState,
+  path: &str,
+  content: &str,
+) -> Result<FsBufferStatus, String> {
   let mut buffers = buffer_state
     .0
     .lock()
@@ -539,12 +621,20 @@ fn upsert_buffer(buffer_state: &FsBufferState, path: &str, content: &str) -> Res
     revision: 0,
   });
   if entry.content == content {
-    return Ok(());
+    return Ok(status_from_buffer(path, entry));
   }
   entry.content = content.to_string();
   entry.dirty = true;
   entry.revision = entry.revision.saturating_add(1);
-  Ok(())
+  Ok(status_from_buffer(path, entry))
+}
+
+fn status_from_buffer(path: &str, entry: &FsBufferEntry) -> FsBufferStatus {
+  FsBufferStatus {
+    path: path.to_string(),
+    revision: entry.revision,
+    dirty: entry.dirty,
+  }
 }
 
 fn remove_buffer_path(buffer_state: &FsBufferState, path: &str) -> Result<(), String> {
@@ -665,7 +755,11 @@ fn list_entries(data: &FsStateData) -> Result<Vec<FsEntry>, String> {
 }
 
 fn snapshot_from_state(state: &FsState) -> Result<FsSnapshot, String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?.clone();
+  let data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
   let entries = list_entries(&data)?;
   Ok(FsSnapshot {
     root: FsRootInfo {
@@ -740,7 +834,9 @@ fn should_emit_for_watch_event(event: &notify::Event) -> bool {
     return false;
   }
 
-  if matches!(event.kind, EventKind::Modify(ModifyKind::Name(_))) && is_temp_write_rename(&event.paths) {
+  if matches!(event.kind, EventKind::Modify(ModifyKind::Name(_)))
+    && is_temp_write_rename(&event.paths)
+  {
     return false;
   }
 
@@ -782,5 +878,20 @@ fn is_temp_write_rename(paths: &[PathBuf]) -> bool {
 
 fn emit_fs_changed(app: &tauri::AppHandle, state: &FsState) -> Result<(), String> {
   let snapshot = snapshot_from_state(state)?;
-  app.emit("fs-changed", snapshot).map_err(|err| err.to_string())
+  app
+    .emit("fs-changed", snapshot)
+    .map_err(|err| err.to_string())
+}
+
+fn emit_buffer_statuses(app: &tauri::AppHandle, statuses: &[FsBufferStatus]) -> Result<(), String> {
+  for status in statuses {
+    emit_buffer_status(app, status)?;
+  }
+  Ok(())
+}
+
+fn emit_buffer_status(app: &tauri::AppHandle, status: &FsBufferStatus) -> Result<(), String> {
+  app
+    .emit("fs-buffer-status", status.clone())
+    .map_err(|err| err.to_string())
 }
