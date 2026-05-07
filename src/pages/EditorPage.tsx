@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useAtom, useAtomValue } from 'jotai'
-import { Dual } from '@/playground'
-import { crepeAPI, markdown } from '@/playground/atom'
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
 import { useI18n } from '@/i18n/useI18n'
-import MarkdownSourceEditor from '@/components/MarkdownSourceEditor'
-import GraphPage from '@/pages/GraphPage'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import type { GraphData } from '@/logic/graph'
 import type { ViewMode } from '@/store/useAppStore'
+
+const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
+const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
+const GraphPage = lazy(() => import('@/pages/GraphPage'))
 
 type EditorPageProps = {
   activePath: string | null
@@ -26,49 +27,25 @@ export default function EditorPage({
   onOpenFile,
   viewMode,
 }: EditorPageProps) {
-  const [value, setValue] = useAtom(markdown)
-  const crepeApi = useAtomValue(crepeAPI)
-  const lastWysiwygValueRef = useRef<string | null>(null)
   const { t } = useI18n()
+  const editorRef = useRef<MarkdownEditorHandle | null>(null)
 
   const handleMarkdownChange = useCallback(
     (nextValue: string) => {
-      lastWysiwygValueRef.current = nextValue
       onChange(nextValue)
     },
     [onChange],
   )
 
-  useEffect(() => {
-    if (!activePath) return
-    if (editorValue !== value) {
-      setValue(editorValue)
-    }
-  }, [activePath, editorValue, setValue, value])
-
-  useEffect(() => {
-    if (!activePath) return
-    if (!crepeApi.loaded) return
-    if (viewMode !== 'wysiwyg') return
-    if (lastWysiwygValueRef.current === editorValue) return
-    crepeApi.update(editorValue)
-  }, [activePath, crepeApi, editorValue, viewMode])
-
-  useEffect(() => {
-    lastWysiwygValueRef.current = null
-  }, [activePath])
-
-  const crepeRef = useRef(crepeApi)
   const editorValueRef = useRef(editorValue)
   const viewModeRef = useRef(viewMode)
   const activePathRef = useRef(activePath)
 
   useEffect(() => {
-    crepeRef.current = crepeApi
     editorValueRef.current = editorValue
     viewModeRef.current = viewMode
     activePathRef.current = activePath
-  })
+  }, [activePath, editorValue, viewMode])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -76,9 +53,10 @@ export default function EditorPage({
       if (typeof respond !== 'function') return
       // Only respond if we're showing the requested file (avoid wrong-tab export)
       if (expectedActivePath != null && activePathRef.current !== expectedActivePath) return
-      const { loaded, getMarkdown } = crepeRef.current
       const content =
-        viewModeRef.current === 'wysiwyg' && loaded ? getMarkdown() : editorValueRef.current
+        viewModeRef.current === 'wysiwyg'
+          ? (editorRef.current?.getMarkdown() ?? editorValueRef.current)
+          : editorValueRef.current
       respond(content)
     }
     window.addEventListener(EXPORT_CONTENT_EVENT, handler)
@@ -87,10 +65,9 @@ export default function EditorPage({
 
   const handleSourceChange = useCallback(
     (nextValue: string) => {
-      setValue(nextValue)
       onChange(nextValue)
     },
-    [onChange, setValue],
+    [onChange],
   )
 
   return (
@@ -102,16 +79,31 @@ export default function EditorPage({
               viewMode === 'wysiwyg' ? 'h-full animate-[view-fade_140ms_ease-out]' : 'hidden h-full'
             }
           >
-            <Dual onMarkdownChange={handleMarkdownChange} />
+            <Suspense fallback={<EditorPaneFallback />}>
+              <MarkdownEditor
+                ref={editorRef}
+                activePath={activePath}
+                value={editorValue}
+                onChange={handleMarkdownChange}
+              />
+            </Suspense>
           </div>
           {viewMode === 'source' && (
             <div className="h-full animate-[view-fade_140ms_ease-out]">
-              <MarkdownSourceEditor value={editorValue} onChange={handleSourceChange} />
+              <Suspense fallback={<EditorPaneFallback />}>
+                <MarkdownSourceEditor
+                  activePath={activePath}
+                  value={editorValue}
+                  onChange={handleSourceChange}
+                />
+              </Suspense>
             </div>
           )}
           {viewMode === 'graph' && (
             <div className="h-full animate-[view-fade_160ms_ease-out]">
-              <GraphPage graph={graph} onOpenFile={onOpenFile} />
+              <Suspense fallback={<EditorPaneFallback />}>
+                <GraphPage graph={graph} onOpenFile={onOpenFile} />
+              </Suspense>
             </div>
           )}
         </div>
@@ -120,3 +112,11 @@ export default function EditorPage({
     </div>
   )
 }
+
+const EditorPaneFallback = () => (
+  <div className="flex h-full flex-col gap-3 p-6">
+    <Skeleton className="h-5 w-40" />
+    <Skeleton className="h-4 w-2/3" />
+    <Skeleton className="h-4 w-1/2" />
+  </div>
+)

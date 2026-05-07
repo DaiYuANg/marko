@@ -1,0 +1,114 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ComponentProps } from 'react'
+import RightSidebar from '@/components/RightSidebar'
+import i18n from '@/i18n/setup'
+import { useAppStore } from '@/store/useAppStore'
+import {
+  FOCUS_HEADING_EVENT,
+  FOCUS_SOURCE_POSITION_EVENT,
+  type FocusHeadingRequest,
+  type FocusSourcePositionRequest,
+} from '@/utils/editorNavigation'
+
+vi.mock('@/utils/tauri', () => ({
+  isTauriRuntime: () => false,
+}))
+
+type RightSidebarProps = ComponentProps<typeof RightSidebar>
+
+const baseFiles = [
+  { path: 'target.md', kind: 'file' },
+  { path: 'source.md', kind: 'file' },
+] satisfies RightSidebarProps['files']
+
+const createProps = (overrides: Partial<RightSidebarProps> = {}): RightSidebarProps => ({
+  collapsed: false,
+  activePath: 'target.md',
+  inspectedPath: null,
+  editorValue: '# Target\n## Details\n',
+  files: baseFiles,
+  fileContents: {
+    'target.md': '# Target\n## Details\n',
+    'source.md': 'intro\nSee [Target](target.md) here\n',
+  },
+  tabs: ['target.md'],
+  totalFiles: 2,
+  onOpenFile: vi.fn(),
+  viewMode: 'wysiwyg',
+  onChangeView: vi.fn(),
+  ...overrides,
+})
+
+beforeEach(async () => {
+  localStorage.clear()
+  useAppStore.setState({ locale: 'en-US' })
+  await i18n.changeLanguage('en-US')
+})
+
+describe('RightSidebar', () => {
+  it('dispatches a heading focus request when an outline item is clicked', async () => {
+    const events: FocusHeadingRequest[] = []
+    const listener = (event: Event) => {
+      events.push((event as CustomEvent<FocusHeadingRequest>).detail)
+    }
+    window.addEventListener(FOCUS_HEADING_EVENT, listener)
+
+    try {
+      render(<RightSidebar {...createProps()} />)
+
+      const headingButton = screen.getByText('Details').closest('button')
+      expect(headingButton).toBeInTheDocument()
+      fireEvent.click(headingButton!)
+
+      await waitFor(() => {
+        expect(events).toEqual([{ path: 'target.md', slug: 'details' }])
+      })
+    } finally {
+      window.removeEventListener(FOCUS_HEADING_EVENT, listener)
+    }
+  })
+
+  it('shows backlinks with context and opens the source location', async () => {
+    const onOpenFile = vi.fn()
+    const onChangeView = vi.fn()
+    const props = createProps({ onOpenFile, onChangeView })
+    const events: FocusSourcePositionRequest[] = []
+    const listener = (event: Event) => {
+      events.push((event as CustomEvent<FocusSourcePositionRequest>).detail)
+    }
+    window.addEventListener(FOCUS_SOURCE_POSITION_EVENT, listener)
+
+    try {
+      const { rerender } = render(<RightSidebar {...props} />)
+
+      await userEvent.click(screen.getByRole('tab', { name: /backlinks/i }))
+
+      expect(await screen.findByText('source')).toBeInTheDocument()
+      expect(screen.getByText('See [Target](target.md) here')).toBeInTheDocument()
+
+      const backlinkButton = screen.getByText('source').closest('button')
+      expect(backlinkButton).toBeInTheDocument()
+      fireEvent.click(backlinkButton!)
+
+      expect(onOpenFile).toHaveBeenCalledWith('source.md')
+      expect(onChangeView).toHaveBeenCalledWith('source')
+
+      rerender(
+        <RightSidebar
+          {...props}
+          activePath="source.md"
+          inspectedPath="target.md"
+          viewMode="source"
+        />,
+      )
+
+      await waitFor(() => {
+        expect(events).toEqual([{ path: 'source.md', line: 2, column: 5 }])
+      })
+    } finally {
+      window.removeEventListener(FOCUS_SOURCE_POSITION_EVENT, listener)
+    }
+  })
+})

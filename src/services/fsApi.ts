@@ -48,6 +48,9 @@ export const fsApi = {
   openFile(path: string) {
     return invoke<string>('fs_open_file', { path })
   },
+  readFile(path: string) {
+    return invoke<string>('fs_read_file', { path })
+  },
   updateBuffer(path: string, content: string) {
     return invoke('fs_update_buffer', { path, content })
   },

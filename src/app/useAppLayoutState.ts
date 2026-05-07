@@ -191,6 +191,7 @@ export function useAppLayoutState() {
     rootKind,
     recentProjects,
     files: entries,
+    fileContents,
     tabs,
     dirtyPaths,
     activePath: currentPath,

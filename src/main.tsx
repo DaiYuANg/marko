@@ -1,4 +1,3 @@
-import { scan } from 'react-scan'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@/index.css'
@@ -6,10 +5,13 @@ import '@/i18n/setup'
 import App from '@/App.tsx'
 import { isDevelopment } from '@/utils/share.ts'
 
-const enableReactScan = isDevelopment()
-scan({
-  enabled: enableReactScan,
-})
+if (isDevelopment() && import.meta.env.VITE_REACT_SCAN === 'true') {
+  void import('react-scan')
+    .then(({ scan }) => scan({ enabled: true }))
+    .catch((error) => {
+      console.warn('React Scan failed to initialize', error)
+    })
+}
 
 if (isDevelopment()) {
   const loadReactDevTools = () => {

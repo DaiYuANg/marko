@@ -238,8 +238,10 @@ export default function AppLayout() {
         <RightSidebar
           collapsed={state.rightSidebarCollapsed}
           activePath={state.activePath}
+          editorValue={state.editorValue}
+          files={state.files}
+          fileContents={state.fileContents}
           tabs={state.tabs}
-          dirtyPaths={state.dirtyPaths}
           totalFiles={totalFiles}
           onOpenFile={state.onOpenFile}
           viewMode={state.viewMode}

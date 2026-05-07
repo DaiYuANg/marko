@@ -5,7 +5,9 @@ import {
   extractHeadings,
   extractLinks,
   isExternalLink,
+  normalizeHeadingAnchor,
   resolveRelativePath,
+  splitLinkTarget,
 } from '@/logic/paths'
 
 export type GraphData = {
@@ -51,18 +53,21 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
   const externalNodes = new Map<string, Node>()
   const missingNodes = new Map<string, Node>()
   const headingNodes = new Map<string, Node>()
+  const headingSlugIndex = new Map<string, Map<string, string>>()
 
   entries
     .filter((entry) => entry.kind === 'file')
     .forEach((entry) => {
       const sourceId = `file:${entry.path}`
       const content = contents[entry.path] ?? ''
-      const links = extractLinks(content)
       const headings = extractHeadings(content)
+      const headingIdsBySlug = new Map<string, string>()
+      headingSlugIndex.set(entry.path, headingIdsBySlug)
 
       const headingStack: Array<{ level: number; id: string }> = []
-      headings.forEach((heading, index) => {
-        const headingId = `heading:${entry.path}:${index}`
+      headings.forEach((heading) => {
+        const headingId = `heading:${entry.path}:${heading.slug}`
+        headingIdsBySlug.set(heading.slug, headingId)
         headingNodes.set(headingId, {
           id: headingId,
           type: 'heading',
@@ -83,6 +88,14 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
         })
         headingStack.push({ level: heading.level, id: headingId })
       })
+    })
+
+  entries
+    .filter((entry) => entry.kind === 'file')
+    .forEach((entry) => {
+      const sourceId = `file:${entry.path}`
+      const content = contents[entry.path] ?? ''
+      const links = extractLinks(content)
 
       links.forEach((link) => {
         if (!link.target || link.target.trim().length === 0) {
@@ -107,19 +120,37 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
           return
         }
 
-        let targetPath = link.target
+        const { path: linkPath, anchor } = splitLinkTarget(link.target)
+        const anchorSlug = anchor ? normalizeHeadingAnchor(anchor) : ''
+        let targetPath = linkPath
         if (link.type === 'wiki') {
-          const mapped = nameIndex.get(link.target.toLowerCase())
-          targetPath = mapped ?? `${link.target}.md`
+          const mapped = nameIndex.get(linkPath.toLowerCase())
+          targetPath = mapped ?? `${linkPath}.md`
         } else {
-          const normalized = resolveRelativePath(entry.path, link.target)
-          if (!normalized) {
-            return
+          if (linkPath.trim().length === 0) {
+            targetPath = entry.path
+          } else {
+            const normalized = resolveRelativePath(entry.path, linkPath)
+            if (!normalized) {
+              return
+            }
+            targetPath =
+              normalized.endsWith('.md') || normalized.endsWith('.markdown')
+                ? normalized
+                : `${normalized}.md`
           }
-          targetPath =
-            normalized.endsWith('.md') || normalized.endsWith('.markdown')
-              ? normalized
-              : `${normalized}.md`
+        }
+
+        const targetHeadingId = anchorSlug
+          ? headingSlugIndex.get(targetPath)?.get(anchorSlug)
+          : undefined
+        if (targetHeadingId) {
+          edges.push({
+            id: `${sourceId}->${targetHeadingId}-${edges.length}`,
+            source: sourceId,
+            target: targetHeadingId,
+          })
+          return
         }
 
         if (fileNodes.has(targetPath)) {

@@ -22,6 +22,27 @@ export function resolveRelativePath(base: string, target: string) {
   return normalizePath(joined)
 }
 
+export function splitLinkTarget(target: string) {
+  const hashIndex = target.indexOf('#')
+  if (hashIndex === -1) {
+    return { path: target, anchor: null }
+  }
+  return {
+    path: target.slice(0, hashIndex),
+    anchor: target.slice(hashIndex + 1),
+  }
+}
+
+export function normalizeHeadingAnchor(anchor: string) {
+  const value = anchor.trim()
+  if (!value) return ''
+  try {
+    return slugify(decodeURIComponent(value))
+  } catch {
+    return slugify(value)
+  }
+}
+
 export function createFileLabel(relativePath: string) {
   const base = relativePath.split('/').pop() ?? relativePath
   return base.replace(/\.(md|markdown)$/i, '')
@@ -32,7 +53,9 @@ export function slugify(label: string) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 export function isExternalLink(target: string) {
@@ -40,19 +63,57 @@ export function isExternalLink(target: string) {
 }
 
 export function extractLinks(content: string) {
-  const links: Array<{ text: string; target: string; type: 'markdown' | 'wiki' }> = []
+  const links: Array<{
+    text: string
+    target: string
+    type: 'markdown' | 'wiki'
+    context: string
+    line: number
+    column: number
+  }> = []
   const mdRegex = /\[([^\]]+)\]\(([^)]+)\)/g
   const wikiRegex = /\[\[([^\]]+)\]\]/g
 
+  const getLineContext = (index: number) => {
+    const lineStart = content.lastIndexOf('\n', index) + 1
+    const lineBreak = content.indexOf('\n', index)
+    const lineEnd = lineBreak === -1 ? content.length : lineBreak
+    return content.slice(lineStart, lineEnd).replace(/\s+/g, ' ').trim()
+  }
+
+  const getSourceLocation = (index: number) => {
+    const lineStart = content.lastIndexOf('\n', index) + 1
+    return {
+      line: content.slice(0, index).split('\n').length,
+      column: index - lineStart + 1,
+    }
+  }
+
   let match = mdRegex.exec(content)
   while (match) {
-    links.push({ text: match[1].trim(), target: match[2].trim(), type: 'markdown' })
+    const location = getSourceLocation(match.index)
+    links.push({
+      text: match[1].trim(),
+      target: match[2].trim(),
+      type: 'markdown',
+      context: getLineContext(match.index),
+      line: location.line,
+      column: location.column,
+    })
     match = mdRegex.exec(content)
   }
 
   match = wikiRegex.exec(content)
   while (match) {
-    links.push({ text: match[1].trim(), target: match[1].trim(), type: 'wiki' })
+    const location = getSourceLocation(match.index)
+    links.push({
+      text: match[1].trim(),
+      target: match[1].trim(),
+      type: 'wiki',
+      context: getLineContext(match.index),
+      line: location.line,
+      column: location.column,
+    })
     match = wikiRegex.exec(content)
   }
 
@@ -60,13 +121,19 @@ export function extractLinks(content: string) {
 }
 
 export function extractHeadings(content: string) {
-  const headings: Array<{ level: number; text: string }> = []
+  const headings: Array<{ level: number; text: string; slug: string }> = []
+  const usedSlugs = new Map<string, number>()
   const headingRegex = /^(#{1,6})\s+(.+)$/gm
   let match = headingRegex.exec(content)
   while (match) {
+    const text = match[2].trim()
+    const baseSlug = slugify(text) || `heading-${headings.length + 1}`
+    const usedCount = usedSlugs.get(baseSlug) ?? 0
+    usedSlugs.set(baseSlug, usedCount + 1)
     headings.push({
       level: match[1].length,
-      text: match[2].trim(),
+      text,
+      slug: usedCount === 0 ? baseSlug : `${baseSlug}-${usedCount}`,
     })
     match = headingRegex.exec(content)
   }
