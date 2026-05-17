@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, PropsWithChildren } from 'react'
 import RightSidebar from '@/components/RightSidebar'
 import i18n from '@/i18n/setup'
 import { useAppStore } from '@/store/useAppStore'
@@ -74,6 +75,19 @@ const createProps = (overrides: Partial<RightSidebarProps> = {}): RightSidebarPr
   ...overrides,
 })
 
+const createQueryWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+
+  return function QueryWrapper({ children }: PropsWithChildren) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  }
+}
+
+const renderRightSidebar = (props: RightSidebarProps) =>
+  render(<RightSidebar {...props} />, { wrapper: createQueryWrapper() })
+
 beforeEach(async () => {
   localStorage.clear()
   useAppStore.setState({ locale: 'en-US' })
@@ -89,7 +103,7 @@ describe('RightSidebar', () => {
     window.addEventListener(FOCUS_HEADING_EVENT, listener)
 
     try {
-      render(<RightSidebar {...createProps()} />)
+      renderRightSidebar(createProps())
 
       const headingButton = screen.getByText('Details').closest('button')
       expect(headingButton).toBeInTheDocument()
@@ -114,7 +128,7 @@ describe('RightSidebar', () => {
     window.addEventListener(FOCUS_SOURCE_POSITION_EVENT, listener)
 
     try {
-      const { rerender } = render(<RightSidebar {...props} />)
+      const { rerender } = renderRightSidebar(props)
 
       await userEvent.click(screen.getByRole('tab', { name: /backlinks/i }))
 
@@ -146,16 +160,14 @@ describe('RightSidebar', () => {
   })
 
   it('uses the shared workspace index for inspected outline and backlinks', async () => {
-    render(
-      <RightSidebar
-        {...createProps({
-          activePath: 'source.md',
-          inspectedPath: 'target.md',
-          editorValue: '# Source\n',
-          fileContents: {},
-          workspaceIndex,
-        })}
-      />,
+    renderRightSidebar(
+      createProps({
+        activePath: 'source.md',
+        inspectedPath: 'target.md',
+        editorValue: '# Source\n',
+        fileContents: {},
+        workspaceIndex,
+      }),
     )
 
     expect(screen.getByText('Indexed Detail')).toBeInTheDocument()
@@ -169,18 +181,16 @@ describe('RightSidebar', () => {
   it('lists markdown link problems and switches to source on click', async () => {
     const onOpenFile = vi.fn()
     const onChangeView = vi.fn()
-    render(
-      <RightSidebar
-        {...createProps({
-          activePath: 'target.md',
-          inspectedPath: 'target.md',
-          editorValue:
-            '# Target\n\n[missing](missing.md)\n[missing-heading](#missing-anchor)\n[[Unknown]]\n',
-          onOpenFile,
-          onChangeView,
-          viewMode: 'wysiwyg',
-        })}
-      />,
+    renderRightSidebar(
+      createProps({
+        activePath: 'target.md',
+        inspectedPath: 'target.md',
+        editorValue:
+          '# Target\n\n[missing](missing.md)\n[missing-heading](#missing-anchor)\n[[Unknown]]\n',
+        onOpenFile,
+        onChangeView,
+        viewMode: 'wysiwyg',
+      }),
     )
 
     await userEvent.click(screen.getByRole('tab', { name: /problems/i }))

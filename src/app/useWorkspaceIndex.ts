@@ -1,46 +1,25 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fsApi, fsBufferStatusSchema, type FsWorkspaceIndex } from '@/services/fsApi'
 import type { FileEntry } from '@/store/useAppStore'
 import { isTauriRuntime } from '@/utils/tauri'
 
 export function useWorkspaceIndex(entries: FileEntry[], enabled: boolean) {
-  const [index, setIndex] = useState<FsWorkspaceIndex | null>(null)
-
-  const refreshIndex = useCallback(async () => {
-    if (!enabled || !isTauriRuntime()) {
-      setIndex(null)
-      return
-    }
-    const next = await fsApi.getWorkspaceIndex()
-    setIndex(next)
-  }, [enabled])
-
-  useEffect(() => {
-    if (!enabled || !isTauriRuntime()) {
-      setIndex(null)
-      return
-    }
-
-    let cancelled = false
-    void fsApi
-      .getWorkspaceIndex()
-      .then((next) => {
-        if (cancelled) return
-        setIndex(next)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        console.error('load workspace index failed', error)
-        setIndex(null)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, entries])
+  const queryClient = useQueryClient()
+  const tauriAvailable = isTauriRuntime()
+  const entriesKey = useMemo(
+    () => entries.map((entry) => `${entry.kind}:${entry.path}`).join('\n'),
+    [entries],
+  )
+  const query = useQuery<FsWorkspaceIndex | null>({
+    queryKey: ['workspace-index', entriesKey],
+    queryFn: () => fsApi.getWorkspaceIndex(),
+    enabled: enabled && tauriAvailable,
+    staleTime: 10_000,
+  })
 
   useEffect(() => {
-    if (!enabled || !isTauriRuntime()) return
+    if (!enabled || !tauriAvailable) return
 
     let cancelled = false
     let unlisten: (() => void) | undefined
@@ -48,7 +27,7 @@ export function useWorkspaceIndex(entries: FileEntry[], enabled: boolean) {
       listen<unknown>('fs-buffer-status', (event) => {
         const parsed = fsBufferStatusSchema.safeParse(event.payload)
         if (!parsed.success || parsed.data.dirty) return
-        void refreshIndex().catch((error) => {
+        void queryClient.invalidateQueries({ queryKey: ['workspace-index'] }).catch((error) => {
           console.error('refresh workspace index failed', error)
         })
       }).then((nextUnlisten) => {
@@ -64,7 +43,7 @@ export function useWorkspaceIndex(entries: FileEntry[], enabled: boolean) {
       cancelled = true
       unlisten?.()
     }
-  }, [enabled, refreshIndex])
+  }, [enabled, queryClient, tauriAvailable])
 
-  return index
+  return query.data ?? null
 }

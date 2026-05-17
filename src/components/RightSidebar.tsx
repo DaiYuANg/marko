@@ -19,7 +19,8 @@ import {
   Link2,
   ListTree,
 } from 'lucide-react'
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { memo, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   createFileLabel,
   extractHeadings,
@@ -29,7 +30,7 @@ import {
   splitLinkTarget,
 } from '@/logic/paths'
 import type { FileEntry, ViewMode } from '@/store/useAppStore'
-import { fsApi, type FsPathMetadata, type FsWorkspaceIndex } from '@/services/fsApi'
+import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
 import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
 import {
@@ -133,13 +134,19 @@ const RightSidebarComponent = ({
 }: RightSidebarProps) => {
   const { t } = useI18n()
   const tauriAvailable = isTauriRuntime()
-  const [metadata, setMetadata] = useState<FsPathMetadata | null>(null)
-  const [resolvedMetadataPath, setResolvedMetadataPath] = useState<string | null>(null)
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
   const [pendingSourcePosition, setPendingSourcePosition] =
     useState<FocusSourcePositionRequest | null>(null)
-  const loadIdRef = useRef(0)
   const targetPath = inspectedPath ?? activePath
+  const deferredEditorValue = useDeferredValue(editorValue)
+  const deferredFileContents = useDeferredValue(fileContents)
+  const deferredTargetPath = useDeferredValue(targetPath)
+  const metadataQuery = useQuery({
+    queryKey: ['path-metadata', targetPath],
+    queryFn: () => fsApi.getPathMetadata(targetPath ?? ''),
+    enabled: !collapsed && tauriAvailable && Boolean(targetPath),
+    staleTime: 10_000,
+  })
   const displayMetadata = useMemo(() => {
     if (!targetPath) return null
     if (!tauriAvailable) {
@@ -152,40 +159,45 @@ const RightSidebarComponent = ({
         readonly: false,
       }
     }
+    const metadata = metadataQuery.data
     if (!metadata || metadata.path !== targetPath) return null
     return metadata
-  }, [metadata, targetPath, tauriAvailable])
-  const loadingMetadata =
-    tauriAvailable && Boolean(targetPath) && resolvedMetadataPath !== targetPath
+  }, [metadataQuery.data, targetPath, tauriAvailable])
+  const loadingMetadata = metadataQuery.isFetching && !metadataQuery.data
   const indexedFilesByPath = useMemo(() => {
     if (!workspaceIndex) return null
     return new Map(workspaceIndex.files.map((file) => [file.path, file]))
   }, [workspaceIndex])
-  const indexedTargetFile = targetPath ? indexedFilesByPath?.get(targetPath) : undefined
+  const indexedTargetFile = deferredTargetPath
+    ? indexedFilesByPath?.get(deferredTargetPath)
+    : undefined
   const workspaceContents = useWorkspaceMarkdownContents(
     files,
-    fileContents,
+    deferredFileContents,
     !collapsed && !workspaceIndex,
   )
   const targetContent = useMemo(() => {
-    if (!targetPath) return ''
-    if (targetPath === activePath) return editorValue
-    return workspaceContents[targetPath] ?? ''
-  }, [activePath, editorValue, targetPath, workspaceContents])
+    if (collapsed) return ''
+    if (!deferredTargetPath) return ''
+    if (deferredTargetPath === activePath) return deferredEditorValue
+    return workspaceContents[deferredTargetPath] ?? ''
+  }, [activePath, collapsed, deferredEditorValue, deferredTargetPath, workspaceContents])
   const outline = useMemo(() => {
-    if (targetPath && targetPath !== activePath && indexedTargetFile) {
+    if (collapsed) return []
+    if (deferredTargetPath && deferredTargetPath !== activePath && indexedTargetFile) {
       return indexedTargetFile.headings
     }
     return extractHeadings(targetContent)
-  }, [activePath, indexedTargetFile, targetContent, targetPath])
+  }, [activePath, collapsed, deferredTargetPath, indexedTargetFile, targetContent])
   const backlinks = useMemo<Backlink[]>(() => {
-    if (!targetPath) return []
+    if (collapsed) return []
+    if (!deferredTargetPath) return []
 
     if (workspaceIndex) {
       return workspaceIndex.files.flatMap((file) => {
-        if (file.path === targetPath) return []
+        if (file.path === deferredTargetPath) return []
         return file.links
-          .filter((link) => !link.is_external && link.target_path === targetPath)
+          .filter((link) => !link.is_external && link.target_path === deferredTargetPath)
           .map((link) => ({
             sourcePath: file.path,
             text: link.text || link.target,
@@ -205,13 +217,13 @@ const RightSidebarComponent = ({
 
     const results: Backlink[] = []
     files
-      .filter((file) => file.kind === 'file' && file.path !== targetPath)
+      .filter((file) => file.kind === 'file' && file.path !== deferredTargetPath)
       .forEach((file) => {
         const content =
-          file.path === activePath ? editorValue : (workspaceContents[file.path] ?? '')
+          file.path === activePath ? deferredEditorValue : (workspaceContents[file.path] ?? '')
         extractLinks(content).forEach((link) => {
           const linkedPath = normalizeLinkedPath(file.path, link, nameIndex)
-          if (linkedPath !== targetPath) return
+          if (linkedPath !== deferredTargetPath) return
           results.push({
             sourcePath: file.path,
             text: link.text || link.target,
@@ -222,24 +234,34 @@ const RightSidebarComponent = ({
         })
       })
     return results
-  }, [activePath, editorValue, files, targetPath, workspaceContents, workspaceIndex])
+  }, [
+    activePath,
+    collapsed,
+    deferredEditorValue,
+    deferredTargetPath,
+    files,
+    workspaceContents,
+    workspaceIndex,
+  ])
   const problems = useMemo(() => {
+    if (collapsed) return []
     return getMarkdownSourceDiagnostics({
-      activePath: targetPath,
+      activePath: deferredTargetPath,
       content: targetContent,
       files,
       fileContents: workspaceContents,
       workspaceIndex,
     })
-  }, [files, workspaceIndex, targetPath, targetContent, workspaceContents])
+  }, [collapsed, files, workspaceIndex, deferredTargetPath, targetContent, workspaceContents])
   const documentStats = useMemo(() => getDocumentStats(targetContent), [targetContent])
   const outgoingLinkCount = useMemo(() => {
-    if (!targetPath) return 0
-    if (targetPath !== activePath && indexedTargetFile) {
+    if (collapsed) return 0
+    if (!deferredTargetPath) return 0
+    if (deferredTargetPath !== activePath && indexedTargetFile) {
       return indexedTargetFile.links.filter((link) => !link.is_external).length
     }
     return extractLinks(targetContent).filter((link) => !isExternalLink(link.target)).length
-  }, [activePath, indexedTargetFile, targetContent, targetPath])
+  }, [activePath, collapsed, deferredTargetPath, indexedTargetFile, targetContent])
   const errorProblems = useMemo(
     () => problems.filter((problem) => problem.severity === 'error'),
     [problems],
@@ -345,26 +367,6 @@ const RightSidebarComponent = ({
 
     return () => window.clearTimeout(timer)
   }, [activePath, pendingSourcePosition, viewMode])
-
-  useEffect(() => {
-    if (!targetPath || !tauriAvailable) return
-
-    loadIdRef.current += 1
-    const currentLoadId = loadIdRef.current
-    void fsApi
-      .getPathMetadata(targetPath)
-      .then((next) => {
-        if (currentLoadId !== loadIdRef.current) return
-        setMetadata(next)
-        setResolvedMetadataPath(targetPath)
-      })
-      .catch((error) => {
-        if (currentLoadId !== loadIdRef.current) return
-        console.error('Failed to load metadata', error)
-        setMetadata(null)
-        setResolvedMetadataPath(targetPath)
-      })
-  }, [targetPath, tauriAvailable])
 
   return (
     <aside

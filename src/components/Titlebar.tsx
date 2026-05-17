@@ -13,7 +13,14 @@ import {
   Settings2,
 } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { Button } from '@/components/ui/button'
 import {
   CommandEmpty,
@@ -62,7 +69,7 @@ type TitlebarProps = {
   setTheme: (theme: ThemeMode) => void
 }
 
-export default function Titlebar({
+function Titlebar({
   onToggleSidebar,
   onToggleRightSidebar,
   onSelectProject,
@@ -77,7 +84,7 @@ export default function Titlebar({
   theme,
   setTheme,
 }: TitlebarProps) {
-  const getAppWindow = () => (isTauriRuntime() ? getCurrentWindow() : null)
+  const getAppWindow = useCallback(() => (isTauriRuntime() ? getCurrentWindow() : null), [])
   const { t, locale, setLocale } = useI18n()
   const [platform, setPlatform] = useState<AppPlatform>(inferPlatformFromUserAgent())
   const [commandOpen, setCommandOpen] = useState(false)
@@ -181,97 +188,113 @@ export default function Titlebar({
     )
   }, [workspaceIndex])
 
-  const onMenuAction = (id: string) => {
+  const onMenuAction = useCallback((id: string) => {
     if (!isTauriRuntime()) return
     void appApi.menuDispatch(id)
-  }
-  const onFocusFileSearch = () => {
+  }, [])
+  const onFocusFileSearch = useCallback(() => {
     window.dispatchEvent(new CustomEvent('marko:focus-file-search'))
-  }
-  const onOpenSearch = () => {
+  }, [])
+  const onOpenSearch = useCallback(() => {
     setCommandOpen(true)
-  }
-  const onCommandAction = (id: string) => {
-    setCommandOpen(false)
-    if (id === 'view.wysiwyg') {
-      onChangeView('wysiwyg')
-      return
-    }
-    if (id === 'view.source') {
-      onChangeView('source')
-      return
-    }
-    if (id === 'view.graph') {
-      onChangeView('graph')
-      return
-    }
-    if (id === 'file.open_project') {
-      onSelectProject()
-      return
-    }
-    if (id === 'file.open_file') {
-      onSelectSingleFile()
-      return
-    }
-    if (id === 'view.toggle_sidebar') {
-      onToggleSidebar()
-      return
-    }
-    if (id === 'view.toggle_right_sidebar') {
-      onToggleRightSidebar()
-      return
-    }
-    if (id === 'view.focus_file_search') {
-      onFocusFileSearch()
-      return
-    }
-    if (id === 'settings.open') {
-      setSettingsOpen(true)
-      return
-    }
-    if (
-      id === 'theme.light' ||
-      id === 'theme.dark' ||
-      id === 'theme.marko-light' ||
-      id === 'theme.marko-dark'
-    ) {
-      setTheme(id as ThemeMode)
-      return
-    }
-    if (id === 'help.about') {
-      onMenuAction(id)
-      return
-    }
-    if (id.startsWith('file.export_')) {
-      onMenuAction(id)
-      return
-    }
-  }
+  }, [])
+  const onCommandAction = useCallback(
+    (id: string) => {
+      setCommandOpen(false)
+      if (id === 'view.wysiwyg') {
+        onChangeView('wysiwyg')
+        return
+      }
+      if (id === 'view.source') {
+        onChangeView('source')
+        return
+      }
+      if (id === 'view.graph') {
+        onChangeView('graph')
+        return
+      }
+      if (id === 'file.open_project') {
+        onSelectProject()
+        return
+      }
+      if (id === 'file.open_file') {
+        onSelectSingleFile()
+        return
+      }
+      if (id === 'view.toggle_sidebar') {
+        onToggleSidebar()
+        return
+      }
+      if (id === 'view.toggle_right_sidebar') {
+        onToggleRightSidebar()
+        return
+      }
+      if (id === 'view.focus_file_search') {
+        onFocusFileSearch()
+        return
+      }
+      if (id === 'settings.open') {
+        setSettingsOpen(true)
+        return
+      }
+      if (
+        id === 'theme.light' ||
+        id === 'theme.dark' ||
+        id === 'theme.marko-light' ||
+        id === 'theme.marko-dark'
+      ) {
+        setTheme(id as ThemeMode)
+        return
+      }
+      if (id === 'help.about' || id.startsWith('file.export_')) {
+        onMenuAction(id)
+      }
+    },
+    [
+      onChangeView,
+      onFocusFileSearch,
+      onMenuAction,
+      onSelectProject,
+      onSelectSingleFile,
+      onToggleRightSidebar,
+      onToggleSidebar,
+      setTheme,
+    ],
+  )
 
-  const onCommandOpenFile = (path: string) => {
-    setCommandOpen(false)
-    onOpenFile(path)
-  }
+  const onCommandOpenFile = useCallback(
+    (path: string) => {
+      setCommandOpen(false)
+      onOpenFile(path)
+    },
+    [onOpenFile],
+  )
 
-  const onCommandOpenHeading = (path: string, slug: string) => {
-    setCommandOpen(false)
-    onOpenHeading(path, slug)
-  }
+  const onCommandOpenHeading = useCallback(
+    (path: string, slug: string) => {
+      setCommandOpen(false)
+      onOpenHeading(path, slug)
+    },
+    [onOpenHeading],
+  )
 
   const isMacTauri = platform === 'macos' && isTauriRuntime()
 
-  const handleTitlebarMouseDown = (e: ReactMouseEvent) => {
-    if (!isTauriRuntime() || platform !== 'macos') return
-    if (e.button !== 0) return
-    const target = e.target as HTMLElement
-    if (
-      target.closest(
-        'button, a, input, select, textarea, [role="button"], [role="menuitem"], [data-no-drag]',
+  const handleTitlebarMouseDown = useCallback(
+    (e: ReactMouseEvent) => {
+      if (!isTauriRuntime() || platform !== 'macos') return
+      if (e.button !== 0) return
+      const target = e.target as HTMLElement
+      if (
+        target.closest(
+          'button, a, input, select, textarea, [role="button"], [role="menuitem"], [data-no-drag]',
+        )
       )
-    )
-      return
-    void getCurrentWindow().startDragging()
-  }
+        return
+      void getCurrentWindow().startDragging()
+    },
+    [platform],
+  )
 
   return (
     <header
@@ -665,3 +688,5 @@ export default function Titlebar({
     </header>
   )
 }
+
+export default memo(Titlebar)

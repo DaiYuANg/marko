@@ -13,6 +13,7 @@ import { requestExportContent } from '@/utils/exportContent'
 import { isTauriRuntime } from '@/utils/tauri'
 import type { SaveState } from '@/app/useEditorBuffer'
 import { requestFocusHeading, type FocusHeadingRequest } from '@/utils/editorNavigation'
+import { useLatest } from 'ahooks'
 
 export type LayoutContext = {
   activePath: string | null
@@ -32,6 +33,9 @@ export type LayoutContext = {
 
 export default function AppLayout() {
   const state = useAppLayoutState()
+  const stateRef = useLatest(state)
+  const openFile = state.onOpenFile
+  const changeView = state.setViewMode
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
 
   // Ref for export: always use latest active tab (avoids stale closure when menu opens)
@@ -91,11 +95,11 @@ export default function AppLayout() {
 
   const openHeading = useCallback(
     (path: string, slug: string) => {
-      state.onOpenFile(path)
-      state.setViewMode('wysiwyg')
+      openFile(path)
+      changeView('wysiwyg')
       setPendingHeading({ path, slug })
     },
-    [state],
+    [changeView, openFile],
   )
 
   useEffect(() => {
@@ -135,47 +139,49 @@ export default function AppLayout() {
     }
   }, [])
 
-  useEffect(() => {
-    const executeEdit = (action: string) => {
-      if (typeof document === 'undefined') return
-      if (action === 'edit.undo') document.execCommand('undo')
-      if (action === 'edit.redo') document.execCommand('redo')
-      if (action === 'edit.cut') document.execCommand('cut')
-      if (action === 'edit.copy') document.execCommand('copy')
-      if (action === 'edit.paste') document.execCommand('paste')
-      if (action === 'edit.select_all') document.execCommand('selectAll')
-    }
+  const handleMenuAction = useCallback(
+    (id: string) => {
+      const currentState = stateRef.current
 
-    const createUntitledPath = () => {
-      const files = new Set(
-        state.files
-          .filter((entry) => entry.kind === 'file')
-          .map((entry) => entry.path.toLowerCase()),
-      )
-      if (!files.has('untitled.md')) return 'Untitled.md'
-      for (let index = 1; index <= 999; index += 1) {
-        const next = `Untitled-${index}.md`
-        if (!files.has(next.toLowerCase())) return next
+      const executeEdit = (action: string) => {
+        if (typeof document === 'undefined') return
+        if (action === 'edit.undo') document.execCommand('undo')
+        if (action === 'edit.redo') document.execCommand('redo')
+        if (action === 'edit.cut') document.execCommand('cut')
+        if (action === 'edit.copy') document.execCommand('copy')
+        if (action === 'edit.paste') document.execCommand('paste')
+        if (action === 'edit.select_all') document.execCommand('selectAll')
       }
-      return `Untitled-${Date.now()}.md`
-    }
 
-    const handleMenuAction = (id: string) => {
+      const createUntitledPath = () => {
+        const files = new Set(
+          currentState.files
+            .filter((entry) => entry.kind === 'file')
+            .map((entry) => entry.path.toLowerCase()),
+        )
+        if (!files.has('untitled.md')) return 'Untitled.md'
+        for (let index = 1; index <= 999; index += 1) {
+          const next = `Untitled-${index}.md`
+          if (!files.has(next.toLowerCase())) return next
+        }
+        return `Untitled-${Date.now()}.md`
+      }
+
       if (id.startsWith('edit.')) {
         executeEdit(id)
         return
       }
       if (id === 'file.open_project') {
-        void state.onSelectProject()
+        void currentState.onSelectProject()
         return
       }
       if (id === 'file.open_file') {
-        void state.onSelectSingleFile()
+        void currentState.onSelectSingleFile()
         return
       }
       if (id === 'file.new') {
         const next = createUntitledPath()
-        void state.createFile(next).then(() => state.onOpenFile(next))
+        void currentState.createFile(next).then(() => currentState.onOpenFile(next))
         return
       }
       if (id === 'file.export_pdf' || id === 'file.export_docx' || id === 'file.export_html') {
@@ -194,20 +200,23 @@ export default function AppLayout() {
         })().catch((err) => window.alert(String(err)))
         return
       }
-      if (id === 'view.wysiwyg') state.setViewMode('wysiwyg')
-      if (id === 'view.source') state.setViewMode('source')
-      if (id === 'view.graph') state.setViewMode('graph')
-      if (id === 'view.toggle_sidebar') state.toggleSidebar()
-      if (id === 'view.toggle_right_sidebar') state.toggleRightSidebar()
-      if (id === 'theme.light') state.setTheme('light')
-      if (id === 'theme.dark') state.setTheme('dark')
-      if (id === 'theme.marko-light') state.setTheme('marko-light')
-      if (id === 'theme.marko-dark') state.setTheme('marko-dark')
+      if (id === 'view.wysiwyg') currentState.setViewMode('wysiwyg')
+      if (id === 'view.source') currentState.setViewMode('source')
+      if (id === 'view.graph') currentState.setViewMode('graph')
+      if (id === 'view.toggle_sidebar') currentState.toggleSidebar()
+      if (id === 'view.toggle_right_sidebar') currentState.toggleRightSidebar()
+      if (id === 'theme.light') currentState.setTheme('light')
+      if (id === 'theme.dark') currentState.setTheme('dark')
+      if (id === 'theme.marko-light') currentState.setTheme('marko-light')
+      if (id === 'theme.marko-dark') currentState.setTheme('marko-dark')
       if (id === 'help.about') {
         window.alert('marko\nA desktop Markdown workspace with graph navigation.')
       }
-    }
+    },
+    [stateRef],
+  )
 
+  useEffect(() => {
     const domHandler = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail
       if (typeof detail === 'string') handleMenuAction(detail)
@@ -230,7 +239,7 @@ export default function AppLayout() {
       window.removeEventListener('marko:menu-action', domHandler)
       if (unlisten) unlisten()
     }
-  }, [state])
+  }, [handleMenuAction])
 
   return (
     <div className="app-shell flex h-full flex-col">

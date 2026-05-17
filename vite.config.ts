@@ -35,7 +35,7 @@ export default defineConfig({
           if (normalizedId.includes('reactflow')) return 'vendor-graph'
           if (normalizedId.includes('lucide-react')) return 'vendor-icons'
           if (
-            /\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler|use-sync-external-store|zustand)\//.test(
+            /\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler|use-sync-external-store|zustand|@tanstack\/react-query|@tanstack\/query-core)\//.test(
               normalizedId,
             )
           ) {

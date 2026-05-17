@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { FileText, Search } from 'lucide-react'
 import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
 import { useI18n } from '@/i18n/useI18n'
@@ -35,7 +35,7 @@ const getDocumentStats = (value: string) => {
   }
 }
 
-export default function EditorPage({
+function EditorPage({
   activePath,
   editorValue,
   onChange,
@@ -90,9 +90,16 @@ export default function EditorPage({
     [onChange],
   )
 
-  const availableFiles = files.filter((file) => file.kind === 'file')
+  const availableFiles = useMemo(() => files.filter((file) => file.kind === 'file'), [files])
   const showEmptyState = !activePath && viewMode !== 'graph'
-  const stats = getDocumentStats(editorValue)
+  const stats = useMemo(() => getDocumentStats(editorValue), [editorValue])
+  const sourceFileContents = useMemo(
+    () => ({
+      ...fileContents,
+      ...(activePath ? { [activePath]: editorValue } : {}),
+    }),
+    [activePath, editorValue, fileContents],
+  )
   const viewLabel =
     viewMode === 'graph'
       ? t('tabs.workspaceGraph')
@@ -133,10 +140,7 @@ export default function EditorPage({
                   activePath={activePath}
                   value={editorValue}
                   files={files}
-                  fileContents={{
-                    ...fileContents,
-                    ...(activePath ? { [activePath]: editorValue } : {}),
-                  }}
+                  fileContents={sourceFileContents}
                   workspaceIndex={workspaceIndex}
                   onChange={handleSourceChange}
                 />
@@ -177,6 +181,8 @@ export default function EditorPage({
     </div>
   )
 }
+
+export default memo(EditorPage)
 
 const EditorEmptyState = ({
   files,

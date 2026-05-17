@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLatest } from 'ahooks'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAppStore, type ViewMode } from '@/store/useAppStore'
 import { buildFileTree } from '@/logic/fileTree'
@@ -49,13 +50,19 @@ export function useAppLayoutState() {
     [entries, routePath],
   )
   const currentPath = isRouteFile ? routePath : activePath
+  const activePathRef = useLatest(activePath)
+  const currentPathRef = useLatest(currentPath)
+  const inspectedPathRef = useLatest(inspectedPath)
+  const locationPathnameRef = useLatest(location.pathname)
+  const tabsRef = useLatest(tabs)
   const viewMode: ViewMode = currentPath ? (tabViewModes[currentPath] ?? 'wysiwyg') : 'wysiwyg'
   const setViewMode = useCallback(
     (mode: ViewMode) => {
-      if (!currentPath) return
-      setTabViewModes((prev) => ({ ...prev, [currentPath]: mode }))
+      const path = currentPathRef.current
+      if (!path) return
+      setTabViewModes((prev) => ({ ...prev, [path]: mode }))
     },
-    [currentPath],
+    [currentPathRef],
   )
 
   const workspaceKey = `${rootKind}:${rootPath}`
@@ -145,45 +152,57 @@ export function useAppLayoutState() {
 
   const onOpenFile = useCallback(
     (relativePath: string) => {
-      const nextTabs = tabs.includes(relativePath) ? tabs : [...tabs, relativePath]
-      if (nextTabs !== tabs) {
+      const currentTabs = tabsRef.current
+      const nextTabs = currentTabs.includes(relativePath)
+        ? currentTabs
+        : [...currentTabs, relativePath]
+      if (nextTabs !== currentTabs) {
         setTabs(nextTabs)
       }
-      if (activePath !== relativePath) {
+      if (activePathRef.current !== relativePath) {
         setActivePath(relativePath)
       }
       setInspectedPath(relativePath)
       const nextRoute = pathToRoute(relativePath)
-      if (location.pathname !== nextRoute) {
+      if (locationPathnameRef.current !== nextRoute) {
         navigate(nextRoute)
       }
     },
-    [activePath, location.pathname, navigate, setActivePath, setTabs, tabs],
+    [activePathRef, locationPathnameRef, navigate, setActivePath, setTabs, tabsRef],
   )
 
   const onCloseTab = useCallback(
     (relativePath: string) => {
-      const nextTabs = tabs.filter((tab) => tab !== relativePath)
+      const currentTabs = tabsRef.current
+      const nextTabs = currentTabs.filter((tab) => tab !== relativePath)
       setTabs(nextTabs)
-      if (inspectedPath === relativePath) {
+      if (inspectedPathRef.current === relativePath) {
         setInspectedPath(nextTabs[0] ?? null)
       }
-      if (currentPath === relativePath) {
+      if (currentPathRef.current === relativePath) {
         const nextActive = nextTabs[0] ?? null
         setActivePath(nextActive)
         if (nextActive) {
           const nextRoute = pathToRoute(nextActive)
-          if (location.pathname !== nextRoute) {
+          if (locationPathnameRef.current !== nextRoute) {
             navigate(nextRoute)
           }
         } else {
-          if (location.pathname !== '/') {
+          if (locationPathnameRef.current !== '/') {
             navigate('/')
           }
         }
       }
     },
-    [currentPath, inspectedPath, location.pathname, navigate, setActivePath, setTabs, tabs],
+    [
+      currentPathRef,
+      inspectedPathRef,
+      locationPathnameRef,
+      navigate,
+      setActivePath,
+      setTabs,
+      tabsRef,
+    ],
   )
 
   const fileTree = useMemo(() => buildFileTree(entries), [entries])

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fsApi } from '@/services/fsApi'
 import type { FileEntry } from '@/store/useAppStore'
 import { isTauriRuntime } from '@/utils/tauri'
@@ -8,44 +9,26 @@ export function useWorkspaceMarkdownContents(
   fileContents: Record<string, string>,
   enabled: boolean,
 ) {
-  const [diskContents, setDiskContents] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    if (!enabled) return
-    const files = entries.filter((entry) => entry.kind === 'file')
-    if (!isTauriRuntime()) {
-      return
-    }
-
-    let cancelled = false
-
-    const loadContents = async () => {
+  const tauriAvailable = isTauriRuntime()
+  const files = useMemo(() => entries.filter((entry) => entry.kind === 'file'), [entries])
+  const filesKey = useMemo(() => files.map((file) => file.path).join('\n'), [files])
+  const query = useQuery<Record<string, string>>({
+    queryKey: ['workspace-markdown-contents', filesKey],
+    queryFn: async () => {
       const loaded = await Promise.all(
         files.map(async (file) => {
           const content = await fsApi.readFile(file.path)
           return [file.path, content] as const
         }),
       )
-      if (cancelled) return
-      setDiskContents(Object.fromEntries(loaded))
-    }
-
-    void loadContents().catch((error) => {
-      if (cancelled) return
-      console.error('load workspace markdown contents failed', error)
-      setDiskContents({})
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, entries])
+      return Object.fromEntries(loaded)
+    },
+    enabled: enabled && tauriAvailable && files.length > 0,
+    staleTime: 10_000,
+  })
 
   return useMemo(
-    () => ({
-      ...diskContents,
-      ...fileContents,
-    }),
-    [diskContents, fileContents],
+    () => (enabled ? { ...(query.data ?? {}), ...fileContents } : fileContents),
+    [enabled, fileContents, query.data],
   )
 }
