@@ -4,7 +4,7 @@ use crate::services::AppServices;
 
 /// Export Markdown to the given format. Uses in-process Rust libraries only.
 #[tauri::command]
-pub fn export_markdown(
+pub async fn export_markdown(
   markdown: String,
   format: String,
   output_path: String,
@@ -12,5 +12,6 @@ pub fn export_markdown(
 ) -> Result<(), String> {
   services
     .export
-    .export_markdown(&markdown, &format, &output_path)
+    .export_markdown_blocking(markdown, format, output_path)
+    .await
 }

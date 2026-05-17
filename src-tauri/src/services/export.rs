@@ -61,6 +61,19 @@ impl ExportService {
       ExportFormat::Html => export_to_html(markdown, output_path),
     }
   }
+
+  pub async fn export_markdown_blocking(
+    &self,
+    markdown: String,
+    format: String,
+    output_path: String,
+  ) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+      ExportService.export_markdown(&markdown, &format, &output_path)
+    })
+    .await
+    .map_err(|err| format!("Export task failed: {err}"))?
+  }
 }
 
 /// Preprocess markdown to fix patterns that cause markdown2pdf's strict parser to fail

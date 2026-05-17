@@ -92,6 +92,14 @@ impl BufferService {
   ) -> Result<Vec<FsBufferStatus>, String> {
     flush_all_buffers_with_status(state, buffer_state)
   }
+
+  pub async fn flush_all_with_status_async(
+    &self,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<Vec<FsBufferStatus>, String> {
+    flush_all_buffers_with_status_async(state, buffer_state).await
+  }
 }
 
 pub fn flush_all_buffers_with_status(
@@ -117,6 +125,48 @@ pub fn flush_all_buffers_with_status(
 
   for item in &pending {
     write_to_disk(&item.absolute_path, &item.content)?;
+  }
+
+  let mut buffers = buffer_state
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock buffer state")?;
+  let mut statuses = Vec::new();
+  for item in pending {
+    if let Some(entry) = buffers.get_mut(&item.path) {
+      if entry.revision == item.revision {
+        entry.dirty = false;
+        statuses.push(status_from_buffer(&item.path, entry));
+      }
+    }
+  }
+
+  Ok(statuses)
+}
+
+pub async fn flush_all_buffers_with_status_async(
+  state: &FsState,
+  buffer_state: &FsBufferState,
+) -> Result<Vec<FsBufferStatus>, String> {
+  let state_data = state
+    .0
+    .read()
+    .map_err(|_| "Failed to lock fs state")?
+    .clone();
+
+  let pending = {
+    let buffers = buffer_state
+      .0
+      .lock()
+      .map_err(|_| "Failed to lock buffer state")?;
+    collect_dirty_writes(&state_data, &buffers)?
+  };
+  if pending.is_empty() {
+    return Ok(Vec::new());
+  }
+
+  for item in &pending {
+    write_to_disk_async(&item.absolute_path, &item.content).await?;
   }
 
   let mut buffers = buffer_state
@@ -253,6 +303,27 @@ pub fn write_to_disk(path: &Path, content: &str) -> Result<(), String> {
   let tmp = path.with_extension("tmp");
   fs::write(&tmp, content).map_err(|e| format!("Failed to write temp file: {e}"))?;
   fs::rename(&tmp, path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+  Ok(())
+}
+
+pub async fn write_to_disk_async(path: &Path, content: &str) -> Result<(), String> {
+  if let Ok(existing) = tokio::fs::read_to_string(path).await {
+    if existing == content {
+      return Ok(());
+    }
+  }
+  if let Some(parent) = path.parent() {
+    tokio::fs::create_dir_all(parent)
+      .await
+      .map_err(|e| format!("Failed to create dir: {e}"))?;
+  }
+  let tmp = path.with_extension("tmp");
+  tokio::fs::write(&tmp, content)
+    .await
+    .map_err(|e| format!("Failed to write temp file: {e}"))?;
+  tokio::fs::rename(&tmp, path)
+    .await
+    .map_err(|e| format!("Failed to rename temp file: {e}"))?;
   Ok(())
 }
 

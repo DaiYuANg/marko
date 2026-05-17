@@ -4,8 +4,27 @@ use std::path::{Path, PathBuf};
 use crate::models::MarkdownFile;
 
 #[tauri::command]
-pub fn list_markdown_files(root: String) -> Result<Vec<MarkdownFile>, String> {
-  let root_path = PathBuf::from(root);
+pub async fn list_markdown_files(root: String) -> Result<Vec<MarkdownFile>, String> {
+  tokio::task::spawn_blocking(move || list_markdown_files_blocking(PathBuf::from(root)))
+    .await
+    .map_err(|err| format!("Markdown list task failed: {err}"))?
+}
+
+#[tauri::command]
+pub async fn read_markdown_file(path: String) -> Result<String, String> {
+  tokio::fs::read_to_string(path)
+    .await
+    .map_err(|err| format!("Failed to read file: {err}"))
+}
+
+#[tauri::command]
+pub async fn write_markdown_file(path: String, content: String) -> Result<(), String> {
+  tokio::fs::write(path, content)
+    .await
+    .map_err(|err| format!("Failed to write file: {err}"))
+}
+
+fn list_markdown_files_blocking(root_path: PathBuf) -> Result<Vec<MarkdownFile>, String> {
   if !root_path.exists() {
     return Err("Project path does not exist".to_string());
   }
@@ -17,16 +36,6 @@ pub fn list_markdown_files(root: String) -> Result<Vec<MarkdownFile>, String> {
   collect_markdown_files(&root_path, &root_path, &mut files)?;
   files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
   Ok(files)
-}
-
-#[tauri::command]
-pub fn read_markdown_file(path: String) -> Result<String, String> {
-  fs::read_to_string(path).map_err(|err| format!("Failed to read file: {err}"))
-}
-
-#[tauri::command]
-pub fn write_markdown_file(path: String, content: String) -> Result<(), String> {
-  fs::write(path, content).map_err(|err| format!("Failed to write file: {err}"))
 }
 
 fn collect_markdown_files(
