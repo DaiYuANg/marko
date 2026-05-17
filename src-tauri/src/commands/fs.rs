@@ -530,60 +530,6 @@ fn flush_all_buffers_with_status(
   Ok(statuses)
 }
 
-// helper used by the old write queue worker.
-pub async fn write_worker(
-  app: &tauri::AppHandle,
-  mut rx: tokio::sync::mpsc::UnboundedReceiver<crate::models::FsFileUpdate>,
-) -> Result<(), String> {
-  use tokio::time::{sleep, Duration, Instant};
-
-  let mut pending: HashMap<String, String> = HashMap::new();
-
-  async fn flush_map(app: &tauri::AppHandle, map: &mut HashMap<String, String>) {
-    let state = match app.try_state::<FsState>() {
-      Some(s) => s,
-      None => return,
-    };
-    let data = match state.0.read() {
-      Ok(d) => d.clone(),
-      Err(_) => return,
-    };
-    for (path, content) in map.drain() {
-      if let Err(err) = write_single(&data, &path, &content) {
-        log::warn!("batch write failed {}: {}", path, err);
-      }
-    }
-  }
-
-  const DEBOUNCE_MS: u64 = 300;
-  let mut deadline = Instant::now() + Duration::from_millis(DEBOUNCE_MS);
-
-  loop {
-    tokio::select! {
-      maybe = rx.recv() => {
-        match maybe {
-          Some(req) => {
-            pending.insert(req.path, req.content);
-            deadline = Instant::now() + Duration::from_millis(DEBOUNCE_MS);
-          }
-          None => {
-            flush_map(app, &mut pending).await;
-            break;
-          }
-        }
-      }
-      _ = sleep(deadline.saturating_duration_since(Instant::now())) => {
-        if !pending.is_empty() {
-          flush_map(app, &mut pending).await;
-        }
-        deadline = Instant::now() + Duration::from_secs(3600);
-      }
-    }
-  }
-
-  Ok(())
-}
-
 #[derive(Debug, Clone)]
 struct PendingWrite {
   path: String,
@@ -1263,11 +1209,6 @@ fn ensure_workspace_mode(data: &FsStateData) -> Result<(), String> {
     return Err("Operation is not supported in single-file mode".to_string());
   }
   Ok(())
-}
-
-fn write_single(state_data: &FsStateData, rel: &str, content: &str) -> Result<(), String> {
-  let resolved = resolve_path(state_data, rel)?;
-  write_to_disk(&resolved, content)
 }
 
 fn write_to_disk(path: &Path, content: &str) -> Result<(), String> {

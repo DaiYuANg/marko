@@ -17,7 +17,7 @@ mod commands;
 mod models;
 mod state;
 
-use crate::state::{FsBufferState, FsState, FsStateData, FsWatcherState, FsWriteQueue};
+use crate::state::{FsBufferState, FsState, FsStateData, FsWatcherState};
 
 fn run_impl() {
   tauri::Builder::default()
@@ -29,8 +29,6 @@ fn run_impl() {
     })))
     .manage(FsWatcherState(Mutex::new(None)))
     .manage(FsBufferState(Mutex::new(HashMap::new())))
-    // new write queue state; worker will be spawned during setup below
-    .manage(FsWriteQueue(Mutex::new(None)))
     .setup(|app| {
       let app_handle = app.handle();
       commands::app::setup_native_menu(&app_handle)?;
@@ -55,23 +53,6 @@ fn run_impl() {
         commands::fs::start_fs_watcher(&app_handle, &state, &watcher_state)?;
       }
       commands::fs::start_buffer_flush_worker(&app_handle);
-
-      // -------------------------------------------------------------
-      // spawn the background write worker and register its sender
-      // -------------------------------------------------------------
-      if let Some(write_queue) = app_handle.try_state::<FsWriteQueue>() {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        *write_queue.0.lock().unwrap() = Some(tx.clone());
-
-        // spawn a single background worker that owns the receiver and
-        // handles batching/merging internally.
-        let state_clone = app_handle.clone();
-        tokio::spawn(async move {
-          if let Err(err) = commands::fs::write_worker(&state_clone, rx).await {
-            log::warn!("error in write_worker: {}", err);
-          }
-        });
-      }
 
       if let (Some(splash), Some(main)) = (
         app_handle.get_webview_window("splashscreen"),

@@ -33,3 +33,36 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   configurable: true,
   value: vi.fn(),
 })
+
+class LocalStorageMock implements Storage {
+  private readonly store = new Map<string, string>()
+
+  get length() {
+    return this.store.size
+  }
+
+  clear() {
+    this.store.clear()
+  }
+
+  getItem(key: string) {
+    return this.store.get(key) ?? null
+  }
+
+  key(index: number) {
+    return Array.from(this.store.keys())[index] ?? null
+  }
+
+  removeItem(key: string) {
+    this.store.delete(key)
+  }
+
+  setItem(key: string, value: string) {
+    this.store.set(key, value)
+  }
+}
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: new LocalStorageMock(),
+})

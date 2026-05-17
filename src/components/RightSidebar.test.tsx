@@ -185,12 +185,12 @@ describe('RightSidebar', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: /problems/i }))
 
-    expect(await screen.findByText('Error')).toBeInTheDocument()
+    expect((await screen.findAllByText('Error')).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Warning').length).toBeGreaterThan(0)
     expect(screen.getByText('Cannot find linked file "missing.md"')).toBeInTheDocument()
     expect(screen.getByText('Cannot find linked note "Unknown"')).toBeInTheDocument()
 
-    const errorButton = screen.getByText('Error').closest('button')
+    const errorButton = screen.getByText('Cannot find linked file "missing.md"').closest('button')
     expect(errorButton).toBeInTheDocument()
     fireEvent.click(errorButton!)
 

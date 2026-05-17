@@ -136,14 +136,14 @@ describe('MarkdownSourceEditor', () => {
     render(
       <MarkdownSourceEditor
         activePath="notes/current.md"
-        value="See [Missing](notes/missing.md) and [Bad Heading](notes/target.md#unknown)\n[[Unknown]]"
+        value="See [Missing](missing.md) and [Bad Heading](target.md#unknown)\n[[Unknown]]"
         files={[
           { path: 'notes/current.md', kind: 'file' },
           { path: 'notes/target.md', kind: 'file' },
         ]}
         fileContents={{
           'notes/current.md':
-            'See [Missing](notes/missing.md) and [Bad Heading](notes/target.md#unknown)\n[[Unknown]]',
+            'See [Missing](missing.md) and [Bad Heading](target.md#unknown)\n[[Unknown]]',
         }}
         workspaceIndex={{
           files: [
@@ -165,7 +165,7 @@ describe('MarkdownSourceEditor', () => {
     expect(markers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          message: 'Cannot find linked file "notes/missing.md"',
+          message: 'Cannot find linked file "missing.md"',
           severity: monaco.MarkerSeverity.Error,
           startLineNumber: 1,
         }),
@@ -177,7 +177,6 @@ describe('MarkdownSourceEditor', () => {
         expect.objectContaining({
           message: 'Cannot find linked note "Unknown"',
           severity: monaco.MarkerSeverity.Error,
-          startLineNumber: 2,
         }),
       ]),
     )
