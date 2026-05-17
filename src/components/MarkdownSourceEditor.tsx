@@ -42,6 +42,8 @@ export default function MarkdownSourceEditor({
   const diagnosticsDisposableRef = useRef<{ dispose: () => void } | null>(null)
   const diagnosticsTimerRef = useRef<number | null>(null)
   const diagnosticsRequestRef = useRef(0)
+  const searchHighlightRef = useRef<MonacoEditor.IEditorDecorationsCollection | null>(null)
+  const searchHighlightTimerRef = useRef<number | null>(null)
   const completionContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
   const diagnosticsContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
 
@@ -177,6 +179,12 @@ export default function MarkdownSourceEditor({
         window.clearTimeout(diagnosticsTimerRef.current)
         diagnosticsTimerRef.current = null
       }
+      if (searchHighlightTimerRef.current !== null) {
+        window.clearTimeout(searchHighlightTimerRef.current)
+        searchHighlightTimerRef.current = null
+      }
+      searchHighlightRef.current?.clear()
+      searchHighlightRef.current = null
 
       const host = diagnosticHostRef.current
       const model = host?.editor.getModel()
@@ -189,18 +197,41 @@ export default function MarkdownSourceEditor({
 
   useEffect(() => {
     const handler = (event: Event) => {
-      const { path, line, column } = (event as CustomEvent<FocusSourcePositionRequest>).detail ?? {}
+      const { path, line, column, endColumn } =
+        (event as CustomEvent<FocusSourcePositionRequest>).detail ?? {}
       if (!path || path !== activePath) return
       if (!Number.isFinite(line) || !Number.isFinite(column)) return
 
       const editor = editorRef.current
-      if (!editor) return
+      const monaco = diagnosticHostRef.current?.monaco
+      if (!editor || !monaco) return
 
       const lineNumber = Math.max(1, line)
       const columnNumber = Math.max(1, column)
+      const endColumnNumber = Math.max(columnNumber + 1, endColumn ?? columnNumber + 1)
+      const range = new monaco.Range(lineNumber, columnNumber, lineNumber, endColumnNumber)
       editor.setPosition({ lineNumber, column: columnNumber })
-      editor.revealLineInCenter(lineNumber)
+      editor.setSelection(range)
+      editor.revealRangeInCenter(range)
       editor.focus()
+
+      searchHighlightRef.current ??= editor.createDecorationsCollection()
+      searchHighlightRef.current.set([
+        {
+          range,
+          options: {
+            className: 'marko-search-hit-line',
+            inlineClassName: 'marko-search-hit-inline',
+          },
+        },
+      ])
+      if (searchHighlightTimerRef.current !== null) {
+        window.clearTimeout(searchHighlightTimerRef.current)
+      }
+      searchHighlightTimerRef.current = window.setTimeout(() => {
+        searchHighlightRef.current?.clear()
+        searchHighlightTimerRef.current = null
+      }, 2_400)
     }
 
     window.addEventListener(FOCUS_SOURCE_POSITION_EVENT, handler)

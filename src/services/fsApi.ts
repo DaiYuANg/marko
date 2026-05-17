@@ -84,7 +84,14 @@ export const fsSearchResultSchema = z.object({
   title: z.string(),
   line: z.number(),
   column: z.number(),
+  end_column: z.number(),
   snippet: z.string(),
+  snippet_highlights: z.array(
+    z.object({
+      start: z.number(),
+      end: z.number(),
+    }),
+  ),
   score: z.number(),
 })
 

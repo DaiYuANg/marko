@@ -7,6 +7,7 @@ export type FocusSourcePositionRequest = {
   path: string
   line: number
   column: number
+  endColumn?: number
 }
 
 export const FOCUS_HEADING_EVENT = 'marko:focus-heading'

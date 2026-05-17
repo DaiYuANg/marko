@@ -14,8 +14,14 @@ type CompletionProviderMock = {
 
 const monacoEditor = vi.hoisted(() => ({
   setPosition: vi.fn(),
+  setSelection: vi.fn(),
   revealLineInCenter: vi.fn(),
+  revealRangeInCenter: vi.fn(),
   focus: vi.fn(),
+  createDecorationsCollection: vi.fn(() => ({
+    set: vi.fn(),
+    clear: vi.fn(),
+  })),
   getModel: vi.fn(),
   onDidChangeModelContent: vi.fn(() => ({ dispose: vi.fn() })),
 }))
@@ -87,8 +93,11 @@ vi.mock('@monaco-editor/react', () => ({
 
 beforeEach(() => {
   monacoEditor.setPosition.mockClear()
+  monacoEditor.setSelection.mockClear()
   monacoEditor.revealLineInCenter.mockClear()
+  monacoEditor.revealRangeInCenter.mockClear()
   monacoEditor.focus.mockClear()
+  monacoEditor.createDecorationsCollection.mockClear()
   monaco.languages.registerCompletionItemProvider.mockClear()
   monacoEditor.onDidChangeModelContent?.mockClear()
   monaco.editor.setModelMarkers.mockClear()
@@ -195,12 +204,24 @@ describe('MarkdownSourceEditor', () => {
 
     window.dispatchEvent(
       new CustomEvent(FOCUS_SOURCE_POSITION_EVENT, {
-        detail: { path: 'source.md', line: 3, column: 2 },
+        detail: { path: 'source.md', line: 3, column: 2, endColumn: 4 },
       }),
     )
 
     expect(monacoEditor.setPosition).toHaveBeenCalledWith({ lineNumber: 3, column: 2 })
-    expect(monacoEditor.revealLineInCenter).toHaveBeenCalledWith(3)
+    expect(monacoEditor.setSelection).toHaveBeenCalledWith({
+      startLineNumber: 3,
+      startColumn: 2,
+      endLineNumber: 3,
+      endColumn: 4,
+    })
+    expect(monacoEditor.revealRangeInCenter).toHaveBeenCalledWith({
+      startLineNumber: 3,
+      startColumn: 2,
+      endLineNumber: 3,
+      endColumn: 4,
+    })
+    expect(monacoEditor.createDecorationsCollection).toHaveBeenCalled()
     expect(monacoEditor.focus).toHaveBeenCalled()
   })
 

@@ -1,11 +1,12 @@
 import { useDeferredValue } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileSearch, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { fsApi, type FsSearchResult } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
 import { useI18n } from '@/i18n/useI18n'
+import SearchResultPreview from '@/components/SearchResultPreview'
 
 type FullTextSearchPanelProps = {
   query: string
@@ -48,16 +49,7 @@ export default function FullTextSearchPanel({ query, onOpenResult }: FullTextSea
                 className="h-auto min-h-12 w-full items-start justify-start rounded-md px-2 py-1.5 text-left"
                 onClick={() => onOpenResult(result)}
               >
-                <FileSearch className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium">{result.title}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
-                    {result.path}:{result.line}
-                  </span>
-                  <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-muted-foreground/85">
-                    {result.snippet || t('search.noSnippet')}
-                  </span>
-                </span>
+                <SearchResultPreview result={result} />
               </Button>
             ))}
           </div>

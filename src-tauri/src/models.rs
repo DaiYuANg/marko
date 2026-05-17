@@ -96,12 +96,20 @@ pub struct FsMarkdownDiagnostic {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FsTextRange {
+  pub start: usize,
+  pub end: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct FsSearchResult {
   pub path: String,
   pub title: String,
   pub line: usize,
   pub column: usize,
+  pub end_column: usize,
   pub snippet: String,
+  pub snippet_highlights: Vec<FsTextRange>,
   pub score: f32,
 }
 

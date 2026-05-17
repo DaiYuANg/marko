@@ -24,6 +24,7 @@ import {
 import { useI18n } from '@/i18n/useI18n'
 import { fsApi, type FsSearchResult } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
+import SearchResultPreview from '@/components/SearchResultPreview'
 
 type CommandFile = {
   path: string
@@ -83,13 +84,7 @@ export default function TitlebarCommandDialog({
                   value={`${result.title} ${result.path} ${result.snippet}`}
                   onSelect={() => onOpenSearchResult(result)}
                 >
-                  <Search className="h-4 w-4" />
-                  <span className="min-w-0">
-                    <span className="block truncate">{result.title}</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
-                      {result.path}:{result.line}
-                    </span>
-                  </span>
+                  <SearchResultPreview result={result} compact />
                 </CommandItem>
               ))}
             </CommandGroup>

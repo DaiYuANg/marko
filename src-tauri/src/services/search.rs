@@ -8,9 +8,10 @@ use tantivy::collector::TopDocs;
 use tantivy::directory::MmapDirectory;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, OwnedValue, Schema, TantivyDocument, STORED, STRING, TEXT};
+use tantivy::snippet::SnippetGenerator;
 use tantivy::{doc, Index};
 
-use crate::models::FsSearchResult;
+use crate::models::{FsSearchResult, FsTextRange};
 
 const SEARCH_INDEX_VERSION: &str = "v1";
 const SEARCH_MEMORY_BUDGET_BYTES: usize = 50_000_000;
@@ -104,6 +105,10 @@ impl SearchService {
     let parsed_query = query_parser
       .parse_query(normalized_query)
       .map_err(|err| format!("Failed to parse search query: {err}"))?;
+    let mut snippet_generator =
+      SnippetGenerator::create(&searcher, parsed_query.as_ref(), fields.body)
+        .map_err(|err| format!("Failed to create search snippet generator: {err}"))?;
+    snippet_generator.set_max_num_chars(180);
     let top_docs = searcher
       .search(&parsed_query, &TopDocs::with_limit(limit.max(1).min(100)))
       .map_err(|err| format!("Failed to search index: {err}"))?;
@@ -116,13 +121,24 @@ impl SearchService {
       let path = get_text(&document, fields.path).unwrap_or_default();
       let title = get_text(&document, fields.title).unwrap_or_else(|| path.clone());
       let body = get_text(&document, fields.body).unwrap_or_default();
-      let (line, column, snippet) = locate_snippet(&body, normalized_query);
+      let (line, column, end_column, fallback_snippet) = locate_match(&body, normalized_query);
+      let snippet = snippet_generator.snippet_from_doc(&document);
+      let (snippet, snippet_highlights) = if snippet.is_empty() {
+        (fallback_snippet, Vec::new())
+      } else {
+        (
+          snippet.fragment().trim().to_string(),
+          snippet_highlights(snippet.fragment(), snippet.highlighted()),
+        )
+      };
       results.push(FsSearchResult {
         path,
         title,
         line,
         column,
+        end_column,
         snippet,
+        snippet_highlights,
         score,
       });
     }
@@ -233,14 +249,8 @@ fn get_text(document: &TantivyDocument, field: Field) -> Option<String> {
   }
 }
 
-fn locate_snippet(body: &str, query: &str) -> (usize, usize, String) {
-  let needle = query
-    .split_whitespace()
-    .find(|part| !part.is_empty())
-    .unwrap_or(query)
-    .to_lowercase();
-  let lower_body = body.to_lowercase();
-  let byte_index = lower_body.find(&needle).unwrap_or(0);
+fn locate_match(body: &str, query: &str) -> (usize, usize, usize, String) {
+  let (byte_index, byte_end) = find_match_range(body, query).unwrap_or((0, 0));
   let line_start = body[..byte_index]
     .rfind('\n')
     .map(|index| index + 1)
@@ -251,6 +261,97 @@ fn locate_snippet(body: &str, query: &str) -> (usize, usize, String) {
     .unwrap_or(body.len());
   let line = body[..byte_index].chars().filter(|ch| *ch == '\n').count() + 1;
   let column = body[line_start..byte_index].chars().count() + 1;
+  let end_column = if byte_end > byte_index {
+    column + body[byte_index..byte_end].chars().count()
+  } else {
+    column + 1
+  };
   let snippet = body[line_start..line_end].trim().to_string();
-  (line, column, snippet)
+  (line, column, end_column, snippet)
+}
+
+fn find_match_range(body: &str, query: &str) -> Option<(usize, usize)> {
+  search_terms(query)
+    .into_iter()
+    .find_map(|term| find_term_range(body, &term).map(|start| (start, start + term.len())))
+}
+
+fn search_terms(query: &str) -> Vec<String> {
+  let mut terms = query
+    .split_whitespace()
+    .map(|part| {
+      part.trim_matches(|ch: char| {
+        matches!(
+          ch,
+          '"' | '\'' | '`' | ':' | '^' | '~' | '*' | '?' | '+' | '-' | '(' | ')' | '[' | ']'
+        )
+      })
+    })
+    .filter(|part| !part.is_empty())
+    .map(ToOwned::to_owned)
+    .collect::<Vec<_>>();
+
+  if terms.is_empty() && !query.trim().is_empty() {
+    terms.push(query.trim().to_string());
+  }
+  terms
+}
+
+fn find_term_range(body: &str, term: &str) -> Option<usize> {
+  body.find(term).or_else(|| {
+    if !term.is_ascii() {
+      return None;
+    }
+    body.to_ascii_lowercase().find(&term.to_ascii_lowercase())
+  })
+}
+
+fn snippet_highlights(snippet: &str, ranges: &[std::ops::Range<usize>]) -> Vec<FsTextRange> {
+  let trim_start_bytes = snippet.len() - snippet.trim_start().len();
+  ranges
+    .iter()
+    .filter_map(|range| {
+      let start = range.start.saturating_sub(trim_start_bytes);
+      let end = range.end.saturating_sub(trim_start_bytes);
+      let trimmed = snippet.trim();
+      if start >= end || start >= trimmed.len() {
+        return None;
+      }
+      Some(FsTextRange {
+        start: byte_to_char_index(trimmed, start),
+        end: byte_to_char_index(trimmed, end.min(trimmed.len())),
+      })
+    })
+    .collect()
+}
+
+fn byte_to_char_index(value: &str, byte_index: usize) -> usize {
+  value
+    .char_indices()
+    .take_while(|(index, _)| *index < byte_index)
+    .count()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn locates_match_line_and_columns() {
+    let (line, column, end_column, snippet) = locate_match("one\nhello world\nlast", "hello");
+
+    assert_eq!(line, 2);
+    assert_eq!(column, 1);
+    assert_eq!(end_column, 6);
+    assert_eq!(snippet, "hello world");
+  }
+
+  #[test]
+  fn normalizes_snippet_highlight_ranges_after_trimming() {
+    let ranges = snippet_highlights("  hello world", &[2..7]);
+
+    assert_eq!(ranges.len(), 1);
+    assert_eq!(ranges[0].start, 0);
+    assert_eq!(ranges[0].end, 5);
+  }
 }

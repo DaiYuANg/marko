@@ -86,6 +86,7 @@ export default function AppLayout() {
           path: result.path,
           line: result.line,
           column: result.column,
+          endColumn: result.end_column,
         })
       }, 80)
     },
