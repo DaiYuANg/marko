@@ -1,9 +1,17 @@
-use fluxdi::{Application, Error, Injector, Module, Provider, Shared};
+use std::sync::Mutex;
+
+use fluxdi::{Application, Error, Injector, Module, ModuleLifecycleFuture, Provider, Shared};
 
 use super::{
-  fs_buffer::BufferService, git::GitService, markdown_graph::MarkdownGraphService,
-  markdown_index::MarkdownIndexService, path_resolver::PathResolver, search::SearchService,
-  workspace::WorkspaceService, AppServices, ExportService,
+  events::{EventBus, RuntimeService},
+  fs_buffer::BufferService,
+  git::GitService,
+  markdown_graph::MarkdownGraphService,
+  markdown_index::MarkdownIndexService,
+  path_resolver::PathResolver,
+  search::SearchService,
+  workspace::WorkspaceService,
+  AppServices, ExportService,
 };
 
 struct AppModule;
@@ -11,6 +19,14 @@ struct AppModule;
 impl Module for AppModule {
   fn configure(&self, injector: &Injector) -> Result<(), Error> {
     injector.try_provide::<ExportService>(Provider::root(|_| Shared::new(ExportService)))?;
+    injector.try_provide::<EventBus>(Provider::root(|_| Shared::new(EventBus::default())))?;
+    injector.try_provide::<RuntimeService>(Provider::root(|injector| {
+      Shared::new(RuntimeService::new(
+        injector
+          .try_resolve::<EventBus>()
+          .expect("EventBus should be registered before RuntimeService"),
+      ))
+    }))?;
     injector.try_provide::<GitService>(Provider::root(|_| Shared::new(GitService)))?;
     injector.try_provide::<PathResolver>(Provider::root(|_| Shared::new(PathResolver)))?;
     injector.try_provide::<BufferService>(Provider::root(|injector| {
@@ -53,18 +69,70 @@ impl Module for AppModule {
 
     Ok(())
   }
+
+  fn on_start(&self, injector: Shared<Injector>) -> ModuleLifecycleFuture {
+    Box::pin(async move {
+      let runtime = injector.try_resolve::<RuntimeService>()?;
+      runtime.on_container_start();
+
+      injector.try_resolve::<EventBus>()?;
+      injector.try_resolve::<WorkspaceService>()?;
+      Ok(())
+    })
+  }
+
+  fn on_stop(&self, injector: Shared<Injector>) -> ModuleLifecycleFuture {
+    Box::pin(async move {
+      let runtime = injector.try_resolve::<RuntimeService>()?;
+      runtime.on_container_stop();
+      Ok(())
+    })
+  }
 }
 
-pub fn build_app_services() -> Result<AppServices, Error> {
+#[derive(Clone)]
+pub struct AppLifecycle {
+  application: Shared<Mutex<Option<Application>>>,
+}
+
+impl AppLifecycle {
+  pub fn shutdown_blocking(&self) -> Result<(), Error> {
+    let application = {
+      let mut guard = self.application.lock().expect("lock app lifecycle");
+      guard.take()
+    };
+
+    if let Some(mut application) = application {
+      futures::executor::block_on(application.shutdown())?;
+    }
+    Ok(())
+  }
+}
+
+pub struct AppContainer {
+  pub lifecycle: AppLifecycle,
+  pub services: AppServices,
+}
+
+pub async fn build_app_container() -> Result<AppContainer, Error> {
   let mut app = Application::new(AppModule);
-  app.bootstrap_sync()?;
+  app.bootstrap().await?;
 
   let injector = app.injector();
-  Ok(AppServices {
+  let services = AppServices {
     export: injector.try_resolve::<ExportService>()?,
+    events: injector.try_resolve::<EventBus>()?,
     fs_buffer: injector.try_resolve::<BufferService>()?,
     git: injector.try_resolve::<GitService>()?,
+    runtime: injector.try_resolve::<RuntimeService>()?,
     workspace: injector.try_resolve::<WorkspaceService>()?,
+  };
+
+  Ok(AppContainer {
+    lifecycle: AppLifecycle {
+      application: Shared::new(Mutex::new(Some(app))),
+    },
+    services,
   })
 }
 
@@ -74,7 +142,11 @@ mod tests {
 
   #[tokio::test]
   async fn builds_app_services_from_container() {
-    let services = build_app_services().expect("app services should resolve from fluxdi");
+    let container = build_app_container()
+      .await
+      .expect("app services should resolve from fluxdi");
+    let services = container.services;
+    assert!(services.runtime.is_container_started());
 
     let state = crate::state::FsState(std::sync::RwLock::new(crate::state::FsStateData {
       root_kind: "internal".to_string(),

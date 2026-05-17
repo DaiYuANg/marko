@@ -23,11 +23,14 @@ mod state;
 use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsStateData, FsWatcherState};
 
 fn run_impl() {
-  let app_services =
-    services::di::build_app_services().expect("failed to bootstrap application services");
+  let app_container = futures::executor::block_on(services::di::build_app_container())
+    .expect("failed to bootstrap application services");
+  let app_services = app_container.services;
+  let app_lifecycle = app_container.lifecycle;
 
   let builder = tauri::Builder::default()
     .manage(app_services)
+    .manage(app_lifecycle)
     .manage(FsState(RwLock::new(FsStateData {
       root_kind: "internal".to_string(),
       root_path: PathBuf::new(),
@@ -75,27 +78,12 @@ fn run_impl() {
         commands::fs::start_fs_watcher(&app_handle, &state, &watcher_state)?;
       }
       commands::fs::start_buffer_flush_worker(&app_handle);
-      let search_app_handle = app_handle.clone();
-      tauri::async_runtime::spawn(async move {
-        if let (Some(state), Some(buffer_state), Some(services)) = (
-          search_app_handle.try_state::<FsState>(),
-          search_app_handle.try_state::<FsBufferState>(),
-          search_app_handle.try_state::<services::AppServices>(),
-        ) {
-          match search_app_handle.path().app_data_dir() {
-            Ok(index_parent) => {
-              if let Err(err) = services
-                .workspace
-                .rebuild_search_index(index_parent, &state, &buffer_state)
-                .await
-              {
-                log::warn!("initial search index build failed: {err}");
-              }
-            }
-            Err(err) => log::warn!("resolve search index dir failed: {err}"),
-          }
+      if let Some(services) = app_handle.try_state::<services::AppServices>() {
+        services.runtime.start_event_worker(&app_handle);
+        if let Err(err) = services.runtime.publish_initial_workspace_event() {
+          log::warn!("publish initial workspace event failed: {err}");
         }
-      });
+      }
 
       if let (Some(splash), Some(main)) = (
         app_handle.get_webview_window("splashscreen"),
@@ -179,12 +167,17 @@ fn run_impl() {
       }
     })
     .on_window_event(|window, event| {
-      if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+      if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
         let app = window.app_handle();
         if let (Some(state), Some(buffer_state)) =
           (app.try_state::<FsState>(), app.try_state::<FsBufferState>())
         {
           let _ = commands::fs::flush_all_buffers(&state, &buffer_state);
+        }
+        if let Some(lifecycle) = app.try_state::<services::di::AppLifecycle>() {
+          if let Err(err) = lifecycle.shutdown_blocking() {
+            log::warn!("application lifecycle shutdown failed: {err}");
+          }
         }
       }
     })

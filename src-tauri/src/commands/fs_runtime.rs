@@ -6,6 +6,7 @@ use tauri::{Emitter, Manager};
 use tokio::runtime::Handle;
 
 use crate::models::{BackgroundTaskStatus, FsBufferStatus};
+use crate::services::events::AppEvent;
 use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsWatcherState};
 
 const BUFFER_FLUSH_INTERVAL_MS: u64 = 1200;
@@ -87,15 +88,6 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
             .await
           {
             Ok(statuses) => {
-              if let Ok(index_parent) = app_handle.path().app_data_dir() {
-                if let Err(err) = services
-                  .workspace
-                  .rebuild_search_index(index_parent, &state, &buffer_state)
-                  .await
-                {
-                  log::warn!("rebuild search index failed: {err}");
-                }
-              }
               if let Err(err) =
                 set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)
               {
@@ -103,6 +95,9 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
               }
               if let Err(err) = emit_buffer_statuses(&app_handle, &statuses) {
                 log::warn!("emit buffer statuses failed: {err}");
+              }
+              if let Err(err) = services.events.publish(AppEvent::BuffersFlushed) {
+                log::warn!("publish buffers flushed event failed: {err}");
               }
             }
             Err(err) => {
@@ -121,17 +116,6 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
       }
     }
   });
-}
-
-pub async fn emit_fs_changed_async(
-  app: &tauri::AppHandle,
-  state: &FsState,
-  services: &crate::services::AppServices,
-) -> Result<(), String> {
-  let snapshot = services.workspace.snapshot(state).await?;
-  app
-    .emit("fs-changed", snapshot)
-    .map_err(|err| err.to_string())
 }
 
 pub fn emit_buffer_statuses(
@@ -185,21 +169,10 @@ fn handle_fs_watch_events(
       }
       let app_handle = app_handle.clone();
       runtime.spawn(async move {
-        if let (Some(state), Some(buffer_state), Some(services)) = (
-          app_handle.try_state::<FsState>(),
-          app_handle.try_state::<FsBufferState>(),
-          app_handle.try_state::<crate::services::AppServices>(),
-        ) {
-          if let Ok(index_parent) = app_handle.path().app_data_dir() {
-            if let Err(err) = services
-              .workspace
-              .rebuild_search_index(index_parent, &state, &buffer_state)
-              .await
-            {
-              log::warn!("rebuild search index failed: {err}");
-            }
+        if let Some(services) = app_handle.try_state::<crate::services::AppServices>() {
+          if let Err(err) = services.events.publish(AppEvent::FileSystemChanged) {
+            log::warn!("publish filesystem event failed: {err}");
           }
-          let _ = emit_fs_changed_async(&app_handle, &state, &services).await;
         }
       });
     }

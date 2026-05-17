@@ -1,12 +1,9 @@
-use std::path::PathBuf;
-
 use tauri::{Manager, State};
 
-use crate::commands::fs_runtime::{
-  emit_buffer_status, emit_buffer_statuses, emit_fs_changed_async, set_background_task,
-};
+use crate::commands::fs_runtime::{emit_buffer_status, emit_buffer_statuses, set_background_task};
 pub use crate::commands::fs_runtime::{start_buffer_flush_worker, start_fs_watcher};
 use crate::models::{BackgroundTaskStatus, FsBufferStatus, FsRootInfo};
+use crate::services::events::AppEvent;
 use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsWatcherState};
 
 pub use crate::services::workspace::ensure_default_file;
@@ -41,8 +38,7 @@ pub async fn fs_set_root(
     .set_root(path, &state, &buffer_state)
     .await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
-  emit_fs_changed_async(&app, &state, &services).await?;
+  publish_app_event(&services, AppEvent::WorkspaceChanged)?;
   Ok(root_info)
 }
 
@@ -60,8 +56,7 @@ pub async fn fs_set_single_file(
     .set_single_file(path, &state, &buffer_state)
     .await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
-  emit_fs_changed_async(&app, &state, &services).await?;
+  publish_app_event(&services, AppEvent::WorkspaceChanged)?;
   Ok(root_info)
 }
 
@@ -166,7 +161,11 @@ pub async fn fs_rebuild_search_index(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await
+  let index_parent = search_index_parent(&app)?;
+  services
+    .workspace
+    .rebuild_search_index(index_parent, &state, &buffer_state)
+    .await
 }
 
 #[tauri::command]
@@ -225,7 +224,7 @@ pub async fn fs_flush_buffers(
     }
   };
   emit_buffer_statuses(&app, &statuses)?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
+  publish_app_event(&services, AppEvent::BuffersFlushed)?;
   set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)?;
   Ok(statuses.len())
 }
@@ -279,14 +278,12 @@ pub async fn fs_create_file(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
-  app: tauri::AppHandle,
 ) -> Result<(), String> {
   services
     .workspace
     .create_file(path, &state, &buffer_state)
     .await?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
-  emit_fs_changed_async(&app, &state, &services).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged)?;
   Ok(())
 }
 
@@ -294,13 +291,10 @@ pub async fn fs_create_file(
 pub async fn fs_create_dir(
   path: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
-  app: tauri::AppHandle,
 ) -> Result<(), String> {
   services.workspace.create_dir(path, &state).await?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
-  emit_fs_changed_async(&app, &state, &services).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged)?;
   Ok(())
 }
 
@@ -310,14 +304,12 @@ pub async fn fs_delete_path(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
-  app: tauri::AppHandle,
 ) -> Result<(), String> {
   services
     .workspace
     .delete_path(path, &state, &buffer_state)
     .await?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
-  emit_fs_changed_async(&app, &state, &services).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged)?;
   Ok(())
 }
 
@@ -328,31 +320,23 @@ pub async fn fs_rename_path(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
-  app: tauri::AppHandle,
 ) -> Result<(), String> {
   services
     .workspace
     .rename_path(from, to, &state, &buffer_state)
     .await?;
-  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
-  emit_fs_changed_async(&app, &state, &services).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged)?;
   Ok(())
 }
 
-async fn rebuild_search_index_for_app(
-  app: &tauri::AppHandle,
-  state: &FsState,
-  buffer_state: &FsBufferState,
+fn publish_app_event(
   services: &crate::services::AppServices,
+  event: AppEvent,
 ) -> Result<(), String> {
-  let index_parent = search_index_parent(app)?;
-  services
-    .workspace
-    .rebuild_search_index(index_parent, state, buffer_state)
-    .await
+  services.events.publish(event)
 }
 
-fn search_index_parent(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn search_index_parent(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
   app
     .path()
     .app_data_dir()
