@@ -19,6 +19,7 @@ type TabsBarProps = {
   onCloseTab: (path: string) => void
   viewMode: ViewMode
   onChangeView: (mode: ViewMode) => void
+  silentSave: boolean
 }
 
 const formatTabLabel = (path: string, compact: boolean) => {
@@ -51,6 +52,7 @@ const TabsBarComponent = ({
   onCloseTab,
   viewMode,
   onChangeView,
+  silentSave,
 }: TabsBarProps) => {
   const { t } = useI18n()
   const activeTab = activePath ?? ''
@@ -87,7 +89,9 @@ const TabsBarComponent = ({
         >
           <TabsList className="h-8 w-max min-w-full justify-start rounded-none bg-transparent p-0">
             {tabs.map((path) => {
-              const isDirty = Boolean(dirtyPaths[path])
+              const saveState = saveStates[path]
+              const isDirty = !silentSave && Boolean(dirtyPaths[path])
+              const hasError = saveState?.status === 'error'
               const isActive = path === activePath
               return (
                 <TabsTrigger
@@ -101,6 +105,7 @@ const TabsBarComponent = ({
                     {formatTabLabel(path, compact)}
                   </span>
                   {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                  {hasError && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
                   <span
                     role="button"
                     tabIndex={0}
@@ -133,10 +138,10 @@ const TabsBarComponent = ({
           <span className="max-w-[180px] truncate">
             {activePath ? createFileLabel(activePath) : t('center.noFile')}
           </span>
-          {activePath && dirtyPaths[activePath] && (
+          {!silentSave && activePath && dirtyPaths[activePath] && (
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
           )}
-          {activeSaveLabelKey && (
+          {activeSaveLabelKey && (activeSaveState?.status === 'error' || !silentSave) && (
             <Badge
               variant="outline"
               className={`h-5 shrink-0 px-1.5 text-[10px] font-medium ${getSaveBadgeClassName(activeSaveState)}`}

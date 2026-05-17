@@ -23,6 +23,7 @@ type EditorPageProps = {
   workspaceIndex: FsWorkspaceIndex | null
   onOpenFile: (path: string) => void
   viewMode: ViewMode
+  showStatusBar: boolean
 }
 
 const getDocumentStats = (value: string) => {
@@ -44,6 +45,7 @@ export default function EditorPage({
   workspaceIndex,
   onOpenFile,
   viewMode,
+  showStatusBar,
 }: EditorPageProps) {
   const { t } = useI18n()
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
@@ -155,7 +157,7 @@ export default function EditorPage({
           {t('editor.empty')}
         </div>
       )}
-      {activePath && viewMode !== 'graph' && (
+      {showStatusBar && activePath && viewMode !== 'graph' && (
         <div className="flex h-7 items-center justify-between gap-3 border-t border-border bg-background px-3 text-[11px] text-muted-foreground">
           <div className="min-w-0 truncate">{activePath}</div>
           <div className="flex shrink-0 items-center gap-3">

@@ -27,6 +27,7 @@ export type LayoutContext = {
   workspaceIndex: FsWorkspaceIndex | null
   saveStates: Record<string, SaveState>
   currentView: ViewMode
+  showEditorStatusBar: boolean
 }
 
 export default function AppLayout() {
@@ -66,6 +67,7 @@ export default function AppLayout() {
       workspaceIndex: state.workspaceIndex,
       saveStates: state.saveStates,
       currentView: state.viewMode,
+      showEditorStatusBar: state.showEditorStatusBar,
     } as LayoutContext
   }, [
     state.activePath,
@@ -80,6 +82,7 @@ export default function AppLayout() {
     state.workspaceIndex,
     state.saveStates,
     state.viewMode,
+    state.showEditorStatusBar,
   ])
 
   useEffect(() => {
@@ -273,6 +276,7 @@ export default function AppLayout() {
             onCloseTab={state.onCloseTab}
             viewMode={state.viewMode}
             onChangeView={state.setViewMode}
+            silentSave={state.silentSave}
           />
           <div className="min-h-0 flex-1 overflow-hidden">
             <Outlet context={outletContext} />

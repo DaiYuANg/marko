@@ -23,6 +23,8 @@ type AppState = {
   locale: Locale
   sidebarCollapsed: boolean
   rightSidebarCollapsed: boolean
+  silentSave: boolean
+  showEditorStatusBar: boolean
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external' | 'single') => void
   setEntries: (entries: FileEntry[]) => void
@@ -31,6 +33,8 @@ type AppState = {
   setViewMode: (mode: ViewMode) => void
   setTheme: (theme: ThemeMode) => void
   setLocale: (locale: Locale) => void
+  setSilentSave: (silent: boolean) => void
+  setShowEditorStatusBar: (show: boolean) => void
   toggleSidebar: () => void
   toggleRightSidebar: () => void
   touchRecentProject: (path: string) => void
@@ -50,6 +54,8 @@ export const useAppStore = create<AppState>()(
       locale: getInitialLocale(),
       sidebarCollapsed: false,
       rightSidebarCollapsed: false,
+      silentSave: true,
+      showEditorStatusBar: true,
       setRootPath: (path) => set({ rootPath: path }),
       setRootKind: (kind) => set({ rootKind: kind }),
       setEntries: (entries) => set({ entries }),
@@ -58,6 +64,8 @@ export const useAppStore = create<AppState>()(
       setViewMode: (mode) => set({ viewMode: mode }),
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
+      setSilentSave: (silentSave) => set({ silentSave }),
+      setShowEditorStatusBar: (showEditorStatusBar) => set({ showEditorStatusBar }),
       toggleSidebar: () =>
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
@@ -74,7 +82,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'marko.app',
-      version: 4,
+      version: 5,
       migrate: (persistedState) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
         const normalizedTheme: ThemeMode =
@@ -88,6 +96,8 @@ export const useAppStore = create<AppState>()(
           theme: normalizedTheme,
           viewMode: normalizedViewMode,
           rightSidebarCollapsed: state.rightSidebarCollapsed ?? false,
+          silentSave: state.silentSave ?? true,
+          showEditorStatusBar: state.showEditorStatusBar ?? true,
         } as AppState
       },
       partialize: (state) => ({
@@ -101,6 +111,8 @@ export const useAppStore = create<AppState>()(
         locale: state.locale,
         sidebarCollapsed: state.sidebarCollapsed,
         rightSidebarCollapsed: state.rightSidebarCollapsed,
+        silentSave: state.silentSave,
+        showEditorStatusBar: state.showEditorStatusBar,
       }),
     },
   ),

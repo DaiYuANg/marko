@@ -10,6 +10,7 @@ import {
   Palette,
   PenLine,
   Search,
+  Settings2,
 } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
@@ -40,6 +41,7 @@ import { useI18n } from '@/i18n/useI18n'
 import type { Locale } from '@/i18n/resources'
 import { appApi, type AppPlatform } from '@/services/appApi'
 import AppMenuBar from '@/components/AppMenuBar'
+import SettingsDialog from '@/components/SettingsDialog'
 import { inferPlatformFromUserAgent, isTauriRuntime } from '@/utils/tauri'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
 import { createFileLabel } from '@/logic/paths'
@@ -79,6 +81,7 @@ export default function Titlebar({
   const { t, locale, setLocale } = useI18n()
   const [platform, setPlatform] = useState<AppPlatform>(inferPlatformFromUserAgent())
   const [commandOpen, setCommandOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const isWindows =
     typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('windows')
   const showInlineMenu = platform === 'windows' || platform === 'linux'
@@ -220,6 +223,10 @@ export default function Titlebar({
     }
     if (id === 'view.focus_file_search') {
       onFocusFileSearch()
+      return
+    }
+    if (id === 'settings.open') {
+      setSettingsOpen(true)
       return
     }
     if (
@@ -427,6 +434,20 @@ export default function Titlebar({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-md"
+                onClick={() => setSettingsOpen(true)}
+                aria-label={t('menu.settings')}
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('menu.settings')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md"
                 onClick={onToggleRightSidebar}
                 aria-label={t('actions.toggleRightSidebar')}
               >
@@ -537,6 +558,13 @@ export default function Titlebar({
             </CommandItem>
           </CommandGroup>
           <CommandSeparator />
+          <CommandGroup heading={t('menu.settings')}>
+            <CommandItem onSelect={() => onCommandAction('settings.open')}>
+              <Settings2 className="h-4 w-4" />
+              {t('menu.settings')}
+            </CommandItem>
+          </CommandGroup>
+          <CommandSeparator />
           <CommandGroup heading={t('menu.theme')}>
             <CommandItem onSelect={() => onCommandAction('theme.light')}>
               {t('theme.light')}
@@ -560,6 +588,7 @@ export default function Titlebar({
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       {(platform === 'windows' || platform === 'linux') && isTauriRuntime() && (
         <div className="window-controls flex items-center">
           <Separator orientation="vertical" className="mr-1 h-6" />

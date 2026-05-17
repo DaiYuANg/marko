@@ -13,6 +13,7 @@ const createProps = () => ({
   onCloseTab: vi.fn(),
   viewMode: 'source' as const,
   onChangeView: vi.fn(),
+  silentSave: true,
 })
 
 beforeEach(async () => {
@@ -26,11 +27,36 @@ describe('TabsBar', () => {
     render(
       <TabsBar
         {...createProps()}
+        silentSave={false}
         dirtyPaths={{ 'notes/current.md': true }}
         saveStates={{ 'notes/current.md': { status: 'saving' } }}
       />,
     )
 
     expect(screen.getByText('Saving')).toBeInTheDocument()
+  })
+
+  it('hides routine save state when silent save is enabled', () => {
+    render(
+      <TabsBar
+        {...createProps()}
+        dirtyPaths={{ 'notes/current.md': true }}
+        saveStates={{ 'notes/current.md': { status: 'saving' } }}
+      />,
+    )
+
+    expect(screen.queryByText('Saving')).not.toBeInTheDocument()
+  })
+
+  it('still shows save errors when silent save is enabled', () => {
+    render(
+      <TabsBar
+        {...createProps()}
+        dirtyPaths={{ 'notes/current.md': true }}
+        saveStates={{ 'notes/current.md': { status: 'error' } }}
+      />,
+    )
+
+    expect(screen.getByText('Save failed')).toBeInTheDocument()
   })
 })

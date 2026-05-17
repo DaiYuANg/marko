@@ -19,6 +19,8 @@ export function useAppLayoutState() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const rightSidebarCollapsed = useAppStore((s) => s.rightSidebarCollapsed)
   const theme = useAppStore((s) => s.theme)
+  const silentSave = useAppStore((s) => s.silentSave)
+  const showEditorStatusBar = useAppStore((s) => s.showEditorStatusBar)
 
   const setRootPath = useAppStore((s) => s.setRootPath)
   const setRootKind = useAppStore((s) => s.setRootKind)
@@ -204,6 +206,8 @@ export function useAppLayoutState() {
     sidebarCollapsed,
     rightSidebarCollapsed,
     theme,
+    silentSave,
+    showEditorStatusBar,
     viewMode,
     fileTree,
     graph,

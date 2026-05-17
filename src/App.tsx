@@ -17,6 +17,7 @@ const EditorRoute = () => {
     onOpenFile,
     graph,
     currentView,
+    showEditorStatusBar,
   } = useOutletContext<LayoutContext>()
   const requestedPath = routeToPath(routeSegment)
   const requestedPathExists =
@@ -45,6 +46,7 @@ const EditorRoute = () => {
       workspaceIndex={workspaceIndex}
       onOpenFile={onOpenFile}
       viewMode={currentView}
+      showStatusBar={showEditorStatusBar}
     />
   )
 }
