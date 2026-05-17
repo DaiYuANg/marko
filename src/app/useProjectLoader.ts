@@ -16,6 +16,7 @@ type UseProjectLoaderArgs = {
   tabs: WorkspaceTab[]
   activeTabId: string | null
   locationPathname: string
+  preserveCurrentRoute: boolean
   navigate: NavigateFunction
   setEntries: (entries: FileEntry[]) => void
   setRootPath: (path: string) => void
@@ -61,6 +62,7 @@ export function useProjectLoader({
   tabs,
   activeTabId,
   locationPathname,
+  preserveCurrentRoute,
   navigate,
   setEntries,
   setRootPath,
@@ -76,6 +78,7 @@ export function useProjectLoader({
   const rootPathRef = useLatest(rootPath)
   const rootKindRef = useLatest(rootKind)
   const locationPathnameRef = useLatest(locationPathname)
+  const preserveCurrentRouteRef = useLatest(preserveCurrentRoute)
 
   const loadWorkspace = useCallback(
     async (options?: LoadWorkspaceOptions) => {
@@ -125,6 +128,7 @@ export function useProjectLoader({
           if (nextActiveTabId !== currentActiveTabId) {
             setActiveTabId(nextActiveTabId)
           }
+          if (preserveCurrentRouteRef.current) return
           const nextRoute =
             nextActiveTab.kind === 'file'
               ? pathToRoute(nextActiveTab.path)
@@ -140,6 +144,7 @@ export function useProjectLoader({
       entriesRef,
       locationPathnameRef,
       navigate,
+      preserveCurrentRouteRef,
       rootKindRef,
       rootPathRef,
       setActiveTabId,

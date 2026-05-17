@@ -1,9 +1,20 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLatest } from 'ahooks'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useMatch, useNavigate, useParams } from 'react-router-dom'
 import type { GitDiffSection, ViewMode } from '@/store/useAppStore'
 import { buildFileTree } from '@/logic/fileTree'
-import { pathToGitDiffRoute, pathToRoute, routeToGitDiff, routeToPath } from '@/logic/routing'
+import {
+  GIT_DIFF_ROUTE_PATTERN,
+  GRAPH_FILE_ROUTE_PATTERN,
+  GRAPH_WORKSPACE_ROUTE_PATTERN,
+  SOURCE_ROUTE_PATTERN,
+  pathToGraphFileRoute,
+  pathToGitDiffRoute,
+  pathToRoute,
+  pathToSourceRoute,
+  pathToWorkspaceGraphRoute,
+  isGitDiffSection,
+} from '@/logic/routing'
 import { useProjectLoader } from '@/app/useProjectLoader'
 import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
@@ -59,44 +70,82 @@ export function useAppLayoutState() {
   const location = useLocation()
   const navigate = useNavigate()
   const params = useParams()
+  const gitDiffMatch = useMatch(GIT_DIFF_ROUTE_PATTERN)
+  const sourceMatch = useMatch(SOURCE_ROUTE_PATTERN)
+  const graphFileMatch = useMatch(GRAPH_FILE_ROUTE_PATTERN)
+  const graphWorkspaceMatch = useMatch(GRAPH_WORKSPACE_ROUTE_PATTERN)
   const lastHandledRouteRef = useRef<string | null>(null)
 
   const routeSegment = params['*']
-  const routeGitDiff = useMemo(() => routeToGitDiff(location.pathname), [location.pathname])
-  const routePath = useMemo(() => routeToPath(routeSegment), [routeSegment])
+  const gitDiffSection = gitDiffMatch?.params.section
+  const gitDiffPath = gitDiffMatch?.params['*'] || null
+  const sourcePath = sourceMatch?.params['*'] || null
+  const graphFilePath = graphFileMatch?.params['*'] || null
+  const routePath = routeSegment || null
+  const routeFilePath = sourcePath ?? graphFilePath
+  const internalRouteActive = Boolean(
+    gitDiffMatch || sourceMatch || graphFileMatch || graphWorkspaceMatch,
+  )
   const isRouteFile = useMemo(
     () =>
-      !routeGitDiff &&
+      !internalRouteActive &&
       routePath !== null &&
       entries.some((entry) => entry.kind === 'file' && entry.path === routePath),
-    [entries, routeGitDiff, routePath],
+    [entries, internalRouteActive, routePath],
   )
   const activeTab = useMemo(
     () => tabs.find((tab) => getWorkspaceTabId(tab) === activeTabId) ?? null,
     [activeTabId, tabs],
   )
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.path : null
-  const activeResourcePath = getWorkspaceTabPath(activeTab)
+  const currentFilePath = graphWorkspaceMatch ? null : (routeFilePath ?? activeFilePath)
+  const activeResourcePath = graphWorkspaceMatch
+    ? getWorkspaceTabPath(activeTab)
+    : (routeFilePath ?? getWorkspaceTabPath(activeTab))
   const activeTabIdRef = useLatest(activeTabId)
+  const currentFilePathRef = useLatest(currentFilePath)
   const inspectedPathRef = useLatest(inspectedPath)
   const locationPathnameRef = useLatest(location.pathname)
+  const rootKindRef = useLatest(rootKind)
   const tabsRef = useLatest(tabs)
-  const viewMode: ViewMode = activeFilePath
-    ? (tabViewModes[activeFilePath] ?? 'wysiwyg')
-    : 'wysiwyg'
+  const viewMode: ViewMode = sourceMatch
+    ? 'source'
+    : graphFileMatch || graphWorkspaceMatch
+      ? 'graph'
+      : currentFilePath
+        ? (tabViewModes[currentFilePath] ?? 'wysiwyg')
+        : 'wysiwyg'
   const setViewMode = useCallback(
     (mode: ViewMode) => {
       const tab = tabsRef.current.find((item) => getWorkspaceTabId(item) === activeTabIdRef.current)
-      const path = tab?.kind === 'file' ? tab.path : null
-      if (!path) return
-      setTabViewModes((prev) => (prev[path] === mode ? prev : { ...prev, [path]: mode }))
+      const path = currentFilePathRef.current ?? (tab?.kind === 'file' ? tab.path : null)
+      if (!path && mode !== 'graph') return
+      if (path) {
+        setTabViewModes((prev) => (prev[path] === mode ? prev : { ...prev, [path]: mode }))
+      }
+
+      const nextRoute =
+        mode === 'source' && path
+          ? pathToSourceRoute(path)
+          : mode === 'graph'
+            ? rootKindRef.current === 'single' && path
+              ? pathToGraphFileRoute(path)
+              : pathToWorkspaceGraphRoute()
+            : path
+              ? pathToRoute(path)
+              : '/'
+      if (locationPathnameRef.current !== nextRoute) {
+        startTransition(() => {
+          navigate(nextRoute)
+        })
+      }
     },
-    [activeTabIdRef, tabsRef],
+    [activeTabIdRef, currentFilePathRef, locationPathnameRef, navigate, rootKindRef, tabsRef],
   )
 
   const workspaceKey = `${rootKind}:${rootPath}`
   const { fileContents, editorValue, dirtyPaths, saveStates, onEditorChange } = useEditorBuffer({
-    activePath: activeFilePath,
+    activePath: currentFilePath,
     workspaceKey,
   })
 
@@ -117,6 +166,7 @@ export function useAppLayoutState() {
     tabs,
     activeTabId,
     locationPathname: location.pathname,
+    preserveCurrentRoute: internalRouteActive,
     navigate,
     setEntries,
     setRootPath,
@@ -153,20 +203,62 @@ export function useAppLayoutState() {
   }, [loadWorkspace])
 
   useEffect(() => {
-    if (!routeGitDiff) return
+    if (!gitDiffMatch) return
+    if (!isGitDiffSection(gitDiffSection) || !gitDiffPath) return
     if (lastHandledRouteRef.current === location.pathname) return
     lastHandledRouteRef.current = location.pathname
 
-    const id = gitDiffTabId(routeGitDiff.section, routeGitDiff.path)
+    const id = gitDiffTabId(gitDiffSection, gitDiffPath)
     const currentTabs = tabsRef.current
     if (!currentTabs.some((tab) => getWorkspaceTabId(tab) === id)) {
-      setTabs([...currentTabs, createGitDiffTab(routeGitDiff.path, routeGitDiff.section)])
+      setTabs([...currentTabs, createGitDiffTab(gitDiffPath, gitDiffSection)])
     }
     setActiveTabId(id)
-    if (inspectedPathRef.current !== routeGitDiff.path) {
-      setInspectedPath(routeGitDiff.path)
+    if (inspectedPathRef.current !== gitDiffPath) {
+      setInspectedPath(gitDiffPath)
     }
-  }, [inspectedPathRef, location.pathname, routeGitDiff, setActiveTabId, setTabs, tabsRef])
+  }, [
+    gitDiffMatch,
+    gitDiffPath,
+    gitDiffSection,
+    inspectedPathRef,
+    location.pathname,
+    setActiveTabId,
+    setTabs,
+    tabsRef,
+  ])
+
+  useEffect(() => {
+    if (!sourceMatch && !graphFileMatch && !graphWorkspaceMatch) return
+    if (lastHandledRouteRef.current === location.pathname) return
+    lastHandledRouteRef.current = location.pathname
+
+    if (graphWorkspaceMatch) {
+      return
+    }
+
+    if (!routeFilePath) return
+
+    const id = fileTabId(routeFilePath)
+    const currentTabs = tabsRef.current
+    if (!currentTabs.some((tab) => getWorkspaceTabId(tab) === id)) {
+      setTabs([...currentTabs, createFileTab(routeFilePath)])
+    }
+    setActiveTabId(id)
+    if (inspectedPathRef.current !== routeFilePath) {
+      setInspectedPath(routeFilePath)
+    }
+  }, [
+    graphFileMatch,
+    graphWorkspaceMatch,
+    inspectedPathRef,
+    location.pathname,
+    routeFilePath,
+    setActiveTabId,
+    setTabs,
+    sourceMatch,
+    tabsRef,
+  ])
 
   useEffect(() => {
     if (!isRouteFile) return
@@ -345,7 +437,7 @@ export function useAppLayoutState() {
     fileContents,
     viewMode === 'graph',
     workspaceIndex,
-    activeFilePath,
+    currentFilePath,
     rootKind,
   )
   const graphLayoutPositions = useMemo(
@@ -367,7 +459,7 @@ export function useAppLayoutState() {
     activeTabId,
     dirtyPaths,
     saveStates,
-    activePath: activeFilePath,
+    activePath: currentFilePath,
     activeResourcePath,
     sidebarCollapsed,
     rightSidebarCollapsed,
