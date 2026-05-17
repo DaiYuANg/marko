@@ -246,7 +246,7 @@ export default function AppLayout() {
         theme={state.theme}
         setTheme={state.setTheme}
       />
-      <div className="flex flex-1 overflow-hidden p-1.5 pt-1">
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar
           collapsed={state.sidebarCollapsed}
           recentProjects={state.recentProjects}
@@ -263,7 +263,7 @@ export default function AppLayout() {
           rootKind={state.rootKind}
           onInspectPath={state.onInspectPath}
         />
-        <section className="panel-surface panel-enter mx-2 flex flex-1 flex-col overflow-hidden">
+        <section className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/70">
           <TabsBar
             tabs={state.tabs}
             dirtyPaths={state.dirtyPaths}
@@ -274,7 +274,7 @@ export default function AppLayout() {
             viewMode={state.viewMode}
             onChangeView={state.setViewMode}
           />
-          <div className="flex-1 overflow-hidden bg-background/70">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <Outlet context={outletContext} />
           </div>
         </section>

@@ -195,8 +195,10 @@ const TreeRow = ({
           <Button
             variant="ghost"
             size="sm"
-            className={`group h-[30px] w-full justify-start rounded-lg px-2 text-xs transition-all ${
-              isActive ? 'bg-accent/70 text-accent-foreground shadow-sm' : 'hover:bg-muted/70'
+            className={`group relative h-[28px] w-full justify-start rounded-md px-2 text-xs transition-all ${
+              isActive
+                ? 'bg-accent text-accent-foreground before:absolute before:left-0 before:top-1 before:h-5 before:w-0.5 before:rounded-full before:bg-primary'
+                : 'text-sidebar-foreground/85 hover:bg-sidebar-accent'
             }`}
             style={{ paddingLeft }}
             onClick={() => {
@@ -215,21 +217,21 @@ const TreeRow = ({
                   }`}
                 />
                 {isOpen ? (
-                  <FolderOpen className="h-4 w-4 text-sky-500" />
+                  <FolderOpen className="h-4 w-4 text-primary" />
                 ) : (
-                  <Folder className="h-4 w-4" />
+                  <Folder className="h-4 w-4 text-muted-foreground" />
                 )}
               </>
             ) : (
               <>
                 <span className="w-3.5" />
-                <FileText className="h-4 w-4" />
+                <FileText className="h-4 w-4 text-muted-foreground" />
               </>
             )}
             <span className="ml-1 truncate text-left">{node.name}</span>
           </Button>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-[12.5rem] rounded-xl border border-border/80 bg-popover/95 p-1.5 shadow-xl backdrop-blur">
+        <ContextMenuContent className="w-[12.5rem] rounded-md border border-border bg-popover p-1 shadow-lg">
           {isFolder ? (
             <>
               {!readonlyTree && (
@@ -369,12 +371,12 @@ const SidebarComponent = ({
 
   return (
     <aside
-      className={`layout-rail panel-surface panel-enter flex flex-col overflow-hidden border-r border-border/70 text-sidebar-foreground ${
+      className={`layout-rail workspace-rail flex flex-col overflow-hidden border-r border-sidebar-border text-sidebar-foreground ${
         collapsed ? 'w-14' : 'w-[18rem]'
       }`}
       data-collapsed={collapsed ? 'true' : 'false'}
     >
-      <SidebarHeader className="border-b border-sidebar-border/80 px-1.5 py-1.5">
+      <SidebarHeader className="border-b border-sidebar-border px-1.5 py-1">
         <TooltipProvider>
           <div className="flex items-center gap-1">
             <Tooltip>
@@ -382,7 +384,7 @@ const SidebarComponent = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-lg"
+                  className="h-8 w-8 rounded-md"
                   onClick={onUseInternalRoot}
                 >
                   <Home className="h-4 w-4" />
@@ -395,7 +397,7 @@ const SidebarComponent = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-lg"
+                  className="h-8 w-8 rounded-md"
                   onClick={() => {
                     focusFilterInput()
                   }}
@@ -409,7 +411,7 @@ const SidebarComponent = ({
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-6 rounded-md px-1.5 text-[10px] hover:cursor-pointer"
+                className="h-6 rounded px-1.5 text-[10px] hover:cursor-pointer"
                 onClick={focusFilterInput}
                 aria-label={t('sidebar.searchAction')}
               >
@@ -419,11 +421,11 @@ const SidebarComponent = ({
           </div>
         </TooltipProvider>
       </SidebarHeader>
-      <SidebarContentContainer className="h-full p-1.5">
+      <SidebarContentContainer className="h-full p-1">
         {!collapsed ? (
           <>
-            <SidebarGroup className="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/20">
-              <SidebarGroupLabel className="flex items-center justify-between text-[11px] uppercase tracking-wide text-sidebar-foreground/70">
+            <SidebarGroup className="border-b border-sidebar-border/70 pb-1">
+              <SidebarGroupLabel className="flex h-7 items-center justify-between px-2 text-[11px] uppercase text-sidebar-foreground/60">
                 <span>{t('sidebar.recentProjects')}</span>
                 <Badge variant="secondary" className="px-1.5 py-0">
                   {recentProjects.length}
@@ -443,10 +445,10 @@ const SidebarComponent = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-full justify-start rounded-lg px-2 hover:bg-sidebar-accent"
+                        className="h-7 w-full justify-start rounded-md px-2 hover:bg-sidebar-accent"
                         onClick={() => onOpenProject(path)}
                       >
-                        <FolderOpen className="h-4 w-4 text-sky-500" />
+                        <FolderOpen className="h-4 w-4 text-primary" />
                         <span className="truncate text-xs">{path}</span>
                       </Button>
                     </SidebarMenuItem>
@@ -454,8 +456,8 @@ const SidebarComponent = ({
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            <SidebarGroup className="mt-1.5 min-h-0 flex-1 rounded-xl border border-sidebar-border/60 bg-sidebar-accent/10">
-              <SidebarGroupLabel className="flex items-center justify-between text-[11px] uppercase tracking-wide text-sidebar-foreground/70">
+            <SidebarGroup className="mt-1 min-h-0 flex-1">
+              <SidebarGroupLabel className="flex h-7 items-center justify-between px-2 text-[11px] uppercase text-sidebar-foreground/60">
                 <span>{t('sidebar.files')}</span>
                 <span className="text-[10px] text-muted-foreground">Ctrl+P</span>
               </SidebarGroupLabel>
@@ -465,7 +467,7 @@ const SidebarComponent = ({
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                   placeholder={t('sidebar.search')}
-                  className="h-7 rounded-lg border-border/70 bg-sidebar text-xs"
+                  className="h-7 rounded-md border-sidebar-border bg-background/60 text-xs"
                 />
                 <Separator className="bg-sidebar-border/70" />
                 <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full pr-1">
@@ -478,7 +480,7 @@ const SidebarComponent = ({
                       className="h-full w-full"
                       style={{ height: '100%' }}
                       rowCount={flattened.length}
-                      rowHeight={30}
+                      rowHeight={28}
                       overscanCount={8}
                       rowProps={{
                         flattened,
@@ -515,7 +517,7 @@ const SidebarComponent = ({
                         <Button
                           variant={isActive ? 'secondary' : 'ghost'}
                           size="icon"
-                          className="h-8 w-8 rounded-lg"
+                          className="h-8 w-8 rounded-md"
                           onClick={() => onOpenFile(file.path)}
                         >
                           <FileText className="h-4 w-4" />

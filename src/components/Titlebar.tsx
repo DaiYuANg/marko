@@ -268,7 +268,7 @@ export default function Titlebar({
 
   return (
     <header
-      className={`app-titlebar panel-enter flex h-11 items-center justify-between border-b border-border/70 bg-background/80 px-2 backdrop-blur ${isMacTauri ? 'pl-[68px]' : ''}`}
+      className={`app-titlebar flex h-10 items-center justify-between border-b border-border bg-background px-2 ${isMacTauri ? 'pl-[68px]' : ''}`}
       data-tauri-drag-region
       onMouseDown={handleTitlebarMouseDown}
     >
@@ -281,18 +281,15 @@ export default function Titlebar({
                 size="icon"
                 onClick={onToggleSidebar}
                 aria-label={t('actions.toggleSidebar')}
-                className="h-8 w-8 rounded-lg"
+                className="h-8 w-8 rounded-md"
               >
                 <PanelLeft className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('actions.toggleSidebar')}</TooltipContent>
           </Tooltip>
-          <div className="min-w-0 px-1">
-            <div className="truncate text-sm font-semibold tracking-tight">{t('app.name')}</div>
-            <div className="truncate text-[11px] text-muted-foreground">
-              {t('titlebar.subtitle')}
-            </div>
+          <div className="min-w-0 px-1 leading-none">
+            <div className="truncate text-sm font-semibold">{t('app.name')}</div>
           </div>
           {showInlineMenu && <AppMenuBar groups={menuGroups} onAction={onMenuAction} />}
         </div>
@@ -301,10 +298,10 @@ export default function Titlebar({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 w-full max-w-sm justify-start rounded-lg border border-border/80 bg-muted/40 px-3 text-left text-xs text-muted-foreground hover:bg-muted/70"
+            className="h-7 w-full max-w-md justify-start rounded-md border border-border bg-muted/35 px-3 text-left text-xs text-muted-foreground hover:bg-muted/70"
             onClick={onOpenSearch}
           >
-            <span className="inline-flex items-center gap-2">
+            <span className="flex w-full items-center gap-2">
               <Search className="h-3.5 w-3.5" />
               <span>{t('sidebar.search')}</span>
               <KbdGroup className="ml-auto">
@@ -320,7 +317,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg"
+                className="h-8 w-8 rounded-md"
                 onClick={onSelectProject}
                 aria-label={t('actions.openProject')}
               >
@@ -334,7 +331,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg"
+                className="h-8 w-8 rounded-md"
                 onClick={onSelectSingleFile}
                 aria-label={t('actions.openFile')}
               >
@@ -348,7 +345,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg md:hidden"
+                className="h-8 w-8 rounded-md md:hidden"
                 onClick={onOpenSearch}
                 aria-label={t('sidebar.searchAction')}
               >
@@ -362,7 +359,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg"
+                className="h-8 w-8 rounded-md"
                 aria-label={t('menu.theme')}
               >
                 <Palette className="h-4 w-4" />
@@ -429,7 +426,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg"
+                className="h-8 w-8 rounded-md"
                 onClick={onToggleRightSidebar}
                 aria-label={t('actions.toggleRightSidebar')}
               >

@@ -15,7 +15,7 @@ const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
   const edges = useMemo(() => graph.edges, [graph.edges])
 
   return (
-    <div className="h-full">
+    <div className="h-full bg-background">
       <ReactFlow
         nodes={nodes}
         edges={edges}

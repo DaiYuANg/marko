@@ -7,33 +7,33 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 48 11% 96%;
+    --foreground: 45 8% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 45 8% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
+    --popover-foreground: 45 8% 12%;
+    --primary: 177 43% 30%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --secondary: 50 10% 91%;
+    --secondary-foreground: 45 8% 14%;
+    --muted: 48 12% 92%;
+    --muted-foreground: 42 6% 43%;
+    --accent: 176 24% 88%;
+    --accent-foreground: 177 40% 22%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --sidebar: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --border: 45 10% 84%;
+    --input: 45 10% 84%;
+    --ring: 177 43% 30%;
+    --sidebar: 48 12% 94%;
+    --sidebar-foreground: 45 8% 18%;
+    --sidebar-primary: 177 43% 30%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 48 13% 90%;
+    --sidebar-accent-foreground: 45 8% 16%;
+    --sidebar-border: 45 10% 82%;
+    --sidebar-ring: 177 43% 30%;
     --radius: 0.5rem;
   }
 
@@ -101,66 +101,66 @@
 
   :root[data-theme='marko-light'] {
     color-scheme: light;
-    --background: 210 33% 98%;
-    --foreground: 224 22% 14%;
+    --background: 48 13% 96%;
+    --foreground: 45 8% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 224 22% 14%;
+    --card-foreground: 45 8% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 22% 14%;
-    --primary: 205 82% 43%;
+    --popover-foreground: 45 8% 12%;
+    --primary: 177 43% 30%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 214 35% 94%;
-    --secondary-foreground: 224 22% 14%;
-    --muted: 210 30% 94%;
-    --muted-foreground: 218 13% 43%;
-    --accent: 198 73% 92%;
-    --accent-foreground: 210 50% 25%;
+    --secondary: 50 10% 91%;
+    --secondary-foreground: 45 8% 14%;
+    --muted: 48 12% 92%;
+    --muted-foreground: 42 6% 43%;
+    --accent: 176 24% 88%;
+    --accent-foreground: 177 40% 22%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 214 28% 86%;
-    --input: 214 28% 86%;
-    --ring: 205 82% 43%;
-    --sidebar: 210 36% 97%;
-    --sidebar-foreground: 220 21% 18%;
-    --sidebar-primary: 205 82% 43%;
+    --border: 45 10% 84%;
+    --input: 45 10% 84%;
+    --ring: 177 43% 30%;
+    --sidebar: 48 13% 94%;
+    --sidebar-foreground: 45 8% 18%;
+    --sidebar-primary: 177 43% 30%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 200 65% 92%;
-    --sidebar-accent-foreground: 211 48% 25%;
-    --sidebar-border: 214 28% 86%;
-    --sidebar-ring: 205 82% 43%;
-    --radius: 0.75rem;
+    --sidebar-accent: 48 13% 90%;
+    --sidebar-accent-foreground: 45 8% 16%;
+    --sidebar-border: 45 10% 82%;
+    --sidebar-ring: 177 43% 30%;
+    --radius: 0.5rem;
   }
 
   :root[data-theme='marko-dark'] {
     color-scheme: dark;
-    --background: 220 22% 10%;
-    --foreground: 210 20% 94%;
-    --card: 220 19% 13%;
-    --card-foreground: 210 20% 94%;
-    --popover: 220 19% 12%;
-    --popover-foreground: 210 20% 94%;
-    --primary: 198 84% 58%;
-    --primary-foreground: 219 28% 10%;
-    --secondary: 220 17% 19%;
-    --secondary-foreground: 210 20% 92%;
-    --muted: 220 16% 17%;
-    --muted-foreground: 215 15% 70%;
-    --accent: 199 44% 24%;
-    --accent-foreground: 190 100% 93%;
+    --background: 120 3% 9%;
+    --foreground: 45 16% 89%;
+    --card: 120 3% 12%;
+    --card-foreground: 45 16% 89%;
+    --popover: 120 3% 11%;
+    --popover-foreground: 45 16% 89%;
+    --primary: 173 35% 60%;
+    --primary-foreground: 160 20% 9%;
+    --secondary: 90 4% 17%;
+    --secondary-foreground: 45 14% 87%;
+    --muted: 90 4% 15%;
+    --muted-foreground: 45 8% 62%;
+    --accent: 173 20% 22%;
+    --accent-foreground: 170 34% 84%;
     --destructive: 0 74% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 219 15% 26%;
-    --input: 219 15% 26%;
-    --ring: 198 84% 58%;
-    --sidebar: 220 23% 12%;
-    --sidebar-foreground: 210 20% 94%;
-    --sidebar-primary: 198 84% 58%;
-    --sidebar-primary-foreground: 219 28% 10%;
-    --sidebar-accent: 201 41% 21%;
-    --sidebar-accent-foreground: 190 100% 93%;
-    --sidebar-border: 219 15% 26%;
-    --sidebar-ring: 198 84% 58%;
-    --radius: 0.75rem;
+    --border: 80 4% 24%;
+    --input: 80 4% 24%;
+    --ring: 173 35% 60%;
+    --sidebar: 120 3% 11%;
+    --sidebar-foreground: 45 16% 86%;
+    --sidebar-primary: 173 35% 60%;
+    --sidebar-primary-foreground: 160 20% 9%;
+    --sidebar-accent: 90 4% 16%;
+    --sidebar-accent-foreground: 45 14% 87%;
+    --sidebar-border: 80 4% 22%;
+    --sidebar-ring: 173 35% 60%;
+    --radius: 0.5rem;
   }
 
   html,
@@ -174,6 +174,7 @@
     color: hsl(var(--foreground));
     font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
     text-rendering: optimizeLegibility;
+    overflow: hidden;
   }
 }
 
@@ -182,7 +183,7 @@
 }
 
 .panel-surface {
-  border-radius: var(--radius);
+  border-radius: 0;
   background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
   box-shadow: none;
@@ -202,36 +203,40 @@
     box-shadow 180ms ease;
 }
 
-:root[data-theme='marko-light'] .app-shell {
-  background:
-    radial-gradient(1100px 650px at 90% -10%, hsl(198 80% 88% / 0.45), transparent 65%),
-    radial-gradient(800px 550px at -20% 100%, hsl(210 70% 92% / 0.55), transparent 60%),
-    hsl(var(--background));
-}
-
 :root[data-theme='marko-light'] .panel-surface {
-  border-radius: calc(var(--radius) + 0.1rem);
-  background: color-mix(in srgb, hsl(var(--background)) 88%, white 12%);
+  background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
-  box-shadow:
-    0 10px 34px -25px rgba(15, 23, 42, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-:root[data-theme='marko-dark'] .app-shell {
-  background:
-    radial-gradient(1000px 600px at 90% -10%, hsl(204 70% 26% / 0.35), transparent 65%),
-    radial-gradient(780px 520px at -10% 100%, hsl(225 48% 20% / 0.4), transparent 62%),
-    hsl(var(--background));
 }
 
 :root[data-theme='marko-dark'] .panel-surface {
-  border-radius: calc(var(--radius) + 0.1rem);
-  background: color-mix(in srgb, hsl(var(--background)) 86%, hsl(221 18% 18%) 14%);
+  background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
-  box-shadow:
-    0 12px 32px -26px rgba(3, 7, 18, 0.85),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.workspace-rail {
+  background: hsl(var(--sidebar));
+}
+
+.workspace-main {
+  background: hsl(var(--background));
+}
+
+.editor-stage {
+  background: color-mix(in srgb, hsl(var(--background)) 86%, hsl(var(--muted)) 14%);
+}
+
+.editor-paper {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 7%, transparent);
+}
+
+.inspector-row {
+  border-left: 2px solid transparent;
+}
+
+.inspector-row:hover {
+  border-left-color: hsl(var(--primary) / 0.5);
 }
 
 .app-titlebar {
@@ -293,15 +298,23 @@
   --crepe-font-title: 'Manrope', ui-sans-serif, system-ui, sans-serif;
   --crepe-font-default: 'Manrope', ui-sans-serif, system-ui, sans-serif;
   --crepe-font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --crepe-shadow-1: 0 1px 2px rgba(2, 8, 23, 0.12), 0 1px 3px rgba(2, 8, 23, 0.08);
-  --crepe-shadow-2: 0 6px 18px rgba(2, 8, 23, 0.16), 0 2px 6px rgba(2, 8, 23, 0.1);
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
+  --crepe-shadow-1: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 10%, transparent);
+  --crepe-shadow-2: 0 10px 24px color-mix(in srgb, hsl(var(--foreground)) 12%, transparent);
+  border: 0;
+  border-radius: 0;
   background: hsl(var(--background));
 }
 
 .crepe .milkdown .ProseMirror {
   color: hsl(var(--foreground));
+  margin: 0 auto;
+  max-width: 820px;
+  padding: 3rem 3.5rem 5rem;
+  line-height: 1.72;
+}
+
+.crepe .milkdown .ProseMirror:focus {
+  outline: none;
 }
 
 .crepe .milkdown .milkdown-toolbar,

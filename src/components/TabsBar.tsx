@@ -3,7 +3,6 @@ import { Code2, FileText, GitGraph, PenLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
@@ -71,75 +70,9 @@ const TabsBarComponent = ({
   }, [])
 
   return (
-    <div className="border-b border-border/70 bg-background/85 px-2 py-1 backdrop-blur">
-      <div className="mb-1 flex items-center justify-between gap-2 px-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-          <div className="min-w-0 truncate text-sm font-medium">
-            {activePath ? createFileLabel(activePath) : t('center.noFile')}
-          </div>
-          {activePath && dirtyPaths[activePath] && (
-            <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.18)]" />
-          )}
-          {activeSaveLabelKey && (
-            <Badge
-              variant="outline"
-              className={`hidden h-5 shrink-0 px-2 text-[10px] font-medium md:inline-flex ${getSaveBadgeClassName(activeSaveState)}`}
-              title={activeSaveState?.message}
-            >
-              {t(activeSaveLabelKey)}
-            </Badge>
-          )}
-        </div>
-        <TooltipProvider>
-          <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-muted/35 p-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={viewMode === 'wysiwyg' ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-7 w-7 rounded-md"
-                  aria-label={t('editor.modeWysiwyg')}
-                  onClick={() => onChangeView('wysiwyg')}
-                >
-                  <PenLine className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('editor.modeWysiwyg')}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={viewMode === 'source' ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-7 w-7 rounded-md"
-                  aria-label={t('editor.modeSource')}
-                  onClick={() => onChangeView('source')}
-                >
-                  <Code2 className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('editor.modeSource')}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-7 w-7 rounded-md"
-                  aria-label={t('tabs.workspaceGraph')}
-                  onClick={() => onChangeView('graph')}
-                >
-                  <GitGraph className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('tabs.workspaceGraph')}</TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-      </div>
+    <div className="flex h-10 items-center gap-2 border-b border-border bg-background px-2">
       <Tabs
-        className="min-w-0"
+        className="min-w-0 flex-1"
         value={activeTab}
         onValueChange={(path) => {
           if (path) {
@@ -148,11 +81,11 @@ const TabsBarComponent = ({
         }}
       >
         <ScrollArea
-          className="w-full whitespace-nowrap rounded-lg"
+          className="w-full whitespace-nowrap"
           onWheel={handleTabsWheel}
           viewportClassName="w-full"
         >
-          <TabsList className="h-9 w-max min-w-full justify-start rounded-lg border border-border/50 bg-muted/35 p-0.5">
+          <TabsList className="h-8 w-max min-w-full justify-start rounded-none bg-transparent p-0">
             {tabs.map((path) => {
               const isDirty = Boolean(dirtyPaths[path])
               const isActive = path === activePath
@@ -160,7 +93,7 @@ const TabsBarComponent = ({
                 <TabsTrigger
                   key={path}
                   value={path}
-                  className="group gap-1.5 rounded-md px-2 data-[state=active]:animate-[tab-pop_160ms_cubic-bezier(0.22,1,0.36,1)] data-[state=active]:shadow-sm"
+                  className="group relative h-8 gap-1.5 rounded-md px-2 text-xs data-[state=active]:bg-muted data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:bg-primary data-[state=active]:after:block"
                   title={path}
                 >
                   <FileText className="h-3.5 w-3.5" />
@@ -171,7 +104,7 @@ const TabsBarComponent = ({
                   <span
                     role="button"
                     tabIndex={0}
-                    className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:scale-105 hover:bg-muted ${
+                    className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:bg-background ${
                       isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
                     onClick={(event) => {
@@ -194,7 +127,72 @@ const TabsBarComponent = ({
           </TabsList>
         </ScrollArea>
       </Tabs>
-      <Separator className="mt-1" />
+      <div className="hidden min-w-0 items-center gap-2 md:flex">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <FileText className="h-3.5 w-3.5" />
+          <span className="max-w-[180px] truncate">
+            {activePath ? createFileLabel(activePath) : t('center.noFile')}
+          </span>
+          {activePath && dirtyPaths[activePath] && (
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+          )}
+          {activeSaveLabelKey && (
+            <Badge
+              variant="outline"
+              className={`h-5 shrink-0 px-1.5 text-[10px] font-medium ${getSaveBadgeClassName(activeSaveState)}`}
+              title={activeSaveState?.message}
+            >
+              {t(activeSaveLabelKey)}
+            </Badge>
+          )}
+        </div>
+        <TooltipProvider>
+          <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewMode === 'wysiwyg' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-6 w-6 rounded"
+                  aria-label={t('editor.modeWysiwyg')}
+                  onClick={() => onChangeView('wysiwyg')}
+                >
+                  <PenLine className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('editor.modeWysiwyg')}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewMode === 'source' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-6 w-6 rounded"
+                  aria-label={t('editor.modeSource')}
+                  onClick={() => onChangeView('source')}
+                >
+                  <Code2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('editor.modeSource')}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-6 w-6 rounded"
+                  aria-label={t('tabs.workspaceGraph')}
+                  onClick={() => onChangeView('graph')}
+                >
+                  <GitGraph className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('tabs.workspaceGraph')}</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+      </div>
     </div>
   )
 }
