@@ -432,14 +432,7 @@ export function useAppLayoutState() {
     entries,
     entries.some((entry) => entry.kind === 'file'),
   )
-  const graph = useGraphData(
-    entries,
-    fileContents,
-    viewMode === 'graph',
-    workspaceIndex,
-    currentFilePath,
-    rootKind,
-  )
+  const graph = useGraphData(viewMode === 'graph', workspaceIndex, currentFilePath, rootKind)
   const graphLayoutPositions = useMemo(
     () =>
       graph.layoutKey

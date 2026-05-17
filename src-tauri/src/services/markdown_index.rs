@@ -1,4 +1,9 @@
 use std::collections::{HashMap, HashSet};
+use std::path::{Component, Path};
+
+use path_clean::PathClean;
+use percent_encoding::percent_decode_str;
+use pulldown_cmark::{Event, HeadingLevel, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::models::{
   FsEntry, FsIndexedMarkdownFile, FsMarkdownHeading, FsMarkdownLink, FsWorkspaceIndex,
@@ -66,46 +71,56 @@ struct RawMarkdownLink {
 fn extract_headings(path: &str, content: &str) -> Vec<FsMarkdownHeading> {
   let mut headings = Vec::new();
   let mut used_slugs = HashMap::<String, usize>::new();
+  let mut current_heading: Option<(u8, usize, String)> = None;
+  let parser = Parser::new_ext(content, markdown_options()).into_offset_iter();
 
-  for (line_index, line) in content.lines().enumerate() {
-    let level = line.chars().take_while(|char| *char == '#').count();
-    if !(1..=6).contains(&level) {
-      continue;
-    }
-    if !line[level..]
-      .chars()
-      .next()
-      .is_some_and(char::is_whitespace)
-    {
-      continue;
-    }
-
-    let text = line[level..].trim().to_string();
-    if text.is_empty() {
-      continue;
-    }
-
-    let base_slug = {
-      let slug = slugify(&text);
-      if slug.is_empty() {
-        format!("heading-{}", headings.len() + 1)
-      } else {
-        slug
+  for (event, range) in parser {
+    match event {
+      Event::Start(Tag::Heading { level, .. }) => {
+        current_heading = Some((heading_level_to_u8(level), range.start, String::new()));
       }
-    };
-    let used_count = used_slugs.get(&base_slug).copied().unwrap_or(0);
-    used_slugs.insert(base_slug.clone(), used_count + 1);
-    headings.push(FsMarkdownHeading {
-      path: path.to_string(),
-      level: level as u8,
-      text,
-      slug: if used_count == 0 {
-        base_slug
-      } else {
-        format!("{base_slug}-{used_count}")
-      },
-      line: line_index + 1,
-    });
+      Event::End(TagEnd::Heading(_)) => {
+        let Some((level, byte_index, raw_text)) = current_heading.take() else {
+          continue;
+        };
+        let text = raw_text.trim().to_string();
+        if text.is_empty() {
+          continue;
+        }
+        let base_slug = {
+          let slug = slugify(&text);
+          if slug.is_empty() {
+            format!("heading-{}", headings.len() + 1)
+          } else {
+            slug
+          }
+        };
+        let used_count = used_slugs.get(&base_slug).copied().unwrap_or(0);
+        used_slugs.insert(base_slug.clone(), used_count + 1);
+        headings.push(FsMarkdownHeading {
+          path: path.to_string(),
+          level,
+          text,
+          slug: if used_count == 0 {
+            base_slug
+          } else {
+            format!("{base_slug}-{used_count}")
+          },
+          line: source_location(content, byte_index).0,
+        });
+      }
+      Event::Text(text) | Event::Code(text) => {
+        if let Some((_, _, heading_text)) = current_heading.as_mut() {
+          heading_text.push_str(&text);
+        }
+      }
+      Event::SoftBreak | Event::HardBreak => {
+        if let Some((_, _, heading_text)) = current_heading.as_mut() {
+          heading_text.push(' ');
+        }
+      }
+      _ => {}
+    }
   }
 
   headings
@@ -113,89 +128,83 @@ fn extract_headings(path: &str, content: &str) -> Vec<FsMarkdownHeading> {
 
 fn extract_links(content: &str) -> Vec<RawMarkdownLink> {
   let mut links = Vec::new();
-  links.extend(extract_markdown_links(content));
-  links.extend(extract_wiki_links(content));
-  links
-    .into_iter()
-    .filter(|link| !link.target.trim().is_empty())
-    .collect()
-}
+  let mut current_link: Option<(String, String, usize, String)> = None;
+  let parser = Parser::new_ext(content, markdown_options()).into_offset_iter();
 
-fn extract_markdown_links(content: &str) -> Vec<RawMarkdownLink> {
-  let mut links = Vec::new();
-  let mut search_start = 0usize;
-
-  while let Some(open_rel) = content[search_start..].find('[') {
-    let open = search_start + open_rel;
-    if content[open..].starts_with("[[") {
-      search_start = open + 2;
-      continue;
+  for (event, range) in parser {
+    match event {
+      Event::Start(Tag::Link {
+        link_type,
+        dest_url,
+        ..
+      }) => {
+        current_link = Some((
+          markdown_link_type(link_type).to_string(),
+          dest_url.to_string(),
+          range.start,
+          String::new(),
+        ));
+      }
+      Event::End(TagEnd::Link) => {
+        let Some((link_type, target, byte_index, raw_text)) = current_link.take() else {
+          continue;
+        };
+        let target = target.trim().to_string();
+        if target.is_empty() {
+          continue;
+        }
+        let text = raw_text.trim();
+        let (line, column) = source_location(content, byte_index);
+        links.push(RawMarkdownLink {
+          text: if text.is_empty() {
+            target.clone()
+          } else {
+            text.to_string()
+          },
+          target,
+          link_type,
+          context: line_context(content, byte_index),
+          line,
+          column,
+        });
+      }
+      Event::Text(text) | Event::Code(text) => {
+        if let Some((_, _, _, link_text)) = current_link.as_mut() {
+          link_text.push_str(&text);
+        }
+      }
+      Event::SoftBreak | Event::HardBreak => {
+        if let Some((_, _, _, link_text)) = current_link.as_mut() {
+          link_text.push(' ');
+        }
+      }
+      _ => {}
     }
-
-    let Some(close_rel) = content[open + 1..].find(']') else {
-      break;
-    };
-    let close = open + 1 + close_rel;
-    if !content
-      .get(close + 1..)
-      .unwrap_or_default()
-      .starts_with('(')
-    {
-      search_start = open + 1;
-      continue;
-    }
-
-    let target_start = close + 2;
-    let Some(target_end_rel) = content[target_start..].find(')') else {
-      break;
-    };
-    let target_end = target_start + target_end_rel;
-    let text = content[open + 1..close].trim();
-    let target = content[target_start..target_end].trim();
-    if !text.is_empty() && !target.is_empty() {
-      let (line, column) = source_location(content, open);
-      links.push(RawMarkdownLink {
-        text: text.to_string(),
-        target: target.to_string(),
-        link_type: "markdown".to_string(),
-        context: line_context(content, open),
-        line,
-        column,
-      });
-    }
-    search_start = target_end + 1;
   }
 
   links
 }
 
-fn extract_wiki_links(content: &str) -> Vec<RawMarkdownLink> {
-  let mut links = Vec::new();
-  let mut search_start = 0usize;
+fn markdown_options() -> Options {
+  Options::ENABLE_GFM | Options::ENABLE_WIKILINKS
+}
 
-  while let Some(open_rel) = content[search_start..].find("[[") {
-    let open = search_start + open_rel;
-    let target_start = open + 2;
-    let Some(close_rel) = content[target_start..].find("]]") else {
-      break;
-    };
-    let close = target_start + close_rel;
-    let target = content[target_start..close].trim();
-    if !target.is_empty() {
-      let (line, column) = source_location(content, open);
-      links.push(RawMarkdownLink {
-        text: target.to_string(),
-        target: target.to_string(),
-        link_type: "wiki".to_string(),
-        context: line_context(content, open),
-        line,
-        column,
-      });
-    }
-    search_start = close + 2;
+fn heading_level_to_u8(level: HeadingLevel) -> u8 {
+  match level {
+    HeadingLevel::H1 => 1,
+    HeadingLevel::H2 => 2,
+    HeadingLevel::H3 => 3,
+    HeadingLevel::H4 => 4,
+    HeadingLevel::H5 => 5,
+    HeadingLevel::H6 => 6,
   }
+}
 
-  links
+fn markdown_link_type(link_type: LinkType) -> &'static str {
+  match link_type {
+    LinkType::WikiLink { .. } => "wiki",
+    _ => "markdown",
+  }
 }
 
 fn normalize_link(
@@ -298,18 +307,18 @@ fn resolve_markdown_target_path(target: &str, existing_paths: &HashSet<String>) 
 
 fn normalize_workspace_path(value: &str) -> String {
   let normalized = value.replace('\\', "/");
-  let mut stack = Vec::<&str>::new();
-  for part in normalized.split('/') {
-    if part.is_empty() || part == "." {
-      continue;
+  let cleaned = Path::new(&normalized).clean();
+  let mut safe = Vec::<String>::new();
+  for component in cleaned.components() {
+    match component {
+      Component::Normal(value) => safe.push(value.to_string_lossy().to_string()),
+      Component::ParentDir => {
+        safe.pop();
+      }
+      Component::CurDir | Component::RootDir | Component::Prefix(_) => {}
     }
-    if part == ".." {
-      stack.pop();
-      continue;
-    }
-    stack.push(part);
   }
-  stack.join("/")
+  safe.join("/")
 }
 
 fn normalize_heading_anchor(anchor: &str) -> String {
@@ -317,21 +326,7 @@ fn normalize_heading_anchor(anchor: &str) -> String {
 }
 
 fn percent_decode(value: &str) -> String {
-  let bytes = value.as_bytes();
-  let mut output = Vec::with_capacity(bytes.len());
-  let mut index = 0usize;
-  while index < bytes.len() {
-    if bytes[index] == b'%' && index + 2 < bytes.len() {
-      if let Ok(hex) = u8::from_str_radix(&value[index + 1..index + 3], 16) {
-        output.push(hex);
-        index += 3;
-        continue;
-      }
-    }
-    output.push(bytes[index]);
-    index += 1;
-  }
-  String::from_utf8_lossy(&output).to_string()
+  percent_decode_str(value).decode_utf8_lossy().to_string()
 }
 
 fn slugify(label: &str) -> String {

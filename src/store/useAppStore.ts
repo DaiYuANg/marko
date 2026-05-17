@@ -3,7 +3,12 @@ import { persist } from 'zustand/middleware'
 import type { Locale } from '@/i18n/resources'
 import { getInitialLocale } from '@/i18n/utils'
 import { createIdleJsonStorage } from '@/store/persistStorage'
-import { areWorkspaceTabsEqual, fileTabId, normalizeWorkspaceTabs } from '@/logic/tabs'
+import {
+  areWorkspaceTabsEqual,
+  fileTabId,
+  normalizeWorkspaceTabId,
+  normalizeWorkspaceTabs,
+} from '@/logic/tabs'
 
 export type ViewMode = 'wysiwyg' | 'source' | 'graph'
 export type ThemeMode = 'light' | 'dark' | 'marko-light' | 'marko-dark'
@@ -84,7 +89,14 @@ export const useAppStore = create<AppState>()(
       setRootKind: (kind) => set((state) => (state.rootKind === kind ? state : { rootKind: kind })),
       setEntries: (entries) => set((state) => (state.entries === entries ? state : { entries })),
       setTabs: (tabs) =>
-        set((state) => (areWorkspaceTabsEqual(state.tabs, tabs) ? state : { tabs })),
+        set((state) => {
+          const normalizedTabs = normalizeWorkspaceTabs(tabs)
+          const activeTabId = normalizeWorkspaceTabId(state.activeTabId, normalizedTabs)
+          return areWorkspaceTabsEqual(state.tabs, normalizedTabs) &&
+            state.activeTabId === activeTabId
+            ? state
+            : { tabs: normalizedTabs, activeTabId }
+        }),
       setActiveTabId: (activeTabId) =>
         set((state) => (state.activeTabId === activeTabId ? state : { activeTabId })),
       setViewMode: (mode) => set((state) => (state.viewMode === mode ? state : { viewMode: mode })),
@@ -130,7 +142,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'marko.app',
       storage: createIdleJsonStorage('marko.app'),
-      version: 6,
+      version: 7,
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
         const legacyTheme =
@@ -153,12 +165,13 @@ export const useAppStore = create<AppState>()(
           typeof (state as { activePath?: unknown }).activePath === 'string'
             ? ((state as { activePath?: string }).activePath ?? null)
             : null
-        const normalizedActiveTabId =
+        const persistedActiveTabId =
           typeof state.activeTabId === 'string'
             ? state.activeTabId
             : legacyActivePath
               ? fileTabId(legacyActivePath)
               : null
+        const normalizedActiveTabId = normalizeWorkspaceTabId(persistedActiveTabId, normalizedTabs)
         return {
           ...state,
           tabs: normalizedTabs,

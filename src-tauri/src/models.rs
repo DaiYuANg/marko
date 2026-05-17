@@ -146,4 +146,5 @@ pub struct GitFileDiff {
   pub modified_label: String,
   pub original_content: String,
   pub modified_content: String,
+  pub unified_diff: String,
 }

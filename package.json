@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@codemirror/language": "^6.12.3",
+    "@dagrejs/dagre": "^3.0.0",
     "@milkdown/core": "^7.21.1",
     "@milkdown/crepe": "^7.21.1",
     "@milkdown/kit": "^7.21.1",

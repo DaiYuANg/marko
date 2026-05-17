@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use gix::bstr::ByteSlice;
+use path_clean::PathClean;
+use similar::TextDiff;
 
 use crate::models::{GitFileChange, GitFileDiff, GitRepoInfo, GitStatusSnapshot};
 
@@ -168,6 +170,14 @@ fn file_diff(
       ),
     };
 
+  let unified_diff = unified_diff(
+    &safe_path.to_string_lossy(),
+    original_label,
+    modified_label,
+    &original_content,
+    &modified_content,
+  );
+
   Ok(GitFileDiff {
     path: safe_path.to_string_lossy().to_string(),
     old_path: None,
@@ -175,6 +185,7 @@ fn file_diff(
     modified_label: modified_label.to_string(),
     original_content,
     modified_content,
+    unified_diff,
   })
 }
 
@@ -372,6 +383,22 @@ fn bytes_to_string(bytes: &[u8]) -> String {
   String::from_utf8_lossy(bytes).into_owned()
 }
 
+fn unified_diff(
+  path: &str,
+  original_label: &str,
+  modified_label: &str,
+  original_content: &str,
+  modified_content: &str,
+) -> String {
+  TextDiff::from_lines(original_content, modified_content)
+    .unified_diff()
+    .header(
+      &format!("{original_label}/{path}"),
+      &format!("{modified_label}/{path}"),
+    )
+    .to_string()
+}
+
 fn repo_relative_bstr(path: &Path) -> Result<gix::bstr::BString, String> {
   let value = path
     .to_str()
@@ -381,7 +408,7 @@ fn repo_relative_bstr(path: &Path) -> Result<gix::bstr::BString, String> {
 }
 
 fn normalize_repo_relative_path(relative_path: &str) -> Result<PathBuf, String> {
-  let path = PathBuf::from(relative_path);
+  let path = PathBuf::from(relative_path).clean();
   if path.is_absolute() {
     return Err("Git path must be repository-relative".to_string());
   }
@@ -391,7 +418,11 @@ fn normalize_repo_relative_path(relative_path: &str) -> Result<PathBuf, String> 
     match component {
       std::path::Component::Normal(value) => safe.push(value),
       std::path::Component::CurDir => {}
-      _ => return Err(format!("Invalid git path: {relative_path}")),
+      std::path::Component::ParentDir
+      | std::path::Component::RootDir
+      | std::path::Component::Prefix(_) => {
+        return Err(format!("Invalid git path: {relative_path}"))
+      }
     }
   }
 
@@ -450,6 +481,7 @@ mod tests {
     assert_eq!(diff.modified_content, "# Note\n");
     assert_eq!(diff.original_label, "Empty");
     assert_eq!(diff.modified_label, "Working Tree");
+    assert!(diff.unified_diff.contains("+# Note"));
 
     let _ = std::fs::remove_dir_all(root);
   }

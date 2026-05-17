@@ -1,5 +1,7 @@
 use std::path::{Component, Path, PathBuf};
 
+use path_clean::PathClean;
+
 use crate::state::FsStateData;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -15,12 +17,15 @@ pub fn resolve_path(data: &FsStateData, relative: &str) -> Result<PathBuf, Strin
   if relative.trim().is_empty() {
     return Err("Path must not be empty".to_string());
   }
-  let rel = Path::new(relative);
+  let rel = Path::new(relative).clean();
   if rel.is_absolute() {
     return Err("Path must be relative".to_string());
   }
   for component in rel.components() {
-    if matches!(component, Component::ParentDir) {
+    if matches!(
+      component,
+      Component::ParentDir | Component::RootDir | Component::Prefix(_)
+    ) {
       return Err("Parent paths are not allowed".to_string());
     }
   }
@@ -34,7 +39,7 @@ pub fn resolve_path(data: &FsStateData, relative: &str) -> Result<PathBuf, Strin
       .file_name()
       .and_then(|name| name.to_str())
       .ok_or_else(|| "Invalid file name".to_string())?;
-    let normalized_rel = relative.replace('\\', "/");
+    let normalized_rel = rel.to_string_lossy().replace('\\', "/");
     if normalized_rel != file_name {
       return Err("Single-file mode only allows operations on the opened file".to_string());
     }

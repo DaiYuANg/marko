@@ -1,32 +1,18 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  buildGraph,
-  buildGraphFromRustGraph,
-  buildGraphFromWorkspaceIndex,
-  type GraphData,
-} from '@/logic/graph'
+import { buildGraphFromRustGraph, type GraphData } from '@/logic/graph'
 import { fsApi, type FsRootKind, type FsWorkspaceIndex } from '@/services/fsApi'
-import type { FileEntry } from '@/store/useAppStore'
-import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
 import { isTauriRuntime } from '@/utils/tauri'
 
 const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], layoutKey: 'empty' }
 
 export function useGraphData(
-  entries: FileEntry[],
-  fileContents: Record<string, string>,
   enabled: boolean,
   workspaceIndex: FsWorkspaceIndex | null,
   activePath: string | null,
   rootKind: FsRootKind,
 ) {
   const tauriAvailable = isTauriRuntime()
-  const workspaceContents = useWorkspaceMarkdownContents(
-    entries,
-    fileContents,
-    enabled && rootKind !== 'single' && !workspaceIndex,
-  )
   const workspaceIndexKey = useMemo(() => {
     if (!workspaceIndex) return ''
     return workspaceIndex.files
@@ -59,18 +45,8 @@ export function useGraphData(
       if (workspaceGraphQuery.data) {
         return buildGraphFromRustGraph(workspaceGraphQuery.data)
       }
-      // Keep the existing frontend builder as a fallback while Rust graph generation evolves.
-      return buildGraphFromWorkspaceIndex(workspaceIndex)
     }
 
-    return buildGraph(entries, workspaceContents)
-  }, [
-    enabled,
-    entries,
-    outlineQuery.data,
-    rootKind,
-    workspaceContents,
-    workspaceGraphQuery.data,
-    workspaceIndex,
-  ])
+    return EMPTY_GRAPH
+  }, [enabled, outlineQuery.data, rootKind, workspaceGraphQuery.data, workspaceIndex])
 }

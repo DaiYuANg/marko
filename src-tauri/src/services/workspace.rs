@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use fluxdi::Shared;
+use pathdiff::diff_paths;
 
 use crate::models::{
   FsBufferStatus, FsEntry, FsGraph, FsPathMetadata, FsRootInfo, FsSnapshot, FsWorkspaceIndex,
@@ -492,9 +493,8 @@ pub fn list_entries(data: &FsStateData) -> Result<Vec<FsEntry>, String> {
   {
     let entry = entry.map_err(|err| err.to_string())?;
     let path = entry.path();
-    let rel = path
-      .strip_prefix(root)
-      .map_err(|_| "Failed to compute relative path")?
+    let rel = diff_paths(path, root)
+      .ok_or_else(|| "Failed to compute relative path".to_string())?
       .to_string_lossy()
       .replace('\\', "/");
     if entry.file_type().is_dir() {
