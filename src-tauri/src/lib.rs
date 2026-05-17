@@ -24,7 +24,7 @@ fn run_impl() {
   let app_services =
     services::di::build_app_services().expect("failed to bootstrap application services");
 
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .manage(app_services)
     .manage(FsState(RwLock::new(FsStateData {
       root_kind: "internal".to_string(),
@@ -33,7 +33,21 @@ fn run_impl() {
       single_file: None,
     })))
     .manage(FsWatcherState(Mutex::new(None)))
-    .manage(FsBufferState(Mutex::new(HashMap::new())))
+    .manage(FsBufferState(Mutex::new(HashMap::new())));
+
+  #[cfg(not(any(target_os = "android", target_os = "ios")))]
+  let builder = builder.plugin(
+    tauri_plugin_window_state::Builder::default()
+      .with_denylist(&["splashscreen"])
+      .with_state_flags(
+        tauri_plugin_window_state::StateFlags::SIZE
+          | tauri_plugin_window_state::StateFlags::POSITION
+          | tauri_plugin_window_state::StateFlags::MAXIMIZED,
+      )
+      .build(),
+  );
+
+  builder
     .setup(|app| {
       let app_handle = app.handle();
       commands::app::setup_native_menu(&app_handle)?;

@@ -31,3 +31,6 @@ markdown2pdf = "1.0.0"
 pulldown-cmark = "0.13.3"
 docx-rs = "0.4"
 fluxdi = { version = "1.2.2", features = ["thread-safe"] }
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-window-state = "2.4.1"
