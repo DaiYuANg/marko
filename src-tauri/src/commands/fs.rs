@@ -1,31 +1,32 @@
-use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::Duration;
 
 use notify::{event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{Emitter, Manager, State};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-use crate::models::{
-  FsBufferStatus, FsEntry, FsPathMetadata, FsRootInfo, FsSnapshot, FsWorkspaceIndex,
-};
-use crate::state::{FsBufferState, FsState, FsStateData, FsWatcherState};
+use crate::models::{FsBufferStatus, FsRootInfo};
+use crate::state::{FsBufferState, FsState, FsWatcherState};
+
+pub use crate::services::workspace::ensure_default_file;
 
 const BUFFER_FLUSH_INTERVAL_MS: u64 = 1200;
 
 #[tauri::command]
-pub fn fs_get_root_info(state: State<'_, FsState>) -> Result<FsRootInfo, String> {
-  let data = state.0.read().map_err(|_| "Failed to lock fs state")?;
-  Ok(FsRootInfo {
-    kind: data.root_kind.clone(),
-    path: data.root_path.to_string_lossy().to_string(),
-  })
+pub fn fs_get_root_info(
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<FsRootInfo, String> {
+  services.workspace.root_info(&state)
 }
 
 #[tauri::command]
-pub async fn fs_get_snapshot(state: State<'_, FsState>) -> Result<FsSnapshot, String> {
-  snapshot_from_state_async(&state).await
+pub async fn fs_get_snapshot(
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<crate::models::FsSnapshot, String> {
+  services.workspace.snapshot(&state).await
 }
 
 #[tauri::command]
@@ -37,48 +38,12 @@ pub async fn fs_set_root(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<FsRootInfo, String> {
-  let selected_root = match path {
-    Some(path) => {
-      let root = PathBuf::from(path);
-      let metadata = tokio::fs::metadata(&root)
-        .await
-        .map_err(|_| "Selected path is not a directory".to_string())?;
-      if !metadata.is_dir() {
-        return Err("Selected path is not a directory".to_string());
-      }
-      Some(root)
-    }
-    None => None,
-  };
-
-  let root_info = {
-    let mut data = state.0.write().map_err(|_| "Failed to lock fs state")?;
-    match selected_root {
-      Some(root) => {
-        data.root_kind = "external".to_string();
-        data.root_path = root;
-        data.single_file = None;
-      }
-      None => {
-        data.root_kind = "internal".to_string();
-        data.root_path = data.internal_root.clone();
-        data.single_file = None;
-      }
-    }
-    FsRootInfo {
-      kind: data.root_kind.clone(),
-      path: data.root_path.to_string_lossy().to_string(),
-    }
-  };
-
-  if root_info.kind == "internal" {
-    let root = PathBuf::from(&root_info.path);
-    ensure_default_file_async(root).await?;
-  }
-
-  services.fs_buffer.clear(&buffer_state)?;
+  let root_info = services
+    .workspace
+    .set_root(path, &state, &buffer_state)
+    .await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
-  emit_fs_changed_async(&app, &state).await?;
+  emit_fs_changed_async(&app, &state, &services).await?;
   Ok(root_info)
 }
 
@@ -91,42 +56,21 @@ pub async fn fs_set_single_file(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<FsRootInfo, String> {
-  let file_path = PathBuf::from(path);
-  let metadata = tokio::fs::metadata(&file_path)
-    .await
-    .map_err(|_| "Selected path is not a file".to_string())?;
-  if !metadata.is_file() {
-    return Err("Selected path is not a file".to_string());
-  }
-  if !is_markdown(&file_path) {
-    return Err("Selected file is not a Markdown file".to_string());
-  }
-
-  let root_info = {
-    let mut data = state.0.write().map_err(|_| "Failed to lock fs state")?;
-    data.root_kind = "single".to_string();
-    data.root_path = file_path.clone();
-    data.single_file = Some(file_path.clone());
-    FsRootInfo {
-      kind: data.root_kind.clone(),
-      path: data.root_path.to_string_lossy().to_string(),
-    }
-  };
-
-  services.fs_buffer.clear(&buffer_state)?;
+  let root_info = services
+    .workspace
+    .set_single_file(path, &state, &buffer_state)
+    .await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
-  emit_fs_changed_async(&app, &state).await?;
+  emit_fs_changed_async(&app, &state, &services).await?;
   Ok(root_info)
 }
 
 #[tauri::command]
-pub async fn fs_list_entries(state: State<'_, FsState>) -> Result<Vec<FsEntry>, String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  list_entries_async(data).await
+pub async fn fs_list_entries(
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<Vec<crate::models::FsEntry>, String> {
+  services.workspace.list_entries(&state).await
 }
 
 #[tauri::command]
@@ -136,10 +80,10 @@ pub async fn fs_read_file(
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<String, String> {
-  if let Some(content) = services.fs_buffer.read(&path, &buffer_state)? {
-    return Ok(content);
-  }
-  read_from_disk(&path, &state).await
+  services
+    .workspace
+    .read_file(&path, &state, &buffer_state)
+    .await
 }
 
 #[tauri::command]
@@ -147,32 +91,11 @@ pub async fn fs_get_workspace_index(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
-) -> Result<FsWorkspaceIndex, String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  let entries = list_entries_async(data.clone()).await?;
-  let files = entries
-    .into_iter()
-    .filter(|entry| entry.kind == "file")
-    .collect::<Vec<_>>();
-
-  let mut contents = Vec::with_capacity(files.len());
-  for file in &files {
-    let content = if let Some(content) = services.fs_buffer.read(&file.path, &buffer_state)? {
-      content
-    } else {
-      read_from_disk_data(&file.path, &data).await?
-    };
-    contents.push((file.path.clone(), content));
-  }
-
-  let markdown_index = services.markdown_index.clone();
-  tokio::task::spawn_blocking(move || markdown_index.build_workspace_index(&files, &contents))
+) -> Result<crate::models::FsWorkspaceIndex, String> {
+  services
+    .workspace
+    .workspace_index(&state, &buffer_state)
     .await
-    .map_err(|err| format!("Workspace index task failed: {err}"))
 }
 
 #[tauri::command]
@@ -182,15 +105,10 @@ pub async fn fs_open_file(
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<String, String> {
-  if let Some(content) = services.fs_buffer.read(&path, &buffer_state)? {
-    return Ok(content);
-  }
-
-  let content = read_from_disk(&path, &state).await?;
   services
-    .fs_buffer
-    .insert_clean(&buffer_state, &path, &content)?;
-  Ok(content)
+    .workspace
+    .open_file(&path, &state, &buffer_state)
+    .await
 }
 
 #[tauri::command]
@@ -202,13 +120,9 @@ pub fn fs_update_buffer(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<FsBufferStatus, String> {
-  let state_data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  let _ = services.path_resolver.resolve(&state_data, &path)?;
-  let status = services.fs_buffer.upsert(&buffer_state, &path, &content)?;
+  let status = services
+    .workspace
+    .update_buffer(&path, &content, &state, &buffer_state)?;
   emit_buffer_status(&app, &status)?;
   Ok(status)
 }
@@ -221,8 +135,8 @@ pub async fn fs_flush_buffers(
   app: tauri::AppHandle,
 ) -> Result<usize, String> {
   let statuses = services
-    .fs_buffer
-    .flush_all_with_status_async(&state, &buffer_state)
+    .workspace
+    .flush_buffers(&state, &buffer_state)
     .await?;
   emit_buffer_statuses(&app, &statuses)?;
   Ok(statuses.len())
@@ -242,35 +156,8 @@ pub async fn fs_get_path_metadata(
   path: String,
   state: State<'_, FsState>,
   services: State<'_, crate::services::AppServices>,
-) -> Result<FsPathMetadata, String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  let resolved = services.path_resolver.resolve(&data, &path)?;
-  let metadata = tokio::fs::metadata(&resolved)
-    .await
-    .map_err(|err| format!("Failed to read metadata: {err}"))?;
-
-  let modified_ms = metadata
-    .modified()
-    .ok()
-    .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-    .map(|duration| duration.as_millis());
-
-  Ok(FsPathMetadata {
-    path,
-    absolute_path: resolved.to_string_lossy().to_string(),
-    kind: if metadata.is_dir() {
-      "folder".to_string()
-    } else {
-      "file".to_string()
-    },
-    size_bytes: metadata.len(),
-    modified_ms,
-    readonly: metadata.permissions().readonly(),
-  })
+) -> Result<crate::models::FsPathMetadata, String> {
+  services.workspace.path_metadata(path, &state).await
 }
 
 // Kept for backward compatibility with old frontend calls.
@@ -282,16 +169,9 @@ pub async fn fs_write_file(
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
-  let state_data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  let _ = services.path_resolver.resolve(&state_data, &path)?;
   services
-    .fs_buffer
-    .upsert(&buffer_state, &path, &content)
-    .map(|_| ())
+    .workspace
+    .write_file_buffered(&path, &content, &state, &buffer_state)
 }
 
 #[tauri::command]
@@ -302,30 +182,11 @@ pub async fn fs_create_file(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  ensure_workspace_mode(&data)?;
-  let resolved = services.path_resolver.resolve(&data, &path)?;
-  if let Some(parent) = resolved.parent() {
-    tokio::fs::create_dir_all(parent)
-      .await
-      .map_err(|err| format!("Failed to create dir: {err}"))?;
-  }
-  if !tokio::fs::try_exists(&resolved)
-    .await
-    .map_err(|err| format!("Failed to check file: {err}"))?
-  {
-    tokio::fs::write(resolved, "")
-      .await
-      .map_err(|err| format!("Failed to create file: {err}"))?;
-  }
-
-  services.fs_buffer.remove_path(&buffer_state, &path)?;
-
-  emit_fs_changed_async(&app, &state).await?;
+  services
+    .workspace
+    .create_file(path, &state, &buffer_state)
+    .await?;
+  emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
 
@@ -336,17 +197,8 @@ pub async fn fs_create_dir(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  ensure_workspace_mode(&data)?;
-  let resolved = services.path_resolver.resolve(&data, &path)?;
-  tokio::fs::create_dir_all(resolved)
-    .await
-    .map_err(|err| format!("Failed to create dir: {err}"))?;
-  emit_fs_changed_async(&app, &state).await?;
+  services.workspace.create_dir(path, &state).await?;
+  emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
 
@@ -358,27 +210,11 @@ pub async fn fs_delete_path(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  ensure_workspace_mode(&data)?;
-  let resolved = services.path_resolver.resolve(&data, &path)?;
-  let metadata = tokio::fs::metadata(&resolved)
-    .await
-    .map_err(|err| format!("Failed to read metadata: {err}"))?;
-  if metadata.is_dir() {
-    tokio::fs::remove_dir_all(resolved)
-      .await
-      .map_err(|err| format!("Failed to delete dir: {err}"))?;
-  } else {
-    tokio::fs::remove_file(resolved)
-      .await
-      .map_err(|err| format!("Failed to delete file: {err}"))?;
-  }
-  services.fs_buffer.remove_path(&buffer_state, &path)?;
-  emit_fs_changed_async(&app, &state).await?;
+  services
+    .workspace
+    .delete_path(path, &state, &buffer_state)
+    .await?;
+  emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
 
@@ -391,24 +227,11 @@ pub async fn fs_rename_path(
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  ensure_workspace_mode(&data)?;
-  let from_path = services.path_resolver.resolve(&data, &from)?;
-  let to_path = services.path_resolver.resolve(&data, &to)?;
-  if let Some(parent) = to_path.parent() {
-    tokio::fs::create_dir_all(parent)
-      .await
-      .map_err(|err| format!("Failed to create dir: {err}"))?;
-  }
-  tokio::fs::rename(from_path, to_path)
-    .await
-    .map_err(|err| format!("Failed to rename: {err}"))?;
-  services.fs_buffer.rename_path(&buffer_state, &from, &to)?;
-  emit_fs_changed_async(&app, &state).await?;
+  services
+    .workspace
+    .rename_path(from, to, &state, &buffer_state)
+    .await?;
+  emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
 
@@ -461,8 +284,11 @@ pub fn start_fs_watcher(
             continue;
           }
           while rx.try_recv().is_ok() {}
-          if let Some(state) = app_handle.try_state::<FsState>() {
-            let _ = emit_fs_changed_async(&app_handle, &state).await;
+          if let (Some(state), Some(services)) = (
+            app_handle.try_state::<FsState>(),
+            app_handle.try_state::<crate::services::AppServices>(),
+          ) {
+            let _ = emit_fs_changed_async(&app_handle, &state, &services).await;
           }
         }
         Err(err) => log::warn!("fs watcher error: {err}"),
@@ -490,8 +316,8 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
       match (state, buffer_state, services) {
         (Some(state), Some(buffer_state), Some(services)) => {
           match services
-            .fs_buffer
-            .flush_all_with_status_async(&state, &buffer_state)
+            .workspace
+            .flush_buffers(&state, &buffer_state)
             .await
           {
             Ok(statuses) => {
@@ -508,33 +334,6 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
   });
 }
 
-pub fn ensure_default_file(root: &Path) -> Result<(), String> {
-  if !root.exists() {
-    fs::create_dir_all(root).map_err(|err| format!("Failed to create dir: {err}"))?;
-  }
-  for entry in walkdir::WalkDir::new(root)
-    .min_depth(1)
-    .into_iter()
-    .filter_entry(|entry| !is_hidden(entry.path()))
-  {
-    let entry = entry.map_err(|err| err.to_string())?;
-    if entry.file_type().is_file() && is_markdown(entry.path()) {
-      return Ok(());
-    }
-  }
-  let default_path = root.join("Untitled.md");
-  if !default_path.exists() {
-    fs::write(default_path, "").map_err(|err| format!("Failed to create default file: {err}"))?;
-  }
-  Ok(())
-}
-
-async fn ensure_default_file_async(root: PathBuf) -> Result<(), String> {
-  tokio::task::spawn_blocking(move || ensure_default_file(&root))
-    .await
-    .map_err(|err| format!("Default file task failed: {err}"))?
-}
-
 pub fn flush_all_buffers(state: &FsState, buffer_state: &FsBufferState) -> Result<usize, String> {
   Ok(flush_all_buffers_with_status(state, buffer_state)?.len())
 }
@@ -543,127 +342,7 @@ fn flush_all_buffers_with_status(
   state: &FsState,
   buffer_state: &FsBufferState,
 ) -> Result<Vec<FsBufferStatus>, String> {
-  crate::services::fs_buffer::BufferService.flush_all_with_status(state, buffer_state)
-}
-
-async fn read_from_disk(path: &str, state: &FsState) -> Result<String, String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  read_from_disk_data(path, &data).await
-}
-
-async fn read_from_disk_data(path: &str, data: &FsStateData) -> Result<String, String> {
-  let resolved = resolve_path(data, path)?;
-  tokio::fs::read_to_string(resolved)
-    .await
-    .map_err(|err| format!("Failed to read file: {err}"))
-}
-
-fn resolve_path(data: &FsStateData, relative: &str) -> Result<PathBuf, String> {
-  crate::services::path_resolver::PathResolver.resolve(data, relative)
-}
-
-fn list_entries(data: &FsStateData) -> Result<Vec<FsEntry>, String> {
-  if data.root_kind == "single" {
-    if let Some(single_file) = &data.single_file {
-      let name = single_file
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "Invalid file name".to_string())?
-        .to_string();
-      return Ok(vec![FsEntry {
-        path: name.clone(),
-        name,
-        kind: "file".to_string(),
-      }]);
-    }
-    return Ok(vec![]);
-  }
-
-  let root = &data.root_path;
-  let mut entries = Vec::new();
-  if !root.exists() {
-    return Ok(entries);
-  }
-  for entry in walkdir::WalkDir::new(root)
-    .min_depth(1)
-    .into_iter()
-    .filter_entry(|entry| !is_hidden(entry.path()))
-  {
-    let entry = entry.map_err(|err| err.to_string())?;
-    let path = entry.path();
-    let rel = path
-      .strip_prefix(root)
-      .map_err(|_| "Failed to compute relative path")?
-      .to_string_lossy()
-      .replace('\\', "/");
-    if entry.file_type().is_dir() {
-      entries.push(FsEntry {
-        path: rel.clone(),
-        name: entry.file_name().to_string_lossy().to_string(),
-        kind: "folder".to_string(),
-      });
-      continue;
-    }
-    if !is_markdown(path) {
-      continue;
-    }
-    entries.push(FsEntry {
-      path: rel.clone(),
-      name: entry.file_name().to_string_lossy().to_string(),
-      kind: "file".to_string(),
-    });
-  }
-  entries.sort_by(|a, b| a.path.cmp(&b.path));
-  Ok(entries)
-}
-
-async fn list_entries_async(data: FsStateData) -> Result<Vec<FsEntry>, String> {
-  tokio::task::spawn_blocking(move || list_entries(&data))
-    .await
-    .map_err(|err| format!("List entries task failed: {err}"))?
-}
-
-async fn snapshot_from_state_async(state: &FsState) -> Result<FsSnapshot, String> {
-  let data = state
-    .0
-    .read()
-    .map_err(|_| "Failed to lock fs state")?
-    .clone();
-  let entries = list_entries_async(data.clone()).await?;
-  Ok(FsSnapshot {
-    root: FsRootInfo {
-      kind: data.root_kind,
-      path: data.root_path.to_string_lossy().to_string(),
-    },
-    entries,
-  })
-}
-
-fn ensure_workspace_mode(data: &FsStateData) -> Result<(), String> {
-  if data.root_kind == "single" {
-    return Err("Operation is not supported in single-file mode".to_string());
-  }
-  Ok(())
-}
-
-fn is_hidden(path: &Path) -> bool {
-  path
-    .file_name()
-    .and_then(|name| name.to_str())
-    .map(|name| name.starts_with('.'))
-    .unwrap_or(false)
-}
-
-fn is_markdown(path: &Path) -> bool {
-  path
-    .extension()
-    .and_then(|ext| ext.to_str())
-    .map(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
-    .unwrap_or(false)
+  crate::services::fs_buffer::flush_all_buffers_with_status(state, buffer_state)
 }
 
 fn should_emit_for_watch_event(event: &notify::Event) -> bool {
@@ -725,8 +404,12 @@ fn is_temp_write_rename(paths: &[PathBuf]) -> bool {
   tmp_stem == other_stem
 }
 
-async fn emit_fs_changed_async(app: &tauri::AppHandle, state: &FsState) -> Result<(), String> {
-  let snapshot = snapshot_from_state_async(state).await?;
+async fn emit_fs_changed_async(
+  app: &tauri::AppHandle,
+  state: &FsState,
+  services: &crate::services::AppServices,
+) -> Result<(), String> {
+  let snapshot = services.workspace.snapshot(state).await?;
   app
     .emit("fs-changed", snapshot)
     .map_err(|err| err.to_string())

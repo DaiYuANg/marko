@@ -2,12 +2,28 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use fluxdi::Shared;
+
 use crate::models::FsBufferStatus;
 use crate::services::path_resolver::PathResolver;
 use crate::state::{FsBufferEntry, FsBufferState, FsState, FsStateData};
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct BufferService;
+#[derive(Debug, Clone)]
+pub struct BufferService {
+  path_resolver: Shared<PathResolver>,
+}
+
+impl BufferService {
+  pub fn new(path_resolver: Shared<PathResolver>) -> Self {
+    Self { path_resolver }
+  }
+}
+
+impl Default for BufferService {
+  fn default() -> Self {
+    Self::new(Shared::new(PathResolver))
+  }
+}
 
 #[derive(Debug, Clone)]
 pub struct PendingWrite {
@@ -90,7 +106,7 @@ impl BufferService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<Vec<FsBufferStatus>, String> {
-    flush_all_buffers_with_status(state, buffer_state)
+    flush_all_buffers_with_status_for_resolver(&self.path_resolver, state, buffer_state)
   }
 
   pub async fn flush_all_with_status_async(
@@ -98,11 +114,19 @@ impl BufferService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<Vec<FsBufferStatus>, String> {
-    flush_all_buffers_with_status_async(state, buffer_state).await
+    flush_all_buffers_with_status_async_for_resolver(&self.path_resolver, state, buffer_state).await
   }
 }
 
 pub fn flush_all_buffers_with_status(
+  state: &FsState,
+  buffer_state: &FsBufferState,
+) -> Result<Vec<FsBufferStatus>, String> {
+  BufferService::default().flush_all_with_status(state, buffer_state)
+}
+
+fn flush_all_buffers_with_status_for_resolver(
+  path_resolver: &PathResolver,
   state: &FsState,
   buffer_state: &FsBufferState,
 ) -> Result<Vec<FsBufferStatus>, String> {
@@ -117,7 +141,7 @@ pub fn flush_all_buffers_with_status(
       .0
       .lock()
       .map_err(|_| "Failed to lock buffer state")?;
-    collect_dirty_writes(&state_data, &buffers)?
+    collect_dirty_writes(path_resolver, &state_data, &buffers)?
   };
   if pending.is_empty() {
     return Ok(Vec::new());
@@ -144,7 +168,8 @@ pub fn flush_all_buffers_with_status(
   Ok(statuses)
 }
 
-pub async fn flush_all_buffers_with_status_async(
+async fn flush_all_buffers_with_status_async_for_resolver(
+  path_resolver: &PathResolver,
   state: &FsState,
   buffer_state: &FsBufferState,
 ) -> Result<Vec<FsBufferStatus>, String> {
@@ -159,7 +184,7 @@ pub async fn flush_all_buffers_with_status_async(
       .0
       .lock()
       .map_err(|_| "Failed to lock buffer state")?;
-    collect_dirty_writes(&state_data, &buffers)?
+    collect_dirty_writes(path_resolver, &state_data, &buffers)?
   };
   if pending.is_empty() {
     return Ok(Vec::new());
@@ -196,6 +221,7 @@ pub fn clear_buffers(buffer_state: &FsBufferState) -> Result<(), String> {
 }
 
 pub fn collect_dirty_writes(
+  path_resolver: &PathResolver,
   state_data: &FsStateData,
   buffers: &HashMap<String, FsBufferEntry>,
 ) -> Result<Vec<PendingWrite>, String> {
@@ -204,7 +230,7 @@ pub fn collect_dirty_writes(
     if !entry.dirty {
       continue;
     }
-    let absolute_path = PathResolver.resolve(state_data, path)?;
+    let absolute_path = path_resolver.resolve(state_data, path)?;
     pending.push(PendingWrite {
       path: path.clone(),
       absolute_path,

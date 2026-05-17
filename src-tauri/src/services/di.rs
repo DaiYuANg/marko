@@ -2,7 +2,7 @@ use fluxdi::{Application, Error, Injector, Module, Provider, Shared};
 
 use super::{
   fs_buffer::BufferService, markdown_index::MarkdownIndexService, path_resolver::PathResolver,
-  AppServices, ExportService,
+  workspace::WorkspaceService, AppServices, ExportService,
 };
 
 struct AppModule;
@@ -10,10 +10,29 @@ struct AppModule;
 impl Module for AppModule {
   fn configure(&self, injector: &Injector) -> Result<(), Error> {
     injector.try_provide::<ExportService>(Provider::root(|_| Shared::new(ExportService)))?;
-    injector.try_provide::<BufferService>(Provider::root(|_| Shared::new(BufferService)))?;
+    injector.try_provide::<PathResolver>(Provider::root(|_| Shared::new(PathResolver)))?;
+    injector.try_provide::<BufferService>(Provider::root(|injector| {
+      Shared::new(BufferService::new(
+        injector
+          .try_resolve::<PathResolver>()
+          .expect("PathResolver should be registered before BufferService"),
+      ))
+    }))?;
     injector
       .try_provide::<MarkdownIndexService>(Provider::root(|_| Shared::new(MarkdownIndexService)))?;
-    injector.try_provide::<PathResolver>(Provider::root(|_| Shared::new(PathResolver)))?;
+    injector.try_provide::<WorkspaceService>(Provider::root(|injector| {
+      let path_resolver = injector
+        .try_resolve::<PathResolver>()
+        .expect("PathResolver should be registered before WorkspaceService");
+      let buffer = injector
+        .try_resolve::<BufferService>()
+        .expect("BufferService should be registered before WorkspaceService");
+      let markdown_index = injector
+        .try_resolve::<MarkdownIndexService>()
+        .expect("MarkdownIndexService should be registered before WorkspaceService");
+
+      Shared::new(WorkspaceService::new(path_resolver, buffer, markdown_index))
+    }))?;
 
     Ok(())
   }
@@ -27,8 +46,7 @@ pub fn build_app_services() -> Result<AppServices, Error> {
   Ok(AppServices {
     export: injector.try_resolve::<ExportService>()?,
     fs_buffer: injector.try_resolve::<BufferService>()?,
-    markdown_index: injector.try_resolve::<MarkdownIndexService>()?,
-    path_resolver: injector.try_resolve::<PathResolver>()?,
+    workspace: injector.try_resolve::<WorkspaceService>()?,
   })
 }
 
@@ -36,11 +54,25 @@ pub fn build_app_services() -> Result<AppServices, Error> {
 mod tests {
   use super::*;
 
-  #[test]
-  fn builds_app_services_from_container() {
+  #[tokio::test]
+  async fn builds_app_services_from_container() {
     let services = build_app_services().expect("app services should resolve from fluxdi");
 
-    let index = services.markdown_index.build_workspace_index(&[], &[]);
+    let state = crate::state::FsState(std::sync::RwLock::new(crate::state::FsStateData {
+      root_kind: "internal".to_string(),
+      root_path: std::path::PathBuf::new(),
+      internal_root: std::path::PathBuf::new(),
+      single_file: None,
+    }));
+
+    let index = services
+      .workspace
+      .workspace_index(
+        &state,
+        &crate::state::FsBufferState(std::sync::Mutex::new(std::collections::HashMap::new())),
+      )
+      .await
+      .expect("workspace index should resolve through WorkspaceService");
     assert!(index.files.is_empty());
   }
 }
