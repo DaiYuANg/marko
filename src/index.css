@@ -337,6 +337,24 @@
   color: hsl(var(--foreground));
 }
 
+.tabs-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, hsl(var(--foreground)) 22%, transparent) transparent;
+}
+
+.tabs-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabs-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, hsl(var(--foreground)) 22%, transparent);
+}
+
+.tabs-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .theme-choice {
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));

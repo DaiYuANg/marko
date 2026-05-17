@@ -1,8 +1,7 @@
-import { memo, useCallback, type WheelEvent } from 'react'
+import { memo, useCallback, useEffect, useRef, type WheelEvent } from 'react'
 import { Code2, FileText, GitGraph, PenLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
@@ -55,21 +54,28 @@ const TabsBarComponent = ({
   silentSave,
 }: TabsBarProps) => {
   const { t } = useI18n()
+  const tabsViewportRef = useRef<HTMLDivElement | null>(null)
   const activeTab = activePath ?? ''
   const compact = tabs.length >= 8
   const activeSaveState = activePath ? saveStates[activePath] : undefined
   const activeSaveLabelKey = getSaveLabelKey(activeSaveState)
 
   const handleTabsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    const viewport = event.currentTarget.querySelector(
-      '[data-radix-scroll-area-viewport]',
-    ) as HTMLDivElement | null
-    if (!viewport) return
+    const viewport = event.currentTarget
     if (viewport.scrollWidth <= viewport.clientWidth) return
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
     viewport.scrollLeft += event.deltaY
     event.preventDefault()
   }, [])
+
+  useEffect(() => {
+    if (!activePath) return
+    const viewport = tabsViewportRef.current
+    const activeTrigger = Array.from(
+      viewport?.querySelectorAll<HTMLElement>('[data-tab-path]') ?? [],
+    ).find((trigger) => trigger.dataset.tabPath === activePath)
+    activeTrigger?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activePath])
 
   return (
     <div className="tab-strip flex h-10 items-center gap-2 border-b border-border/80 px-2">
@@ -82,12 +88,12 @@ const TabsBarComponent = ({
           }
         }}
       >
-        <ScrollArea
-          className="w-full whitespace-nowrap"
+        <div
+          ref={tabsViewportRef}
+          className="tabs-scrollbar w-full overflow-x-auto overflow-y-hidden whitespace-nowrap"
           onWheel={handleTabsWheel}
-          viewportClassName="w-full"
         >
-          <TabsList className="h-8 w-max min-w-full justify-start rounded-none bg-transparent p-0">
+          <TabsList className="inline-flex h-8 w-max min-w-full justify-start rounded-none bg-transparent p-0">
             {tabs.map((path) => {
               const saveState = saveStates[path]
               const isDirty = !silentSave && Boolean(dirtyPaths[path])
@@ -97,7 +103,8 @@ const TabsBarComponent = ({
                 <TabsTrigger
                   key={path}
                   value={path}
-                  className="tab-item group relative h-8 gap-1.5 rounded-md px-2 text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
+                  data-tab-path={path}
+                  className="tab-item group relative h-8 shrink-0 gap-1.5 rounded-md px-2 text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
                   title={path}
                 >
                   <FileText className="h-3.5 w-3.5" />
@@ -130,7 +137,7 @@ const TabsBarComponent = ({
               )
             })}
           </TabsList>
-        </ScrollArea>
+        </div>
       </Tabs>
       <div className="hidden min-w-0 items-center gap-2 md:flex">
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">

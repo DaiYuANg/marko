@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { List } from 'react-window'
 import {
   ChevronRight,
@@ -124,7 +124,7 @@ type TreeRowProps = {
   onInspectPath: (path: string) => void
 }
 
-const TreeRow = ({
+const TreeRowComponent = ({
   index,
   style,
   ariaAttributes,
@@ -283,6 +283,37 @@ const TreeRow = ({
   )
 }
 
+const MemoTreeRow = React.memo(TreeRowComponent, (prev, next) => {
+  const prevItem = prev.flattened[prev.index]
+  const nextItem = next.flattened[next.index]
+  if (prevItem?.node.path !== nextItem?.node.path) return false
+  if (prevItem?.depth !== nextItem?.depth) return false
+  if (prev.style !== next.style) return false
+  if (prev.readonlyTree !== next.readonlyTree) return false
+  if (prev.labels !== next.labels) return false
+
+  const path = nextItem.node.path
+  const wasActive = prev.activePath === path
+  const isActive = next.activePath === path
+  if (wasActive !== isActive) return false
+
+  const wasOpen = prev.openDirs.has(path)
+  const isOpen = next.openDirs.has(path)
+  return wasOpen === isOpen
+})
+
+const TreeRow = (
+  props: {
+    index: number
+    style: React.CSSProperties
+    ariaAttributes: {
+      'aria-posinset': number
+      'aria-setsize': number
+      role: 'listitem'
+    }
+  } & TreeRowProps,
+) => <MemoTreeRow {...props} />
+
 const SidebarComponent = ({
   collapsed,
   recentProjects,
@@ -304,16 +335,19 @@ const SidebarComponent = ({
   const filterInputRef = useRef<HTMLInputElement | null>(null)
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const readonlyTree = rootKind === 'single'
+  const activeDirKey = useMemo(() => {
+    if (!activePath) return ''
+    return activePath.split('/').slice(0, -1).join('/')
+  }, [activePath])
   const autoOpenDirs = useMemo(() => {
-    if (!activePath) return new Set<string>()
-    const parts = activePath.split('/')
-    if (parts.length <= 1) return new Set<string>()
+    if (!activeDirKey) return new Set<string>()
+    const parts = activeDirKey.split('/')
     const next = new Set<string>()
-    parts.slice(0, -1).forEach((_, index) => {
+    parts.forEach((_, index) => {
       next.add(parts.slice(0, index + 1).join('/'))
     })
     return next
-  }, [activePath])
+  }, [activeDirKey])
   const effectiveOpenDirs = useMemo(() => {
     if (autoOpenDirs.size === 0) return openDirs
     const next = new Set(openDirs)
@@ -356,18 +390,22 @@ const SidebarComponent = ({
     }
   }, [])
 
-  const toggleFolder = (path: string) => {
+  const toggleFolder = useCallback((path: string) => {
     setOpenDirs((prev) => {
       const next = new Set(prev)
       if (next.has(path)) next.delete(path)
       else next.add(path)
       return next
     })
-  }
-  const focusFilterInput = () => {
+  }, [])
+  const focusFilterInput = useCallback(() => {
     filterInputRef.current?.focus()
     filterInputRef.current?.select()
-  }
+  }, [])
+  const compactFiles = useMemo(
+    () => files.filter((file) => file.kind === 'file').slice(0, 8),
+    [files],
+  )
 
   return (
     <aside
@@ -506,27 +544,24 @@ const SidebarComponent = ({
         ) : (
           <TooltipProvider>
             <div className="flex flex-col items-center gap-1 pt-1">
-              {files
-                .filter((file) => file.kind === 'file')
-                .slice(0, 8)
-                .map((file) => {
-                  const isActive = file.path === activePath
-                  return (
-                    <Tooltip key={file.path}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={isActive ? 'secondary' : 'ghost'}
-                          size="icon"
-                          className="h-8 w-8 rounded-md"
-                          onClick={() => onOpenFile(file.path)}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">{file.path}</TooltipContent>
-                    </Tooltip>
-                  )
-                })}
+              {compactFiles.map((file) => {
+                const isActive = file.path === activePath
+                return (
+                  <Tooltip key={file.path}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={isActive ? 'secondary' : 'ghost'}
+                        size="icon"
+                        className="h-8 w-8 rounded-md"
+                        onClick={() => onOpenFile(file.path)}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{file.path}</TooltipContent>
+                  </Tooltip>
+                )
+              })}
             </div>
           </TooltipProvider>
         )}
