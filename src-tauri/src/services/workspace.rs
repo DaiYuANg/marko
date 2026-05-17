@@ -5,10 +5,11 @@ use std::time::UNIX_EPOCH;
 use fluxdi::Shared;
 
 use crate::models::{
-  FsBufferStatus, FsEntry, FsPathMetadata, FsRootInfo, FsSnapshot, FsWorkspaceIndex,
+  FsBufferStatus, FsEntry, FsGraph, FsPathMetadata, FsRootInfo, FsSnapshot, FsWorkspaceIndex,
 };
 use crate::services::{
-  fs_buffer::BufferService, markdown_index::MarkdownIndexService, path_resolver::PathResolver,
+  fs_buffer::BufferService, markdown_graph::MarkdownGraphService,
+  markdown_index::MarkdownIndexService, path_resolver::PathResolver,
 };
 use crate::state::{FsBufferState, FsState, FsStateData};
 
@@ -17,6 +18,7 @@ pub struct WorkspaceService {
   path_resolver: Shared<PathResolver>,
   buffer: Shared<BufferService>,
   markdown_index: Shared<MarkdownIndexService>,
+  markdown_graph: Shared<MarkdownGraphService>,
 }
 
 impl WorkspaceService {
@@ -24,11 +26,13 @@ impl WorkspaceService {
     path_resolver: Shared<PathResolver>,
     buffer: Shared<BufferService>,
     markdown_index: Shared<MarkdownIndexService>,
+    markdown_graph: Shared<MarkdownGraphService>,
   ) -> Self {
     Self {
       path_resolver,
       buffer,
       markdown_index,
+      markdown_graph,
     }
   }
 
@@ -189,6 +193,18 @@ impl WorkspaceService {
       .map_err(|err| format!("Workspace index task failed: {err}"))
   }
 
+  pub async fn workspace_graph(
+    &self,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<FsGraph, String> {
+    let index = self.workspace_index(state, buffer_state).await?;
+    let markdown_graph = self.markdown_graph.clone();
+    tokio::task::spawn_blocking(move || markdown_graph.build_workspace_graph(&index))
+      .await
+      .map_err(|err| format!("Workspace graph task failed: {err}"))
+  }
+
   pub async fn open_file(
     &self,
     path: &str,
@@ -202,6 +218,20 @@ impl WorkspaceService {
     let content = self.read_from_disk(path, state).await?;
     self.buffer.insert_clean(buffer_state, path, &content)?;
     Ok(content)
+  }
+
+  pub async fn outline_graph(
+    &self,
+    path: &str,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<FsGraph, String> {
+    let content = self.read_file(path, state, buffer_state).await?;
+    let path = path.to_string();
+    let markdown_graph = self.markdown_graph.clone();
+    tokio::task::spawn_blocking(move || markdown_graph.build_outline_graph(&path, &content))
+      .await
+      .map_err(|err| format!("Outline graph task failed: {err}"))
   }
 
   pub fn update_buffer(
@@ -397,7 +427,12 @@ impl Default for WorkspaceService {
   fn default() -> Self {
     let path_resolver = Shared::new(PathResolver);
     let buffer = Shared::new(BufferService::new(path_resolver.clone()));
-    Self::new(path_resolver, buffer, Shared::new(MarkdownIndexService))
+    Self::new(
+      path_resolver,
+      buffer,
+      Shared::new(MarkdownIndexService),
+      Shared::new(MarkdownGraphService),
+    )
   }
 }
 

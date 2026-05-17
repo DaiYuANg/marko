@@ -45,7 +45,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl overflow-hidden rounded-md p-0">
+      <DialogContent className="settings-dialog-surface max-w-2xl overflow-hidden rounded-md p-0">
         <DialogHeader className="tab-strip border-b border-border/80 px-5 py-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -54,7 +54,10 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
           <DialogDescription>{t('settings.description')}</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="grid min-h-[360px] grid-cols-[160px_1fr]">
+        <Tabs
+          defaultValue="general"
+          className="settings-dialog-body grid min-h-[360px] grid-cols-[160px_1fr]"
+        >
           <TabsList className="flex h-full flex-col items-stretch justify-start rounded-none border-r border-border bg-muted/35 p-2">
             <TabsTrigger value="general" className="justify-start gap-2 rounded-md">
               <Save className="h-4 w-4" />
@@ -157,7 +160,7 @@ function SettingsRow({
   control: React.ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-card p-3 shadow-sm">
+    <div className="settings-row-surface flex items-start justify-between gap-4 rounded-md p-3">
       <div className="min-w-0">
         <div className="text-sm font-medium">{title}</div>
         <div className="mt-1 text-xs leading-5 text-muted-foreground">{description}</div>

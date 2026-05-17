@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
+import React, { useEffect } from 'react'
 import { GitGraph } from 'lucide-react'
-import { Background, Controls, ReactFlow } from 'reactflow'
+import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from 'reactflow'
 import type { GraphData } from '@/logic/graph'
 import { ExternalNode, HeadingNode, MissingNode } from '@/components/GraphNodes'
 import { useI18n } from '@/i18n/useI18n'
@@ -14,8 +14,13 @@ type GraphPageProps = {
 
 const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
   const { t } = useI18n()
-  const nodes = useMemo(() => graph.nodes, [graph.nodes])
-  const edges = useMemo(() => graph.edges, [graph.edges])
+  const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges)
+
+  useEffect(() => {
+    setNodes(graph.nodes)
+    setEdges(graph.edges)
+  }, [graph.edges, graph.nodes, setEdges, setNodes])
 
   return (
     <div className="relative h-full bg-background">
@@ -30,19 +35,35 @@ const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
         </span>
       </div>
       <ReactFlow
+        className="h-full w-full"
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodesDraggable
+        nodesConnectable={false}
+        elementsSelectable
+        panOnDrag
+        zoomOnScroll
+        zoomOnPinch
+        zoomOnDoubleClick
+        preventScrolling
         onlyRenderVisibleElements
-        minZoom={0.2}
-        maxZoom={2}
+        minZoom={0.15}
+        maxZoom={2.2}
         onNodeClick={(_, node) => {
           if (node.id.startsWith('file:')) {
             onOpenFile(node.id.replace('file:', ''))
+            return
+          }
+          const path = typeof node.data?.path === 'string' ? node.data.path : null
+          if (path) {
+            onOpenFile(path)
           }
         }}
         fitView
-        fitViewOptions={{ padding: 0.18 }}
+        fitViewOptions={{ padding: 0.22 }}
       >
         <Background gap={16} size={1} />
         <Controls />

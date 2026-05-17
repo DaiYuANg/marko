@@ -64,6 +64,29 @@ export const fsWorkspaceIndexSchema = z.object({
   files: z.array(fsIndexedMarkdownFileSchema),
 })
 
+export const fsGraphNodeSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['file', 'heading', 'missing', 'external']),
+  label: z.string(),
+  path: z.string().nullable().optional(),
+  line: z.number().nullable().optional(),
+  level: z.number().nullable().optional(),
+  slug: z.string().nullable().optional(),
+})
+
+export const fsGraphEdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  kind: z.enum(['contains', 'links_to', 'references_heading']),
+})
+
+export const fsGraphSchema = z.object({
+  mode: z.enum(['outline', 'mindmap']),
+  nodes: z.array(fsGraphNodeSchema),
+  edges: z.array(fsGraphEdgeSchema),
+})
+
 export type FsRootKind = z.infer<typeof fsRootInfoSchema>['kind']
 export type FsEntry = z.infer<typeof fsEntrySchema>
 export type FsRootInfo = z.infer<typeof fsRootInfoSchema>
@@ -74,6 +97,9 @@ export type FsMarkdownHeading = z.infer<typeof fsMarkdownHeadingSchema>
 export type FsMarkdownLink = z.infer<typeof fsMarkdownLinkSchema>
 export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
 export type FsWorkspaceIndex = z.infer<typeof fsWorkspaceIndexSchema>
+export type FsGraphNode = z.infer<typeof fsGraphNodeSchema>
+export type FsGraphEdge = z.infer<typeof fsGraphEdgeSchema>
+export type FsGraph = z.infer<typeof fsGraphSchema>
 
 export const fsApi = {
   async getSnapshot() {
@@ -97,6 +123,14 @@ export const fsApi = {
   async getWorkspaceIndex() {
     const result = await invoke<unknown>('fs_get_workspace_index')
     return fsWorkspaceIndexSchema.parse(result)
+  },
+  async getWorkspaceGraph() {
+    const result = await invoke<unknown>('fs_get_workspace_graph')
+    return fsGraphSchema.parse(result)
+  },
+  async getOutlineGraph(path: string) {
+    const result = await invoke<unknown>('fs_get_outline_graph', { path })
+    return fsGraphSchema.parse(result)
   },
   async updateBuffer(path: string, content: string) {
     const result = await invoke<unknown>('fs_update_buffer', { path, content })

@@ -1,6 +1,7 @@
 pub mod di;
 pub mod export;
 pub mod fs_buffer;
+pub mod markdown_graph;
 pub mod markdown_index;
 pub mod path_resolver;
 pub mod workspace;

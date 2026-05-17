@@ -2,9 +2,9 @@ use crate::commands::app::{app_get_platform, menu_dispatch};
 use crate::commands::export::export_markdown;
 use crate::commands::fs::{
   fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers, fs_get_buffer_status,
-  fs_get_path_metadata, fs_get_root_info, fs_get_snapshot, fs_get_workspace_index, fs_list_entries,
-  fs_open_file, fs_read_file, fs_rename_path, fs_set_root, fs_set_single_file, fs_update_buffer,
-  fs_write_file,
+  fs_get_outline_graph, fs_get_path_metadata, fs_get_root_info, fs_get_snapshot,
+  fs_get_workspace_graph, fs_get_workspace_index, fs_list_entries, fs_open_file, fs_read_file,
+  fs_rename_path, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
 };
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
 use std::collections::HashMap;
@@ -162,6 +162,8 @@ fn run_impl() {
       fs_list_entries,
       fs_read_file,
       fs_get_workspace_index,
+      fs_get_workspace_graph,
+      fs_get_outline_graph,
       fs_open_file,
       fs_update_buffer,
       fs_flush_buffers,

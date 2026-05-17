@@ -290,6 +290,44 @@
   background: color-mix(in srgb, hsl(var(--card)) 94%, hsl(var(--background)));
 }
 
+.settings-dialog-surface {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 20px 60px -32px color-mix(in srgb, hsl(var(--foreground)) 48%, transparent),
+    0 0 0 1px color-mix(in srgb, hsl(var(--card)) 72%, transparent);
+}
+
+.settings-dialog-body {
+  background: hsl(var(--card));
+}
+
+.settings-row-surface {
+  background: color-mix(in srgb, hsl(var(--card)) 92%, hsl(var(--background)));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 6%, transparent);
+}
+
+.command-dialog-surface {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 22px 64px -34px color-mix(in srgb, hsl(var(--foreground)) 52%, transparent),
+    0 0 0 1px color-mix(in srgb, hsl(var(--popover)) 74%, transparent);
+}
+
+.command-dialog-command {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+.command-dialog-command [cmdk-input-wrapper] {
+  background: color-mix(in srgb, hsl(var(--popover)) 94%, hsl(var(--background)));
+  border-color: hsl(var(--border));
+}
+
 .tab-item {
   color: color-mix(in srgb, hsl(var(--foreground)) 70%, transparent);
 }

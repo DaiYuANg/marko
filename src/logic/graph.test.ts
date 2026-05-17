@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildGraphFromWorkspaceIndex } from '@/logic/graph'
-import type { FsWorkspaceIndex } from '@/services/fsApi'
+import { buildGraphFromRustGraph, buildGraphFromWorkspaceIndex } from '@/logic/graph'
+import type { FsGraph, FsWorkspaceIndex } from '@/services/fsApi'
 
 describe('buildGraphFromWorkspaceIndex', () => {
   it('builds file, heading, and normalized link edges from the Rust index shape', () => {
@@ -48,5 +48,47 @@ describe('buildGraphFromWorkspaceIndex', () => {
         }),
       ]),
     )
+  })
+
+  it('maps Rust outline graph nodes to React Flow nodes', () => {
+    const graph = buildGraphFromRustGraph({
+      mode: 'outline',
+      nodes: [
+        {
+          id: 'file:notes/current.md',
+          kind: 'file',
+          label: 'current',
+          path: 'notes/current.md',
+        },
+        {
+          id: 'heading:notes/current.md:intro',
+          kind: 'heading',
+          label: 'Intro',
+          path: 'notes/current.md',
+          line: 1,
+          level: 1,
+          slug: 'intro',
+        },
+      ],
+      edges: [
+        {
+          id: 'file:notes/current.md->heading:notes/current.md:intro-0',
+          source: 'file:notes/current.md',
+          target: 'heading:notes/current.md:intro',
+          kind: 'contains',
+        },
+      ],
+    } satisfies FsGraph)
+
+    expect(graph.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'heading:notes/current.md:intro',
+          type: 'heading',
+          data: expect.objectContaining({ label: 'Intro', subtitle: 'H1', line: 1 }),
+        }),
+      ]),
+    )
+    expect(graph.edges[0]).toEqual(expect.objectContaining({ type: 'smoothstep' }))
   })
 })

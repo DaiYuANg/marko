@@ -191,7 +191,14 @@ export function useAppLayoutState() {
     entries,
     entries.some((entry) => entry.kind === 'file'),
   )
-  const graph = useGraphData(entries, fileContents, viewMode === 'graph', workspaceIndex)
+  const graph = useGraphData(
+    entries,
+    fileContents,
+    viewMode === 'graph',
+    workspaceIndex,
+    currentPath,
+    rootKind,
+  )
 
   return {
     rootPath,

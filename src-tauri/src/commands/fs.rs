@@ -99,6 +99,31 @@ pub async fn fs_get_workspace_index(
 }
 
 #[tauri::command]
+pub async fn fs_get_workspace_graph(
+  state: State<'_, FsState>,
+  buffer_state: State<'_, FsBufferState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<crate::models::FsGraph, String> {
+  services
+    .workspace
+    .workspace_graph(&state, &buffer_state)
+    .await
+}
+
+#[tauri::command]
+pub async fn fs_get_outline_graph(
+  path: String,
+  state: State<'_, FsState>,
+  buffer_state: State<'_, FsBufferState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<crate::models::FsGraph, String> {
+  services
+    .workspace
+    .outline_graph(&path, &state, &buffer_state)
+    .await
+}
+
+#[tauri::command]
 pub async fn fs_open_file(
   path: String,
   state: State<'_, FsState>,

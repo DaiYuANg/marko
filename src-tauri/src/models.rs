@@ -77,3 +77,29 @@ pub struct FsIndexedMarkdownFile {
 pub struct FsWorkspaceIndex {
   pub files: Vec<FsIndexedMarkdownFile>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsGraphNode {
+  pub id: String,
+  pub kind: String,
+  pub label: String,
+  pub path: Option<String>,
+  pub line: Option<usize>,
+  pub level: Option<u8>,
+  pub slug: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsGraphEdge {
+  pub id: String,
+  pub source: String,
+  pub target: String,
+  pub kind: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsGraph {
+  pub mode: String,
+  pub nodes: Vec<FsGraphNode>,
+  pub edges: Vec<FsGraphEdge>,
+}

@@ -16,7 +16,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import {
-  CommandDialog,
   CommandEmpty,
   CommandGroup,
   CommandInput,
@@ -24,6 +23,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
+import AppCommandDialog from '@/components/AppCommandDialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -461,7 +461,7 @@ export default function Titlebar({
           </Tooltip>
         </div>
       </TooltipProvider>
-      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+      <AppCommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
         <CommandInput placeholder={t('sidebar.search')} />
         <CommandList>
           <CommandEmpty>{t('center.noFile')}</CommandEmpty>
@@ -590,7 +590,7 @@ export default function Titlebar({
             </CommandItem>
           </CommandGroup>
         </CommandList>
-      </CommandDialog>
+      </AppCommandDialog>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       {(platform === 'windows' || platform === 'linux') && isTauriRuntime() && (
         <div className="window-controls flex items-center">

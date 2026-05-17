@@ -1,6 +1,6 @@
 import type { Edge, Node } from 'reactflow'
 import type { FileEntry } from '@/store/useAppStore'
-import type { FsWorkspaceIndex } from '@/services/fsApi'
+import type { FsGraph, FsWorkspaceIndex } from '@/services/fsApi'
 import {
   createFileLabel,
   extractHeadings,
@@ -30,6 +30,8 @@ type LayoutNode = {
 
 const LEVEL_GAP = 320
 const ROW_GAP = 120
+const OUTLINE_LEVEL_GAP = 280
+const OUTLINE_ROW_GAP = 96
 const FORCE_ITERATIONS = 130
 const MAX_FORCE_NODES = 340
 
@@ -317,6 +319,56 @@ export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData
 
   applyGraphLayout(nodes, edges)
   return { nodes, edges }
+}
+
+export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
+  const nodes: Node[] = graph.nodes.map((node) => ({
+    id: node.id,
+    type: node.kind === 'file' ? undefined : node.kind,
+    data: {
+      label: node.label,
+      subtitle:
+        node.kind === 'heading' && node.level
+          ? `H${node.level}`
+          : (node.path ?? node.slug ?? undefined),
+      path: node.path ?? undefined,
+      line: node.line ?? undefined,
+      level: node.level ?? undefined,
+      slug: node.slug ?? undefined,
+    },
+    position: { x: 0, y: 0 },
+  }))
+  const edges: Edge[] = graph.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    type: edge.kind === 'contains' ? 'smoothstep' : undefined,
+  }))
+
+  if (nodes.length > 0 && graph.mode === 'outline') {
+    applyOutlineLayout(nodes)
+  } else if (nodes.length > 0) {
+    applyGraphLayout(nodes, edges)
+  }
+  return { nodes, edges }
+}
+
+const applyOutlineLayout = (nodes: Node[]) => {
+  const orderedNodes = [...nodes].sort((a, b) => {
+    if (a.id.startsWith('file:')) return -1
+    if (b.id.startsWith('file:')) return 1
+    const lineA = typeof a.data?.line === 'number' ? a.data.line : Number.MAX_SAFE_INTEGER
+    const lineB = typeof b.data?.line === 'number' ? b.data.line : Number.MAX_SAFE_INTEGER
+    return lineA === lineB ? a.id.localeCompare(b.id) : lineA - lineB
+  })
+
+  orderedNodes.forEach((node, index) => {
+    const level = typeof node.data?.level === 'number' ? node.data.level : 0
+    node.position = {
+      x: 120 + Math.max(level, 0) * OUTLINE_LEVEL_GAP,
+      y: 120 + index * OUTLINE_ROW_GAP,
+    }
+  })
 }
 
 const applyGraphLayout = (nodes: Node[], edges: Edge[]) => {

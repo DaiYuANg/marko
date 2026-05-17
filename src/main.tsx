@@ -1,11 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import 'reactflow/dist/style.css'
 import '@/index.css'
 import '@/i18n/setup'
 import App from '@/App.tsx'
 import { isDevelopment } from '@/utils/share.ts'
 
-if (isDevelopment() && import.meta.env.VITE_REACT_SCAN === 'true') {
+if (isDevelopment() && import.meta.env.VITE_REACT_SCAN !== 'false') {
   void import('react-scan')
     .then(({ scan }) => scan({ enabled: true }))
     .catch((error) => {
