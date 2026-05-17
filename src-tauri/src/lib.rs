@@ -1,10 +1,10 @@
 use crate::commands::app::{app_get_platform, menu_dispatch};
 use crate::commands::export::export_markdown;
 use crate::commands::fs::{
-  fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers, fs_get_buffer_status,
-  fs_get_outline_graph, fs_get_path_metadata, fs_get_root_info, fs_get_snapshot,
-  fs_get_workspace_graph, fs_get_workspace_index, fs_list_entries, fs_open_file, fs_read_file,
-  fs_rename_path, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
+  fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers, fs_get_background_tasks,
+  fs_get_buffer_status, fs_get_outline_graph, fs_get_path_metadata, fs_get_root_info,
+  fs_get_snapshot, fs_get_workspace_graph, fs_get_workspace_index, fs_list_entries, fs_open_file,
+  fs_read_file, fs_rename_path, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
 };
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ mod models;
 mod services;
 mod state;
 
-use crate::state::{FsBufferState, FsState, FsStateData, FsWatcherState};
+use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsStateData, FsWatcherState};
 
 fn run_impl() {
   let app_services =
@@ -33,7 +33,8 @@ fn run_impl() {
       single_file: None,
     })))
     .manage(FsWatcherState(Mutex::new(None)))
-    .manage(FsBufferState(Mutex::new(HashMap::new())));
+    .manage(FsBufferState(Mutex::new(HashMap::new())))
+    .manage(BackgroundTasksState(Mutex::new(HashMap::new())));
 
   #[cfg(not(any(target_os = "android", target_os = "ios")))]
   let builder = builder.plugin(
@@ -182,6 +183,7 @@ fn run_impl() {
       fs_update_buffer,
       fs_flush_buffers,
       fs_get_buffer_status,
+      fs_get_background_tasks,
       fs_get_path_metadata,
       fs_write_file,
       fs_create_file,

@@ -18,6 +18,8 @@ const EditorRoute = () => {
     graph,
     currentView,
     showEditorStatusBar,
+    graphLayoutPositions,
+    onSaveGraphNodePosition,
   } = useOutletContext<LayoutContext>()
   const requestedPath = routeToPath(routeSegment)
   const requestedPathExists =
@@ -47,6 +49,8 @@ const EditorRoute = () => {
       onOpenFile={onOpenFile}
       viewMode={currentView}
       showStatusBar={showEditorStatusBar}
+      graphLayoutPositions={graphLayoutPositions}
+      onSaveGraphNodePosition={onSaveGraphNodePosition}
     />
   )
 }

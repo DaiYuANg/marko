@@ -14,9 +14,9 @@ import { useI18n } from '@/i18n/useI18n'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
-import type { GraphData } from '@/logic/graph'
+import { withGraphLayoutPositions, type GraphData } from '@/logic/graph'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
-import type { FileEntry, ViewMode } from '@/store/useAppStore'
+import type { FileEntry, GraphLayoutPositions, ViewMode } from '@/store/useAppStore'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
@@ -33,6 +33,12 @@ type EditorPageProps = {
   onOpenFile: (path: string) => void
   viewMode: ViewMode
   showStatusBar: boolean
+  graphLayoutPositions: GraphLayoutPositions
+  onSaveGraphNodePosition: (
+    layoutKey: string,
+    nodeId: string,
+    position: { x: number; y: number },
+  ) => void
 }
 
 const getDocumentStats = (value: string) => {
@@ -55,6 +61,8 @@ function EditorPage({
   onOpenFile,
   viewMode,
   showStatusBar,
+  graphLayoutPositions,
+  onSaveGraphNodePosition,
 }: EditorPageProps) {
   const { t } = useI18n()
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
@@ -103,6 +111,10 @@ function EditorPage({
   const showEmptyState = !activePath && viewMode !== 'graph'
   const deferredStatsValue = useDeferredValue(editorValue)
   const stats = useMemo(() => getDocumentStats(deferredStatsValue), [deferredStatsValue])
+  const graphWithSavedLayout = useMemo(
+    () => withGraphLayoutPositions(graph, graphLayoutPositions),
+    [graph, graphLayoutPositions],
+  )
   const sourceFileContents = useMemo(
     () =>
       viewMode === 'source' && activePath
@@ -163,7 +175,11 @@ function EditorPage({
           {viewMode === 'graph' && (
             <div className="h-full animate-[view-fade_160ms_ease-out]">
               <Suspense fallback={<EditorPaneFallback />}>
-                <GraphPage graph={graph} onOpenFile={onOpenFile} />
+                <GraphPage
+                  graph={graphWithSavedLayout}
+                  onOpenFile={onOpenFile}
+                  onSaveNodePosition={onSaveGraphNodePosition}
+                />
               </Suspense>
             </div>
           )}

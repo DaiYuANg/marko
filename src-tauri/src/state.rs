@@ -1,3 +1,4 @@
+use crate::models::BackgroundTaskStatus;
 use notify::RecommendedWatcher;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,3 +24,5 @@ pub struct FsBufferEntry {
 }
 
 pub struct FsBufferState(pub Mutex<HashMap<String, FsBufferEntry>>);
+
+pub struct BackgroundTasksState(pub Mutex<HashMap<String, BackgroundTaskStatus>>);

@@ -12,6 +12,13 @@ export type FileEntry = {
   kind: 'file' | 'folder'
 }
 
+export type GraphNodePosition = {
+  x: number
+  y: number
+}
+
+export type GraphLayoutPositions = Record<string, GraphNodePosition>
+
 type AppState = {
   rootPath: string
   rootKind: 'internal' | 'external' | 'single'
@@ -26,6 +33,7 @@ type AppState = {
   rightSidebarCollapsed: boolean
   silentSave: boolean
   showEditorStatusBar: boolean
+  graphLayouts: Record<string, GraphLayoutPositions>
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external' | 'single') => void
   setEntries: (entries: FileEntry[]) => void
@@ -36,6 +44,7 @@ type AppState = {
   setLocale: (locale: Locale) => void
   setSilentSave: (silent: boolean) => void
   setShowEditorStatusBar: (show: boolean) => void
+  setGraphNodePosition: (layoutKey: string, nodeId: string, position: GraphNodePosition) => void
   toggleSidebar: () => void
   toggleRightSidebar: () => void
   touchRecentProject: (path: string) => void
@@ -63,6 +72,7 @@ export const useAppStore = create<AppState>()(
       rightSidebarCollapsed: false,
       silentSave: true,
       showEditorStatusBar: true,
+      graphLayouts: {},
       setRootPath: (path) => set((state) => (state.rootPath === path ? state : { rootPath: path })),
       setRootKind: (kind) => set((state) => (state.rootKind === kind ? state : { rootKind: kind })),
       setEntries: (entries) => set((state) => (state.entries === entries ? state : { entries })),
@@ -78,6 +88,23 @@ export const useAppStore = create<AppState>()(
         set((state) =>
           state.showEditorStatusBar === showEditorStatusBar ? state : { showEditorStatusBar },
         ),
+      setGraphNodePosition: (layoutKey, nodeId, position) =>
+        set((state) => {
+          const currentLayout = state.graphLayouts[layoutKey] ?? {}
+          const currentPosition = currentLayout[nodeId]
+          if (currentPosition?.x === position.x && currentPosition.y === position.y) {
+            return state
+          }
+          return {
+            graphLayouts: {
+              ...state.graphLayouts,
+              [layoutKey]: {
+                ...currentLayout,
+                [nodeId]: position,
+              },
+            },
+          }
+        }),
       toggleSidebar: () =>
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
@@ -120,6 +147,7 @@ export const useAppStore = create<AppState>()(
           rightSidebarCollapsed: state.rightSidebarCollapsed ?? false,
           silentSave: state.silentSave ?? true,
           showEditorStatusBar: state.showEditorStatusBar ?? true,
+          graphLayouts: state.graphLayouts ?? {},
         } as AppState
       },
       partialize: (state) => ({
@@ -135,6 +163,7 @@ export const useAppStore = create<AppState>()(
         rightSidebarCollapsed: state.rightSidebarCollapsed,
         silentSave: state.silentSave,
         showEditorStatusBar: state.showEditorStatusBar,
+        graphLayouts: state.graphLayouts,
       }),
     },
   ),

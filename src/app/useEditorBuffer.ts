@@ -60,6 +60,8 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
     setWorkspaceSaveStates((prev) =>
       produce(prev, (draft) => {
         const currentWorkspaceStates = draft[workspace] ?? (draft[workspace] = {})
+        const current = currentWorkspaceStates[path]
+        if (current?.status === next.status && current.message === next.message) return
         currentWorkspaceStates[path] = next
       }),
     )

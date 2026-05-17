@@ -168,6 +168,26 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
       })
     }
 
+    const hasEditorFocus = () => {
+      const root = rootRef.current
+      return Boolean(root && document.activeElement && root.contains(document.activeElement))
+    }
+
+    const applyPendingExternalValue = () => {
+      const pending = pendingExternalValueRef.current
+      const crepe = crepeRef.current
+      if (!pending || !crepe || pending.path !== activePathRef.current) return
+
+      pendingExternalValueRef.current = null
+      if (readCrepeMarkdown(crepe, latestValue.current) === pending.value) {
+        latestValue.current = pending.value
+        lastSyncedPathRef.current = pending.path
+        return
+      }
+      applyExternalValue(crepe, pending.value)
+      lastSyncedPathRef.current = pending.path
+    }
+
     useEffect(() => {
       const handler = (event: Event) => {
         const { path, slug } = (event as CustomEvent<FocusHeadingRequest>).detail ?? {}
@@ -312,7 +332,7 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
         return
       }
 
-      if (isComposingRef.current && !pathChanged) {
+      if ((isComposingRef.current || hasEditorFocus()) && !pathChanged) {
         if (localEcho?.path === activePath && localEcho.value !== value) {
           return
         }
@@ -331,18 +351,11 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
 
     const handleCompositionEnd = () => {
       isComposingRef.current = false
-      const pending = pendingExternalValueRef.current
-      const crepe = crepeRef.current
-      if (!pending || !crepe || pending.path !== activePathRef.current) return
+      applyPendingExternalValue()
+    }
 
-      pendingExternalValueRef.current = null
-      if (readCrepeMarkdown(crepe, latestValue.current) === pending.value) {
-        latestValue.current = pending.value
-        lastSyncedPathRef.current = pending.path
-        return
-      }
-      applyExternalValue(crepe, pending.value)
-      lastSyncedPathRef.current = pending.path
+    const handleBlur = () => {
+      applyPendingExternalValue()
     }
 
     return (
@@ -350,6 +363,7 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
         className="crepe flex h-full flex-1 flex-col"
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
+        onBlur={handleBlur}
       >
         <ScrollArea className="h-full flex-1">
           <div className="milkdown min-h-full" ref={rootRef} />

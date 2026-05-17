@@ -14,6 +14,7 @@ import {
 export type GraphData = {
   nodes: Node[]
   edges: Edge[]
+  layoutKey?: string
 }
 
 type NodeKind = 'file' | 'heading' | 'missing' | 'external'
@@ -190,11 +191,11 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
     ...missingNodes.values(),
   ]
   if (nodes.length === 0) {
-    return { nodes, edges }
+    return { nodes, edges, layoutKey: 'empty' }
   }
 
   applyGraphLayout(nodes, edges)
-  return { nodes, edges }
+  return { nodes, edges, layoutKey: createGraphLayoutKey('frontend', nodes, edges) }
 }
 
 export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData {
@@ -315,11 +316,11 @@ export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData
     ...missingNodes.values(),
   ]
   if (nodes.length === 0) {
-    return { nodes, edges }
+    return { nodes, edges, layoutKey: 'empty' }
   }
 
   applyGraphLayout(nodes, edges)
-  return { nodes, edges }
+  return { nodes, edges, layoutKey: createGraphLayoutKey('index', nodes, edges) }
 }
 
 export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
@@ -351,7 +352,33 @@ export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
   } else if (nodes.length > 0) {
     applyGraphLayout(nodes, edges)
   }
-  return { nodes, edges }
+  return { nodes, edges, layoutKey: createGraphLayoutKey(graph.mode, nodes, edges) }
+}
+
+export const withGraphLayoutPositions = (
+  graph: GraphData,
+  positions: Record<string, { x: number; y: number }>,
+): GraphData => {
+  if (Object.keys(positions).length === 0) return graph
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      position: positions[node.id] ?? node.position,
+    })),
+  }
+}
+
+const createGraphLayoutKey = (scope: string, nodes: Node[], edges: Edge[]) => {
+  const nodeKey = nodes
+    .map((node) => node.id)
+    .sort()
+    .join('|')
+  const edgeKey = edges
+    .map((edge) => `${edge.source}->${edge.target}`)
+    .sort()
+    .join('|')
+  return `${scope}:${nodeKey}:${edgeKey}`
 }
 
 const applyOutlineLayout = (nodes: Node[]) => {

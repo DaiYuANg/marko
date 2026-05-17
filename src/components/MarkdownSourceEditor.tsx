@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditor, IPosition, languages as MonacoLanguages } from 'monaco-editor'
 import { useDarkMode } from '@/hooks/useDarkMode'
@@ -39,6 +39,7 @@ export default function MarkdownSourceEditor({
   } | null>(null)
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null)
   const diagnosticsDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  const diagnosticsTimerRef = useRef<number | null>(null)
   const completionContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
   const diagnosticsContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
 
@@ -47,7 +48,7 @@ export default function MarkdownSourceEditor({
     diagnosticsContextRef.current = { activePath, files, fileContents, workspaceIndex }
   }, [activePath, fileContents, files, workspaceIndex])
 
-  const refreshDiagnostics = () => {
+  const refreshDiagnostics = useCallback(() => {
     const host = diagnosticHostRef.current
     const editor = host?.editor
     const monaco = host?.monaco
@@ -71,11 +72,21 @@ export default function MarkdownSourceEditor({
       code: diagnostic.severity === 'error' ? 'M001' : 'M002',
     }))
     monaco.editor.setModelMarkers(model, MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER, markers)
-  }
+  }, [])
+
+  const scheduleDiagnostics = useCallback(() => {
+    if (diagnosticsTimerRef.current !== null) {
+      window.clearTimeout(diagnosticsTimerRef.current)
+    }
+    diagnosticsTimerRef.current = window.setTimeout(() => {
+      diagnosticsTimerRef.current = null
+      refreshDiagnostics()
+    }, 120)
+  }, [refreshDiagnostics])
 
   useEffect(() => {
-    refreshDiagnostics()
-  }, [activePath, files, fileContents, workspaceIndex])
+    scheduleDiagnostics()
+  }, [activePath, files, fileContents, scheduleDiagnostics, workspaceIndex])
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor
@@ -112,7 +123,7 @@ export default function MarkdownSourceEditor({
       },
     })
     diagnosticsDisposableRef.current?.dispose()
-    diagnosticsDisposableRef.current = editor.onDidChangeModelContent(() => refreshDiagnostics())
+    diagnosticsDisposableRef.current = editor.onDidChangeModelContent(() => scheduleDiagnostics())
 
     refreshDiagnostics()
   }
@@ -123,6 +134,10 @@ export default function MarkdownSourceEditor({
       completionDisposableRef.current = null
       diagnosticsDisposableRef.current?.dispose()
       diagnosticsDisposableRef.current = null
+      if (diagnosticsTimerRef.current !== null) {
+        window.clearTimeout(diagnosticsTimerRef.current)
+        diagnosticsTimerRef.current = null
+      }
 
       const host = diagnosticHostRef.current
       const model = host?.editor.getModel()

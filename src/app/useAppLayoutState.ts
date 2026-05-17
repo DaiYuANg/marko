@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLatest } from 'ahooks'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useAppStore, type ViewMode } from '@/store/useAppStore'
+import type { ViewMode } from '@/store/useAppStore'
 import { buildFileTree } from '@/logic/fileTree'
 import { pathToRoute, routeToPath } from '@/logic/routing'
 import { useProjectLoader } from '@/app/useProjectLoader'
@@ -9,29 +9,40 @@ import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
 import { fsSnapshotSchema } from '@/services/fsApi'
 import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
+import {
+  useGraphLayoutStoreSlice,
+  useLayoutStoreSlice,
+  useWorkspaceStoreSlice,
+} from '@/store/selectors'
+
+const EMPTY_GRAPH_LAYOUT_POSITIONS: Record<string, { x: number; y: number }> = {}
 
 export function useAppLayoutState() {
-  const rootPath = useAppStore((s) => s.rootPath)
-  const rootKind = useAppStore((s) => s.rootKind)
-  const recentProjects = useAppStore((s) => s.recentProjects)
-  const entries = useAppStore((s) => s.entries)
-  const tabs = useAppStore((s) => s.tabs)
-  const activePath = useAppStore((s) => s.activePath)
-  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
-  const rightSidebarCollapsed = useAppStore((s) => s.rightSidebarCollapsed)
-  const theme = useAppStore((s) => s.theme)
-  const silentSave = useAppStore((s) => s.silentSave)
-  const showEditorStatusBar = useAppStore((s) => s.showEditorStatusBar)
-
-  const setRootPath = useAppStore((s) => s.setRootPath)
-  const setRootKind = useAppStore((s) => s.setRootKind)
-  const setEntries = useAppStore((s) => s.setEntries)
-  const setTabs = useAppStore((s) => s.setTabs)
-  const setActivePath = useAppStore((s) => s.setActivePath)
-  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  const toggleRightSidebar = useAppStore((s) => s.toggleRightSidebar)
-  const setTheme = useAppStore((s) => s.setTheme)
-  const touchRecentProject = useAppStore((s) => s.touchRecentProject)
+  const {
+    rootPath,
+    rootKind,
+    recentProjects,
+    entries,
+    tabs,
+    activePath,
+    setRootPath,
+    setRootKind,
+    setEntries,
+    setTabs,
+    setActivePath,
+    touchRecentProject,
+  } = useWorkspaceStoreSlice()
+  const {
+    sidebarCollapsed,
+    rightSidebarCollapsed,
+    theme,
+    silentSave,
+    showEditorStatusBar,
+    toggleSidebar,
+    toggleRightSidebar,
+    setTheme,
+  } = useLayoutStoreSlice()
+  const { graphLayouts, setGraphNodePosition } = useGraphLayoutStoreSlice()
 
   const [isMaximized, setIsMaximized] = useState(false)
   const [tabViewModes, setTabViewModes] = useState<Record<string, ViewMode>>({})
@@ -213,6 +224,13 @@ export function useAppLayoutState() {
     currentPath,
     rootKind,
   )
+  const graphLayoutPositions = useMemo(
+    () =>
+      graph.layoutKey
+        ? (graphLayouts[graph.layoutKey] ?? EMPTY_GRAPH_LAYOUT_POSITIONS)
+        : EMPTY_GRAPH_LAYOUT_POSITIONS,
+    [graph.layoutKey, graphLayouts],
+  )
 
   return {
     rootPath,
@@ -234,6 +252,7 @@ export function useAppLayoutState() {
     graph,
     workspaceIndex,
     inspectedPath: inspectedPath ?? currentPath,
+    graphLayoutPositions,
     editorValue,
     isMaximized,
     setIsMaximized,
@@ -252,6 +271,7 @@ export function useAppLayoutState() {
     onInspectPath: setInspectedPath,
     setTheme,
     setViewMode,
+    setGraphNodePosition,
     toggleSidebar,
     toggleRightSidebar,
   }

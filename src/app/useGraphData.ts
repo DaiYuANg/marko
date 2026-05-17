@@ -11,7 +11,7 @@ import type { FileEntry } from '@/store/useAppStore'
 import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
 import { isTauriRuntime } from '@/utils/tauri'
 
-const EMPTY_GRAPH: GraphData = { nodes: [], edges: [] }
+const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], layoutKey: 'empty' }
 
 export function useGraphData(
   entries: FileEntry[],

@@ -43,6 +43,14 @@ pub struct FsBufferStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct BackgroundTaskStatus {
+  pub id: String,
+  pub label: String,
+  pub status: String,
+  pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct FsMarkdownHeading {
   pub path: String,
   pub level: u8,

@@ -32,6 +32,13 @@ export const fsBufferStatusSchema = z.object({
   dirty: z.boolean(),
 })
 
+export const backgroundTaskStatusSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  status: z.enum(['idle', 'running', 'error']),
+  message: z.string().nullable().optional(),
+})
+
 export const fsMarkdownHeadingSchema = z.object({
   path: z.string(),
   level: z.number(),
@@ -93,6 +100,7 @@ export type FsRootInfo = z.infer<typeof fsRootInfoSchema>
 export type FsSnapshot = z.infer<typeof fsSnapshotSchema>
 export type FsPathMetadata = z.infer<typeof fsPathMetadataSchema>
 export type FsBufferStatus = z.infer<typeof fsBufferStatusSchema>
+export type BackgroundTaskStatus = z.infer<typeof backgroundTaskStatusSchema>
 export type FsMarkdownHeading = z.infer<typeof fsMarkdownHeadingSchema>
 export type FsMarkdownLink = z.infer<typeof fsMarkdownLinkSchema>
 export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
@@ -142,6 +150,10 @@ export const fsApi = {
   async getBufferStatus(path: string) {
     const result = await invoke<unknown>('fs_get_buffer_status', { path })
     return result == null ? null : fsBufferStatusSchema.parse(result)
+  },
+  async getBackgroundTasks() {
+    const result = await invoke<unknown>('fs_get_background_tasks')
+    return z.array(backgroundTaskStatusSchema).parse(result)
   },
   createFile(path: string) {
     return invoke('fs_create_file', { path })

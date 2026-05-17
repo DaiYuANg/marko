@@ -6,8 +6,8 @@ use tauri::{Emitter, Manager, State};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-use crate::models::{FsBufferStatus, FsRootInfo};
-use crate::state::{FsBufferState, FsState, FsWatcherState};
+use crate::models::{BackgroundTaskStatus, FsBufferStatus, FsRootInfo};
+use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsWatcherState};
 
 pub use crate::services::workspace::ensure_default_file;
 
@@ -156,14 +156,30 @@ pub fn fs_update_buffer(
 pub async fn fs_flush_buffers(
   state: State<'_, FsState>,
   buffer_state: State<'_, FsBufferState>,
+  task_state: State<'_, BackgroundTasksState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<usize, String> {
-  let statuses = services
+  set_background_task(&task_state, "buffer-flush", "Save queue", "running", None)?;
+  let statuses = match services
     .workspace
     .flush_buffers(&state, &buffer_state)
-    .await?;
+    .await
+  {
+    Ok(statuses) => statuses,
+    Err(err) => {
+      let _ = set_background_task(
+        &task_state,
+        "buffer-flush",
+        "Save queue",
+        "error",
+        Some(err.clone()),
+      );
+      return Err(err);
+    }
+  };
   emit_buffer_statuses(&app, &statuses)?;
+  set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)?;
   Ok(statuses.len())
 }
 
@@ -174,6 +190,17 @@ pub fn fs_get_buffer_status(
   services: State<'_, crate::services::AppServices>,
 ) -> Result<Option<FsBufferStatus>, String> {
   services.fs_buffer.status(&buffer_state, &path)
+}
+
+#[tauri::command]
+pub fn fs_get_background_tasks(
+  task_state: State<'_, BackgroundTasksState>,
+) -> Result<Vec<BackgroundTaskStatus>, String> {
+  let tasks = task_state
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock task state")?;
+  Ok(tasks.values().cloned().collect())
 }
 
 #[tauri::command]
@@ -337,20 +364,48 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
       ticker.tick().await;
       let state = app_handle.try_state::<FsState>();
       let buffer_state = app_handle.try_state::<FsBufferState>();
+      let task_state = app_handle.try_state::<BackgroundTasksState>();
       let services = app_handle.try_state::<crate::services::AppServices>();
-      match (state, buffer_state, services) {
-        (Some(state), Some(buffer_state), Some(services)) => {
+      match (state, buffer_state, task_state, services) {
+        (Some(state), Some(buffer_state), Some(task_state), Some(services)) => {
+          match has_dirty_buffers(&buffer_state) {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(err) => {
+              log::warn!("check dirty buffers failed: {err}");
+              continue;
+            }
+          }
+          if let Err(err) =
+            set_background_task(&task_state, "buffer-flush", "Save queue", "running", None)
+          {
+            log::warn!("set background task failed: {err}");
+          }
           match services
             .workspace
             .flush_buffers(&state, &buffer_state)
             .await
           {
             Ok(statuses) => {
+              if let Err(err) =
+                set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)
+              {
+                log::warn!("set background task failed: {err}");
+              }
               if let Err(err) = emit_buffer_statuses(&app_handle, &statuses) {
                 log::warn!("emit buffer statuses failed: {err}");
               }
             }
-            Err(err) => log::warn!("flush_all_buffers failed: {err}"),
+            Err(err) => {
+              let _ = set_background_task(
+                &task_state,
+                "buffer-flush",
+                "Save queue",
+                "error",
+                Some(err.clone()),
+              );
+              log::warn!("flush_all_buffers failed: {err}");
+            }
           }
         }
         _ => break,
@@ -451,4 +506,35 @@ fn emit_buffer_status(app: &tauri::AppHandle, status: &FsBufferStatus) -> Result
   app
     .emit("fs-buffer-status", status.clone())
     .map_err(|err| err.to_string())
+}
+
+fn has_dirty_buffers(buffer_state: &FsBufferState) -> Result<bool, String> {
+  let buffers = buffer_state
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock buffer state")?;
+  Ok(buffers.values().any(|entry| entry.dirty))
+}
+
+fn set_background_task(
+  task_state: &BackgroundTasksState,
+  id: &str,
+  label: &str,
+  status: &str,
+  message: Option<String>,
+) -> Result<(), String> {
+  let mut tasks = task_state
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock task state")?;
+  tasks.insert(
+    id.to_string(),
+    BackgroundTaskStatus {
+      id: id.to_string(),
+      label: label.to_string(),
+      status: status.to_string(),
+      message,
+    },
+  );
+  Ok(())
 }

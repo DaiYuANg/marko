@@ -5,7 +5,7 @@ import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
-import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
+import type { FileEntry, GraphLayoutPositions, ThemeMode, ViewMode } from '@/store/useAppStore'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { exportApi } from '@/services/exportApi'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
@@ -14,6 +14,7 @@ import { isTauriRuntime } from '@/utils/tauri'
 import type { SaveState } from '@/app/useEditorBuffer'
 import { requestFocusHeading, type FocusHeadingRequest } from '@/utils/editorNavigation'
 import { useLatest } from 'ahooks'
+import { useTauriReadySignal } from '@/app/useTauriReadySignal'
 
 export type LayoutContext = {
   activePath: string | null
@@ -29,6 +30,12 @@ export type LayoutContext = {
   saveStates: Record<string, SaveState>
   currentView: ViewMode
   showEditorStatusBar: boolean
+  graphLayoutPositions: GraphLayoutPositions
+  onSaveGraphNodePosition: (
+    layoutKey: string,
+    nodeId: string,
+    position: { x: number; y: number },
+  ) => void
 }
 
 export default function AppLayout() {
@@ -37,6 +44,7 @@ export default function AppLayout() {
   const openFile = state.onOpenFile
   const changeView = state.setViewMode
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
+  useTauriReadySignal()
 
   const totalFiles = useMemo(
     () => state.files.reduce((count, file) => count + (file.kind === 'file' ? 1 : 0), 0),
@@ -60,6 +68,8 @@ export default function AppLayout() {
       saveStates: state.saveStates,
       currentView: state.viewMode,
       showEditorStatusBar: state.showEditorStatusBar,
+      graphLayoutPositions: state.graphLayoutPositions,
+      onSaveGraphNodePosition: state.setGraphNodePosition,
     } as LayoutContext
   }, [
     state.activePath,
@@ -75,6 +85,8 @@ export default function AppLayout() {
     state.saveStates,
     state.viewMode,
     state.showEditorStatusBar,
+    state.graphLayoutPositions,
+    state.setGraphNodePosition,
   ])
 
   useEffect(() => {
@@ -105,16 +117,6 @@ export default function AppLayout() {
 
     return () => window.clearTimeout(timer)
   }, [pendingHeading, state.activePath, state.viewMode])
-
-  useEffect(() => {
-    const isTauri =
-      typeof window !== 'undefined' &&
-      (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
-    if (!isTauri) {
-      return
-    }
-    void import('@tauri-apps/api/event').then(({ emit }) => emit('app-ready'))
-  }, [])
 
   useEffect(() => {
     if (!isTauriRuntime()) return

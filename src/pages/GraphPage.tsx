@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { GitGraph } from 'lucide-react'
 import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from 'reactflow'
+import type { Node } from 'reactflow'
 import type { GraphData } from '@/logic/graph'
 import { ExternalNode, HeadingNode, MissingNode } from '@/components/GraphNodes'
 import { useI18n } from '@/i18n/useI18n'
@@ -10,9 +11,14 @@ const nodeTypes = { external: ExternalNode, missing: MissingNode, heading: Headi
 type GraphPageProps = {
   graph: GraphData
   onOpenFile: (path: string) => void
+  onSaveNodePosition: (
+    layoutKey: string,
+    nodeId: string,
+    position: { x: number; y: number },
+  ) => void
 }
 
-const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
+const GraphPageComponent = ({ graph, onOpenFile, onSaveNodePosition }: GraphPageProps) => {
   const { t } = useI18n()
   const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges)
@@ -21,6 +27,14 @@ const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
     setNodes(graph.nodes)
     setEdges(graph.edges)
   }, [graph.edges, graph.nodes, setEdges, setNodes])
+
+  const handleNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (!graph.layoutKey || graph.layoutKey === 'empty') return
+      onSaveNodePosition(graph.layoutKey, node.id, node.position)
+    },
+    [graph.layoutKey, onSaveNodePosition],
+  )
 
   return (
     <div className="relative h-full bg-background">
@@ -52,6 +66,7 @@ const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
         onlyRenderVisibleElements
         minZoom={0.15}
         maxZoom={2.2}
+        onNodeDragStop={handleNodeDragStop}
         onNodeClick={(_, node) => {
           if (node.id.startsWith('file:')) {
             onOpenFile(node.id.replace('file:', ''))
@@ -64,6 +79,7 @@ const GraphPageComponent = ({ graph, onOpenFile }: GraphPageProps) => {
         }}
         fitView
         fitViewOptions={{ padding: 0.22 }}
+        proOptions={{ hideAttribution: true }}
       >
         <Background gap={16} size={1} />
         <Controls />
