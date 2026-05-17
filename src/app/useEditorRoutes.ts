@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { useMatch, useParams } from 'react-router-dom'
-import type { ViewMode } from '@/store/useAppStore'
+import type { FileViewKind, ViewMode } from '@/store/useAppStore'
 import {
+  FILE_ROUTE_PATTERN,
   GIT_DIFF_ROUTE_PATTERN,
   GRAPH_FILE_ROUTE_PATTERN,
   GRAPH_WORKSPACE_ROUTE_PATTERN,
@@ -19,6 +20,7 @@ type UseEditorRoutesArgs = {
 
 export function useEditorRoutes({ entries, activeTab, tabViewModes }: UseEditorRoutesArgs) {
   const params = useParams()
+  const editMatch = useMatch(FILE_ROUTE_PATTERN)
   const gitDiffMatch = useMatch(GIT_DIFF_ROUTE_PATTERN)
   const sourceMatch = useMatch(SOURCE_ROUTE_PATTERN)
   const graphFileMatch = useMatch(GRAPH_FILE_ROUTE_PATTERN)
@@ -27,19 +29,26 @@ export function useEditorRoutes({ entries, activeTab, tabViewModes }: UseEditorR
   const routeSegment = params['*']
   const gitDiffSection = gitDiffMatch?.params.section
   const gitDiffPath = gitDiffMatch?.params['*'] || null
+  const editPath = editMatch?.params['*'] || null
   const sourcePath = sourceMatch?.params['*'] || null
   const graphFilePath = graphFileMatch?.params['*'] || null
-  const routePath = routeSegment || null
-  const routeFilePath = sourcePath ?? graphFilePath
+  const routePath = editPath ?? routeSegment ?? null
+  const routeFilePath = editPath ?? sourcePath ?? graphFilePath
+  const routeFileView: FileViewKind | null = sourceMatch
+    ? 'source'
+    : graphFileMatch
+      ? 'graph'
+      : editMatch
+        ? 'edit'
+        : null
   const internalRouteActive = Boolean(
-    gitDiffMatch || sourceMatch || graphFileMatch || graphWorkspaceMatch,
+    gitDiffMatch || editMatch || sourceMatch || graphFileMatch || graphWorkspaceMatch,
   )
   const isRouteFile = useMemo(
     () =>
-      !internalRouteActive &&
       routePath !== null &&
       entries.some((entry) => entry.kind === 'file' && entry.path === routePath),
-    [entries, internalRouteActive, routePath],
+    [entries, routePath],
   )
   const activeFilePath = activeTab?.kind === 'file' ? activeTab.path : null
   const currentFilePath = graphWorkspaceMatch ? null : (routeFilePath ?? activeFilePath)
@@ -51,16 +60,22 @@ export function useEditorRoutes({ entries, activeTab, tabViewModes }: UseEditorR
     : graphFileMatch || graphWorkspaceMatch
       ? 'graph'
       : currentFilePath
-        ? (tabViewModes[currentFilePath] ?? 'wysiwyg')
+        ? activeTab?.kind === 'file' && activeTab.view === 'source'
+          ? 'source'
+          : activeTab?.kind === 'file' && activeTab.view === 'graph'
+            ? 'graph'
+            : (tabViewModes[currentFilePath] ?? 'wysiwyg')
         : 'wysiwyg'
 
   return {
+    editMatch,
     gitDiffMatch,
     sourceMatch,
     graphFileMatch,
     graphWorkspaceMatch,
     gitDiffSection,
     gitDiffPath,
+    routeFileView,
     routeFilePath,
     routePath,
     internalRouteActive,

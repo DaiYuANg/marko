@@ -1,7 +1,7 @@
 import { useI18n } from '@/i18n/useI18n'
 import { memo, useEffect, useState } from 'react'
 import { createFileLabel } from '@/logic/paths'
-import type { FileEntry, ViewMode } from '@/store/useAppStore'
+import type { FileEntry, FileViewKind, ViewMode } from '@/store/useAppStore'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
 import {
   requestFocusHeading,
@@ -27,7 +27,7 @@ type RightSidebarProps = {
   workspaceIndex?: FsWorkspaceIndex | null
   tabs: string[]
   totalFiles: number
-  onOpenFile: (path: string) => void
+  onOpenFileView: (path: string, view: FileViewKind) => void
   viewMode: ViewMode
   onChangeView: (mode: ViewMode) => void
 }
@@ -42,7 +42,7 @@ const RightSidebarComponent = ({
   workspaceIndex,
   tabs,
   totalFiles,
-  onOpenFile,
+  onOpenFileView,
   viewMode,
   onChangeView,
 }: RightSidebarProps) => {
@@ -75,12 +75,7 @@ const RightSidebarComponent = ({
   const handleOpenHeading = (slug: string) => {
     if (!targetPath) return
     setPendingHeading({ path: targetPath, slug })
-    if (targetPath !== activePath) {
-      onOpenFile(targetPath)
-    }
-    if (viewMode !== 'wysiwyg') {
-      onChangeView('wysiwyg')
-    }
+    onOpenFileView(targetPath, 'edit')
   }
 
   const handleOpenBacklink = (backlink: SidebarBacklink) => {
@@ -89,12 +84,7 @@ const RightSidebarComponent = ({
       line: backlink.line,
       column: backlink.column,
     })
-    if (backlink.sourcePath !== activePath) {
-      onOpenFile(backlink.sourcePath)
-    }
-    if (viewMode !== 'source') {
-      onChangeView('source')
-    }
+    onOpenFileView(backlink.sourcePath, 'source')
   }
 
   const handleOpenProblem = (problem: MarkdownSourceDiagnostic) => {
@@ -104,12 +94,7 @@ const RightSidebarComponent = ({
       line: problem.line,
       column: problem.startColumn,
     })
-    if (targetPath !== activePath) {
-      onOpenFile(targetPath)
-    }
-    if (viewMode !== 'source') {
-      onChangeView('source')
-    }
+    onOpenFileView(targetPath, 'source')
   }
 
   useEffect(() => {

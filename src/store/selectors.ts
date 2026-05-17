@@ -27,16 +27,11 @@ export const useLayoutStoreSlice = () =>
       theme: state.theme,
       silentSave: state.silentSave,
       showEditorStatusBar: state.showEditorStatusBar,
+      defaultFileView: state.defaultFileView,
+      graphMiniMapEnabled: state.graphMiniMapEnabled,
+      graphContentMode: state.graphContentMode,
       toggleSidebar: state.toggleSidebar,
       toggleRightSidebar: state.toggleRightSidebar,
       setTheme: state.setTheme,
-    })),
-  )
-
-export const useGraphLayoutStoreSlice = () =>
-  useAppStore(
-    useShallow((state) => ({
-      graphLayouts: state.graphLayouts,
-      setGraphNodePosition: state.setGraphNodePosition,
     })),
   )

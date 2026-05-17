@@ -68,7 +68,7 @@ const createProps = (overrides: Partial<RightSidebarProps> = {}): RightSidebarPr
   },
   tabs: ['target.md'],
   totalFiles: 2,
-  onOpenFile: vi.fn(),
+  onOpenFileView: vi.fn(),
   workspaceIndex: null,
   viewMode: 'wysiwyg',
   onChangeView: vi.fn(),
@@ -118,9 +118,9 @@ describe('RightSidebar', () => {
   })
 
   it('shows backlinks with context and opens the source location', async () => {
-    const onOpenFile = vi.fn()
+    const onOpenFileView = vi.fn()
     const onChangeView = vi.fn()
-    const props = createProps({ onOpenFile, onChangeView })
+    const props = createProps({ onOpenFileView, onChangeView })
     const events: FocusSourcePositionRequest[] = []
     const listener = (event: Event) => {
       events.push((event as CustomEvent<FocusSourcePositionRequest>).detail)
@@ -139,8 +139,8 @@ describe('RightSidebar', () => {
       expect(backlinkButton).toBeInTheDocument()
       fireEvent.click(backlinkButton!)
 
-      expect(onOpenFile).toHaveBeenCalledWith('source.md')
-      expect(onChangeView).toHaveBeenCalledWith('source')
+      expect(onOpenFileView).toHaveBeenCalledWith('source.md', 'source')
+      expect(onChangeView).not.toHaveBeenCalled()
 
       rerender(
         <RightSidebar
@@ -179,7 +179,7 @@ describe('RightSidebar', () => {
   })
 
   it('lists markdown link problems and switches to source on click', async () => {
-    const onOpenFile = vi.fn()
+    const onOpenFileView = vi.fn()
     const onChangeView = vi.fn()
     renderRightSidebar(
       createProps({
@@ -187,7 +187,7 @@ describe('RightSidebar', () => {
         inspectedPath: 'target.md',
         editorValue:
           '# Target\n\n[missing](missing.md)\n[missing-heading](#missing-anchor)\n[[Unknown]]\n',
-        onOpenFile,
+        onOpenFileView,
         onChangeView,
         viewMode: 'wysiwyg',
       }),
@@ -204,7 +204,7 @@ describe('RightSidebar', () => {
     expect(errorButton).toBeInTheDocument()
     fireEvent.click(errorButton!)
 
-    expect(onOpenFile).not.toHaveBeenCalled()
-    expect(onChangeView).toHaveBeenCalledWith('source')
+    expect(onOpenFileView).toHaveBeenCalledWith('target.md', 'source')
+    expect(onChangeView).not.toHaveBeenCalled()
   })
 })

@@ -2,6 +2,7 @@ import React from 'react'
 import { List } from 'react-window'
 import {
   ChevronRight,
+  Code2,
   FilePlus2,
   FileText,
   Folder,
@@ -9,6 +10,7 @@ import {
   FolderPlus,
   Info,
   Pencil,
+  ScanSearch,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -23,6 +25,8 @@ import type { FileTreeNode } from '@/logic/fileTree'
 
 export type ContextLabels = {
   open: string
+  openSource: string
+  openGraph: string
   newFile: string
   newFolder: string
   rename: string
@@ -82,6 +86,7 @@ type SidebarFileTreeProps = {
   labels: ContextLabels
   onToggleFolder: (path: string) => void
   onOpenFile: (path: string) => void
+  onOpenFileView: (path: string, view: 'source' | 'graph') => void
   onCreateFile: (path: string) => void
   onCreateFolder: (path: string) => void
   onRenamePath: (from: string, to: string) => void
@@ -100,6 +105,7 @@ const TreeRowComponent = ({
   labels,
   onToggleFolder,
   onOpenFile,
+  onOpenFileView,
   onCreateFile,
   onCreateFolder,
   onRenamePath,
@@ -216,11 +222,22 @@ const TreeRowComponent = ({
               )}
             </>
           ) : (
-            <ContextMenuItem onSelect={() => onOpenFile(node.path)}>
-              <FileText className="mr-2 h-4 w-4" />
-              {labels.open}
-              <span className="ml-auto text-[11px] text-muted-foreground">Enter</span>
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem onSelect={() => onOpenFile(node.path)}>
+                <FileText className="mr-2 h-4 w-4" />
+                {labels.open}
+                <span className="ml-auto text-[11px] text-muted-foreground">Enter</span>
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => onOpenFileView(node.path, 'source')}>
+                <Code2 className="mr-2 h-4 w-4" />
+                {labels.openSource}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => onOpenFileView(node.path, 'graph')}>
+                <ScanSearch className="mr-2 h-4 w-4" />
+                {labels.openGraph}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
           )}
           {!readonlyTree && (
             <>

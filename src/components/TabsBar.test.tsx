@@ -5,10 +5,10 @@ import i18n from '@/i18n/setup'
 import { useAppStore } from '@/store/useAppStore'
 
 const createProps = () => ({
-  tabs: [{ kind: 'file' as const, path: 'notes/current.md' }],
+  tabs: [{ kind: 'file' as const, view: 'source' as const, path: 'notes/current.md' }],
   dirtyPaths: {},
   saveStates: {},
-  activeTabId: 'file:notes/current.md',
+  activeTabId: 'file:source:notes/current.md',
   onOpenTab: vi.fn(),
   onCloseTab: vi.fn(),
   viewMode: 'source' as const,

@@ -1,6 +1,6 @@
 import { lazy, memo, Suspense, useMemo } from 'react'
-import { withGraphLayoutPositions, type GraphData } from '@/logic/graph'
-import type { GraphLayoutPositions } from '@/store/useAppStore'
+import type { GraphData } from '@/logic/graph'
+import type { GraphContentMode } from '@/store/useAppStore'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
 
@@ -8,27 +8,48 @@ const GraphPage = lazy(() => import('@/pages/GraphPage'))
 
 type GraphViewPageProps = {
   graph: GraphData
-  graphLayoutPositions: GraphLayoutPositions
+  markdown: string
   onOpenFile: (path: string) => void
-  onSaveNodePosition: (
-    layoutKey: string,
-    nodeId: string,
-    position: { x: number; y: number },
-  ) => void
+  onChange: (value: string) => void
+  showMiniMap: boolean
+  contentMode: GraphContentMode
+  editable: boolean
   showEmptyMessage: boolean
 }
 
 function GraphViewPage({
   graph,
-  graphLayoutPositions,
+  markdown,
   onOpenFile,
-  onSaveNodePosition,
+  onChange,
+  showMiniMap,
+  contentMode,
+  editable,
   showEmptyMessage,
 }: GraphViewPageProps) {
   const { t } = useI18n()
-  const graphWithSavedLayout = useMemo(
-    () => withGraphLayoutPositions(graph, graphLayoutPositions),
-    [graph, graphLayoutPositions],
+  const canEdit = editable && graph.nodes.some((node) => node.type === 'heading')
+
+  const updateHeadingTitle = useMemo(
+    () => (nodeId: string, title: string) => {
+      const node = graph.nodes.find((item) => item.id === nodeId)
+      const headingLine = node?.data.line
+      const level = node?.data.level
+      if (!headingLine || !level) return
+      onChange(replaceHeadingTitle(markdown, headingLine, level, title))
+    },
+    [graph.nodes, markdown, onChange],
+  )
+
+  const updateHeadingContent = useMemo(
+    () => (nodeId: string, content: string) => {
+      const node = graph.nodes.find((item) => item.id === nodeId)
+      const startLine = node?.data.contentStartLine
+      const endLine = node?.data.contentEndLine
+      if (!startLine || !endLine) return
+      onChange(replaceLineRange(markdown, startLine, endLine, content))
+    },
+    [graph.nodes, markdown, onChange],
   )
 
   return (
@@ -38,9 +59,13 @@ function GraphViewPage({
           <div className="h-full animate-[view-fade_160ms_ease-out]">
             <Suspense fallback={<EditorPaneFallback />}>
               <GraphPage
-                graph={graphWithSavedLayout}
+                graph={graph}
                 onOpenFile={onOpenFile}
-                onSaveNodePosition={onSaveNodePosition}
+                showMiniMap={showMiniMap}
+                contentMode={contentMode}
+                editable={canEdit}
+                onUpdateHeadingTitle={updateHeadingTitle}
+                onUpdateHeadingContent={updateHeadingContent}
               />
             </Suspense>
           </div>
@@ -56,3 +81,29 @@ function GraphViewPage({
 }
 
 export default memo(GraphViewPage)
+
+function replaceHeadingTitle(markdown: string, line: number, level: number, title: string) {
+  const lines = splitMarkdownLines(markdown)
+  const lineIndex = line - 1
+  if (!lines[lineIndex]) return markdown
+  lines[lineIndex] = `${'#'.repeat(level)} ${title}`
+  return joinMarkdownLines(lines, markdown)
+}
+
+function replaceLineRange(markdown: string, startLine: number, endLine: number, content: string) {
+  const lines = splitMarkdownLines(markdown)
+  const startIndex = Math.max(0, startLine - 1)
+  const endIndex = Math.max(startIndex, endLine - 1)
+  const nextLines = content.length === 0 ? [] : content.split(/\r\n|\r|\n/)
+  lines.splice(startIndex, endIndex - startIndex, ...nextLines)
+  return joinMarkdownLines(lines, markdown)
+}
+
+function splitMarkdownLines(markdown: string) {
+  return markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+}
+
+function joinMarkdownLines(lines: string[], original: string) {
+  const joined = lines.join('\n')
+  return original.endsWith('\n') && !joined.endsWith('\n') ? `${joined}\n` : joined
+}

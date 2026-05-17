@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { GitGraph } from 'lucide-react'
-import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from 'reactflow'
+import { Background, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState } from 'reactflow'
 import type { Node } from 'reactflow'
-import type { GraphData } from '@/logic/graph'
+import type { GraphContentMode } from '@/store/useAppStore'
+import type { GraphData, GraphNodeData } from '@/logic/graph'
 import { ExternalNode, HeadingNode, MissingNode } from '@/components/GraphNodes'
 import { useI18n } from '@/i18n/useI18n'
 
@@ -11,30 +12,50 @@ const nodeTypes = { external: ExternalNode, missing: MissingNode, heading: Headi
 type GraphPageProps = {
   graph: GraphData
   onOpenFile: (path: string) => void
-  onSaveNodePosition: (
-    layoutKey: string,
-    nodeId: string,
-    position: { x: number; y: number },
-  ) => void
+  showMiniMap: boolean
+  contentMode: GraphContentMode
+  editable: boolean
+  onUpdateHeadingTitle: (nodeId: string, title: string) => void
+  onUpdateHeadingContent: (nodeId: string, content: string) => void
 }
 
-const GraphPageComponent = ({ graph, onOpenFile, onSaveNodePosition }: GraphPageProps) => {
+const GraphPageComponent = ({
+  graph,
+  onOpenFile,
+  showMiniMap,
+  contentMode,
+  editable,
+  onUpdateHeadingTitle,
+  onUpdateHeadingContent,
+}: GraphPageProps) => {
   const { t } = useI18n()
   const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges)
 
   useEffect(() => {
-    setNodes(graph.nodes)
+    setNodes(
+      graph.nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          contentMode,
+          editable: editable && node.type === 'heading',
+          onUpdateTitle: onUpdateHeadingTitle,
+          onUpdateContent: onUpdateHeadingContent,
+        },
+      })),
+    )
     setEdges(graph.edges)
-  }, [graph.edges, graph.nodes, setEdges, setNodes])
-
-  const handleNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      if (!graph.layoutKey || graph.layoutKey === 'empty') return
-      onSaveNodePosition(graph.layoutKey, node.id, node.position)
-    },
-    [graph.layoutKey, onSaveNodePosition],
-  )
+  }, [
+    contentMode,
+    editable,
+    graph.edges,
+    graph.nodes,
+    onUpdateHeadingContent,
+    onUpdateHeadingTitle,
+    setEdges,
+    setNodes,
+  ])
 
   return (
     <div className="relative h-full bg-background">
@@ -66,8 +87,7 @@ const GraphPageComponent = ({ graph, onOpenFile, onSaveNodePosition }: GraphPage
         onlyRenderVisibleElements
         minZoom={0.15}
         maxZoom={2.2}
-        onNodeDragStop={handleNodeDragStop}
-        onNodeClick={(_, node) => {
+        onNodeClick={(_, node: Node<GraphNodeData>) => {
           if (node.id.startsWith('file:')) {
             onOpenFile(node.id.replace('file:', ''))
             return
@@ -83,6 +103,22 @@ const GraphPageComponent = ({ graph, onOpenFile, onSaveNodePosition }: GraphPage
       >
         <Background gap={16} size={1} />
         <Controls />
+        {showMiniMap && (
+          <MiniMap
+            pannable
+            zoomable
+            className="!bg-card/90"
+            nodeColor={(node) =>
+              node.type === 'heading'
+                ? 'hsl(var(--primary))'
+                : node.type === 'missing'
+                  ? 'hsl(var(--destructive))'
+                  : node.type === 'external'
+                    ? '#f59e0b'
+                    : 'hsl(var(--muted-foreground))'
+            }
+          />
+        )}
       </ReactFlow>
       {nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">

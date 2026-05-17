@@ -7,7 +7,8 @@ import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type {
   FileEntry,
-  GraphLayoutPositions,
+  FileViewKind,
+  GraphContentMode,
   ThemeMode,
   ViewMode,
   WorkspaceTab,
@@ -35,6 +36,7 @@ export type LayoutContext = {
   graph: GraphData
   onEditorChange: (value: string) => void
   onOpenFile: (path: string) => void
+  onOpenFileView: (path: string, view: FileViewKind) => void
   theme: ThemeMode
   setTheme: (theme: ThemeMode) => void
   files: FileEntry[]
@@ -45,12 +47,8 @@ export type LayoutContext = {
   activeTab: WorkspaceTab | null
   rootPath: string
   showEditorStatusBar: boolean
-  graphLayoutPositions: GraphLayoutPositions
-  onSaveGraphNodePosition: (
-    layoutKey: string,
-    nodeId: string,
-    position: { x: number; y: number },
-  ) => void
+  graphMiniMapEnabled: boolean
+  graphContentMode: GraphContentMode
   onCloseActiveTab: () => void
 }
 
@@ -58,8 +56,8 @@ export default function AppLayout() {
   const state = useAppLayoutState()
   const stateRef = useLatest(state)
   const stateOpenFile = state.onOpenFile
+  const stateOpenFileView = state.onOpenFileView
   const stateOpenGitDiff = state.onOpenGitDiff
-  const changeView = state.setViewMode
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
   useTauriReadySignal()
 
@@ -68,6 +66,13 @@ export default function AppLayout() {
       stateOpenFile(path)
     },
     [stateOpenFile],
+  )
+
+  const handleOpenFileView = useCallback(
+    (path: string, view: FileViewKind) => {
+      stateOpenFileView(path, view)
+    },
+    [stateOpenFileView],
   )
 
   const handleOpenGitDiff = useCallback(
@@ -79,8 +84,7 @@ export default function AppLayout() {
 
   const handleOpenSearchResult = useCallback(
     (result: FsSearchResult) => {
-      stateOpenFile(result.path)
-      changeView('source')
+      stateOpenFileView(result.path, 'source')
       window.setTimeout(() => {
         requestFocusSourcePosition({
           path: result.path,
@@ -90,7 +94,7 @@ export default function AppLayout() {
         })
       }, 80)
     },
-    [changeView, stateOpenFile],
+    [stateOpenFileView],
   )
 
   const totalFiles = useMemo(
@@ -107,6 +111,7 @@ export default function AppLayout() {
       graph: state.graph,
       onEditorChange: state.onEditorChange,
       onOpenFile: handleOpenFile,
+      onOpenFileView: handleOpenFileView,
       theme: state.theme,
       setTheme: state.setTheme,
       files: state.files,
@@ -117,8 +122,8 @@ export default function AppLayout() {
       activeTab: state.activeTab,
       rootPath: state.rootPath,
       showEditorStatusBar: state.showEditorStatusBar,
-      graphLayoutPositions: state.graphLayoutPositions,
-      onSaveGraphNodePosition: state.setGraphNodePosition,
+      graphMiniMapEnabled: state.graphMiniMapEnabled,
+      graphContentMode: state.graphContentMode,
       onCloseActiveTab: state.onCloseActiveTab,
     } as LayoutContext
   }, [
@@ -127,6 +132,7 @@ export default function AppLayout() {
     state.graph,
     state.onEditorChange,
     handleOpenFile,
+    handleOpenFileView,
     state.theme,
     state.setTheme,
     state.files,
@@ -137,8 +143,8 @@ export default function AppLayout() {
     state.activeTab,
     state.rootPath,
     state.showEditorStatusBar,
-    state.graphLayoutPositions,
-    state.setGraphNodePosition,
+    state.graphMiniMapEnabled,
+    state.graphContentMode,
     state.onCloseActiveTab,
   ])
 
@@ -148,11 +154,10 @@ export default function AppLayout() {
 
   const openHeading = useCallback(
     (path: string, slug: string) => {
-      handleOpenFile(path)
-      changeView('wysiwyg')
+      handleOpenFileView(path, 'edit')
       setPendingHeading({ path, slug })
     },
-    [changeView, handleOpenFile],
+    [handleOpenFileView],
   )
 
   useEffect(() => {
@@ -310,7 +315,9 @@ export default function AppLayout() {
           fileTree={state.fileTree}
           activePath={state.activeResourcePath}
           onOpenFile={handleOpenFile}
+          onOpenFileView={handleOpenFileView}
           onOpenProject={state.onOpenProject}
+          onOpenWorkspaceGraph={state.onOpenWorkspaceGraph}
           onCreateFile={state.createFile}
           onCreateFolder={state.createFolder}
           onRenamePath={state.renamePath}
@@ -347,7 +354,7 @@ export default function AppLayout() {
           workspaceIndex={state.workspaceIndex}
           tabs={state.tabs.map(getWorkspaceTabId)}
           totalFiles={totalFiles}
-          onOpenFile={handleOpenFile}
+          onOpenFileView={handleOpenFileView}
           viewMode={state.viewMode}
           onChangeView={state.setViewMode}
           inspectedPath={state.inspectedPath}

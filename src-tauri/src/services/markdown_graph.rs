@@ -22,6 +22,7 @@ struct HeadingDraft {
   level: u8,
   text: String,
   line: usize,
+  start_offset: usize,
 }
 
 pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
@@ -33,8 +34,12 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
     line: None,
     level: None,
     slug: None,
+    content: None,
+    content_start_line: None,
+    content_end_line: None,
   }];
   let mut edges = Vec::new();
+  let mut headings = Vec::new();
   let mut heading_stack: Vec<(u8, String)> = Vec::new();
   let mut used_slugs = HashMap::<String, usize>::new();
   let mut current_heading: Option<HeadingDraft> = None;
@@ -46,6 +51,7 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
           level: heading_level_to_u8(level),
           text: String::new(),
           line: line_number(markdown, range.start),
+          start_offset: range.start,
         });
       }
       Event::Text(text) | Event::Code(text) => {
@@ -64,6 +70,13 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
 
         let slug = unique_slug(&text, &mut used_slugs);
         let node_id = heading_node_id(path, &slug);
+        let content_start = line_end_offset(markdown, range.end);
+        headings.push(ParsedHeading {
+          node_id: node_id.clone(),
+          start_offset: heading.start_offset,
+          content_start,
+          content_start_line: heading.line + 1,
+        });
         while heading_stack
           .last()
           .is_some_and(|(level, _)| *level >= heading.level)
@@ -83,6 +96,9 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
           line: Some(heading.line),
           level: Some(heading.level),
           slug: Some(slug),
+          content: None,
+          content_start_line: None,
+          content_end_line: None,
         });
         edges.push(FsGraphEdge {
           id: format!("{parent_id}->{node_id}-{}", edges.len()),
@@ -96,11 +112,21 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
     }
   }
 
+  apply_heading_content(markdown, &headings, &mut nodes);
+
   FsGraph {
     mode: "outline".to_string(),
     nodes,
     edges,
   }
+}
+
+#[derive(Debug)]
+struct ParsedHeading {
+  node_id: String,
+  start_offset: usize,
+  content_start: usize,
+  content_start_line: usize,
 }
 
 pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
@@ -123,6 +149,9 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
       line: None,
       level: None,
       slug: None,
+      content: None,
+      content_start_line: None,
+      content_end_line: None,
     });
 
     for heading in &file.headings {
@@ -137,6 +166,9 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
           line: Some(heading.line),
           level: Some(heading.level),
           slug: Some(heading.slug.clone()),
+          content: None,
+          content_start_line: None,
+          content_end_line: None,
         },
       );
     }
@@ -161,6 +193,9 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
             line: Some(link.line),
             level: None,
             slug: None,
+            content: None,
+            content_start_line: None,
+            content_end_line: None,
           });
         }
         edges.push(FsGraphEdge {
@@ -215,6 +250,9 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
           line: Some(link.line),
           level: None,
           slug: None,
+          content: None,
+          content_start_line: None,
+          content_end_line: None,
         });
       }
 
@@ -299,6 +337,44 @@ fn line_number(markdown: &str, byte_offset: usize) -> usize {
     + 1
 }
 
+fn line_end_offset(markdown: &str, byte_offset: usize) -> usize {
+  markdown[byte_offset..]
+    .find('\n')
+    .map(|relative| byte_offset + relative + 1)
+    .unwrap_or(markdown.len())
+}
+
+fn apply_heading_content(markdown: &str, headings: &[ParsedHeading], nodes: &mut [FsGraphNode]) {
+  let content_by_id = headings
+    .iter()
+    .enumerate()
+    .map(|(index, heading)| {
+      let next_heading_start = headings.get(index + 1).map(|next| next.start_offset);
+      let content_end = next_heading_start.unwrap_or(markdown.len());
+      let content_end_line = next_heading_start
+        .map(|offset| line_number(markdown, offset))
+        .unwrap_or_else(|| markdown.lines().count() + 1);
+      let content = markdown
+        .get(heading.content_start..content_end)
+        .unwrap_or_default()
+        .trim_matches('\n')
+        .to_string();
+      (
+        heading.node_id.as_str(),
+        (content, heading.content_start_line, content_end_line),
+      )
+    })
+    .collect::<HashMap<_, _>>();
+
+  nodes.iter_mut().for_each(|node| {
+    if let Some((content, start_line, end_line)) = content_by_id.get(node.id.as_str()) {
+      node.content = Some(content.clone());
+      node.content_start_line = Some(*start_line);
+      node.content_end_line = Some(*end_line);
+    }
+  });
+}
+
 fn unique_slug(text: &str, used: &mut HashMap<String, usize>) -> String {
   let base = slugify(text);
   let count = used.entry(base.clone()).or_insert(0);
@@ -341,7 +417,7 @@ mod tests {
   fn builds_outline_from_markdown_events() {
     let graph = build_outline_graph(
       "notes/current.md",
-      "# Intro *Now*\n\n```md\n# Ignored\n```\n\n## Details\n### Again\n## Details\n",
+      "# Intro *Now*\n\nLead paragraph\n\n```md\n# Ignored\n```\n\n## Details\nBody\n### Again\n## Details\n",
     );
 
     let ids = graph
@@ -355,6 +431,16 @@ mod tests {
     assert!(ids.contains(&"heading:notes/current.md:details-1"));
     assert!(!ids.contains(&"heading:notes/current.md:ignored"));
     assert_eq!(graph.edges.len(), 4);
+    let intro = graph
+      .nodes
+      .iter()
+      .find(|node| node.id == "heading:notes/current.md:intro-now")
+      .expect("intro node");
+    assert_eq!(
+      intro.content.as_deref(),
+      Some("Lead paragraph\n\n```md\n# Ignored\n```")
+    );
+    assert_eq!(intro.content_start_line, Some(2));
   }
 
   #[test]

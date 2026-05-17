@@ -2,9 +2,27 @@ import type { Edge, Node } from 'reactflow'
 import { graphlib, layout as dagreLayout } from '@dagrejs/dagre'
 import type { FsGraph, FsWorkspaceIndex } from '@/services/fsApi'
 import { createFileLabel } from '@/logic/paths'
+import type { GraphContentMode } from '@/store/useAppStore'
+
+export type GraphNodeData = {
+  label: string
+  subtitle?: string
+  path?: string
+  line?: number
+  level?: number
+  slug?: string
+  url?: string
+  content?: string
+  contentStartLine?: number
+  contentEndLine?: number
+  contentMode?: GraphContentMode
+  editable?: boolean
+  onUpdateTitle?: (nodeId: string, title: string) => void
+  onUpdateContent?: (nodeId: string, content: string) => void
+}
 
 export type GraphData = {
-  nodes: Node[]
+  nodes: Node<GraphNodeData>[]
   edges: Edge[]
   layoutKey?: string
 }
@@ -19,10 +37,10 @@ const FILE_NODE_HEIGHT = 54
 
 export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData {
   const edges: Edge[] = []
-  const fileNodes = new Map<string, Node>()
-  const externalNodes = new Map<string, Node>()
-  const missingNodes = new Map<string, Node>()
-  const headingNodes = new Map<string, Node>()
+  const fileNodes = new Map<string, Node<GraphNodeData>>()
+  const externalNodes = new Map<string, Node<GraphNodeData>>()
+  const missingNodes = new Map<string, Node<GraphNodeData>>()
+  const headingNodes = new Map<string, Node<GraphNodeData>>()
   const headingSlugIndex = new Map<string, Map<string, string>>()
 
   index.files.forEach((file) => {
@@ -143,7 +161,7 @@ export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData
 }
 
 export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
-  const nodes: Node[] = graph.nodes.map((node) => ({
+  const nodes: Node<GraphNodeData>[] = graph.nodes.map((node) => ({
     id: node.id,
     type: node.kind === 'file' ? undefined : node.kind,
     data: {
@@ -156,6 +174,10 @@ export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
       line: node.line ?? undefined,
       level: node.level ?? undefined,
       slug: node.slug ?? undefined,
+      content: node.content ?? undefined,
+      contentStartLine: node.content_start_line ?? undefined,
+      contentEndLine: node.content_end_line ?? undefined,
+      contentMode: 'none',
     },
     position: { x: 0, y: 0 },
   }))
@@ -174,21 +196,7 @@ export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
   return { nodes, edges, layoutKey: createGraphLayoutKey(graph.mode, nodes, edges) }
 }
 
-export const withGraphLayoutPositions = (
-  graph: GraphData,
-  positions: Record<string, { x: number; y: number }>,
-): GraphData => {
-  if (Object.keys(positions).length === 0) return graph
-  return {
-    ...graph,
-    nodes: graph.nodes.map((node) => ({
-      ...node,
-      position: positions[node.id] ?? node.position,
-    })),
-  }
-}
-
-const createGraphLayoutKey = (scope: string, nodes: Node[], edges: Edge[]) => {
+const createGraphLayoutKey = (scope: string, nodes: Node<GraphNodeData>[], edges: Edge[]) => {
   const nodeKey = nodes
     .map((node) => node.id)
     .sort()
@@ -200,7 +208,7 @@ const createGraphLayoutKey = (scope: string, nodes: Node[], edges: Edge[]) => {
   return `${scope}:${nodeKey}:${edgeKey}`
 }
 
-const applyOutlineLayout = (nodes: Node[], edges: Edge[]) => {
+const applyOutlineLayout = (nodes: Node<GraphNodeData>[], edges: Edge[]) => {
   applyDagreLayout(nodes, edges, {
     rankdir: 'LR',
     ranksep: 140,
@@ -208,7 +216,7 @@ const applyOutlineLayout = (nodes: Node[], edges: Edge[]) => {
   })
 }
 
-const applyGraphLayout = (nodes: Node[], edges: Edge[]) => {
+const applyGraphLayout = (nodes: Node<GraphNodeData>[], edges: Edge[]) => {
   applyDagreLayout(nodes, edges, {
     rankdir: 'LR',
     ranksep: 180,
@@ -224,7 +232,11 @@ type DagreLayoutOptions = {
   edgesep?: number
 }
 
-const applyDagreLayout = (nodes: Node[], edges: Edge[], options: DagreLayoutOptions) => {
+const applyDagreLayout = (
+  nodes: Node<GraphNodeData>[],
+  edges: Edge[],
+  options: DagreLayoutOptions,
+) => {
   const graph = new graphlib.Graph({ multigraph: true })
   graph.setDefaultEdgeLabel(() => ({}))
   graph.setGraph({
@@ -258,11 +270,17 @@ const applyDagreLayout = (nodes: Node[], edges: Edge[], options: DagreLayoutOpti
   })
 }
 
-const getNodeSize = (node: Node) => {
+const getNodeSize = (node: Node<GraphNodeData>) => {
   if (node.id.startsWith('file:')) {
     return { width: FILE_NODE_WIDTH, height: FILE_NODE_HEIGHT }
   }
   if (node.type === 'heading' || node.id.startsWith('heading:')) {
+    if (node.data.contentMode === 'full') {
+      return { width: 240, height: 170 }
+    }
+    if (node.data.contentMode === 'summary' && node.data.content) {
+      return { width: 240, height: 124 }
+    }
     return { width: HEADING_NODE_WIDTH, height: HEADING_NODE_HEIGHT }
   }
   return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT }

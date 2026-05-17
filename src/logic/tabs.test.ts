@@ -9,10 +9,17 @@ describe('normalizeWorkspaceTabs', () => {
       { kind: 'git-diff', path: 'README.md', section: 'unstaged' },
       { kind: 'git-diff', path: 'README.md', section: 'unstaged' },
       { kind: 'file', path: 'README.md' },
+      { kind: 'file', path: 'README.md', view: 'source' },
+      { kind: 'workspace-graph' },
       { kind: 'file', path: '' },
     ])
 
-    expect(tabs.map(getWorkspaceTabId)).toEqual(['git-diff:unstaged:README.md', 'file:README.md'])
+    expect(tabs.map(getWorkspaceTabId)).toEqual([
+      'git-diff:unstaged:README.md',
+      'file:edit:README.md',
+      'file:source:README.md',
+      'workspace-graph',
+    ])
   })
 })
 
@@ -23,6 +30,14 @@ describe('normalizeWorkspaceTabId', () => {
       { kind: 'git-diff', path: 'README.md', section: 'unstaged' },
     ])
 
-    expect(normalizeWorkspaceTabId('git-diff:undefined:undefined', tabs)).toBe('file:README.md')
+    expect(normalizeWorkspaceTabId('git-diff:undefined:undefined', tabs)).toBe(
+      'file:edit:README.md',
+    )
+  })
+
+  it('maps legacy file tab ids to edit tabs', () => {
+    const tabs = normalizeWorkspaceTabs([{ kind: 'file', path: 'README.md' }])
+
+    expect(normalizeWorkspaceTabId('file:README.md', tabs)).toBe('file:edit:README.md')
   })
 })

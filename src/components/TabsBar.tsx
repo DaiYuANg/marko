@@ -45,9 +45,22 @@ const getSaveBadgeClassName = (state?: SaveState) => {
 }
 
 const getTabLabel = (tab: WorkspaceTab) => {
+  if (tab.kind === 'workspace-graph') return 'Workspace Graph'
   const label = createFileLabel(tab.path)
-  if (tab.kind === 'file') return label
+  if (tab.kind === 'file') {
+    if (tab.view === 'source') return `${label} · Source`
+    if (tab.view === 'graph') return `${label} · Graph`
+    return label
+  }
   return `${label} · Diff`
+}
+
+const renderTabIcon = (tab: WorkspaceTab) => {
+  if (tab.kind === 'workspace-graph') return <GitGraph className="h-3.5 w-3.5" />
+  if (tab.kind === 'git-diff') return <GitGraph className="h-3.5 w-3.5" />
+  if (tab.view === 'source') return <Code2 className="h-3.5 w-3.5" />
+  if (tab.view === 'graph') return <GitGraph className="h-3.5 w-3.5" />
+  return <FileText className="h-3.5 w-3.5" />
 }
 
 type WorkspaceTabButtonProps = {
@@ -111,15 +124,11 @@ const WorkspaceTabButton = memo(
         data-state={isActive ? 'active' : 'inactive'}
         data-tab-id={id}
         className="tab-item group relative inline-flex h-8 shrink-0 cursor-default select-none items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
-        title={tab.path}
+        title={tab.kind === 'workspace-graph' ? label : tab.path}
         onClick={openTab}
         onKeyDown={handleTabKeyDown}
       >
-        {tab.kind === 'file' ? (
-          <FileText className="h-3.5 w-3.5" />
-        ) : (
-          <GitGraph className="h-3.5 w-3.5" />
-        )}
+        {renderTabIcon(tab)}
         <span className={`${compact ? 'max-w-[86px]' : 'max-w-[160px]'} truncate`}>
           {compact && label.length > 12 ? `${label.slice(0, 11)}…` : label}
         </span>
@@ -264,11 +273,7 @@ const TabsBarComponent = ({
       </div>
       <div className="hidden min-w-0 items-center gap-2 md:flex">
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          {activeTab?.kind === 'git-diff' ? (
-            <GitGraph className="h-3.5 w-3.5" />
-          ) : (
-            <FileText className="h-3.5 w-3.5" />
-          )}
+          {activeTab ? renderTabIcon(activeTab) : <FileText className="h-3.5 w-3.5" />}
           <span className="max-w-[180px] truncate">
             {activeTab ? getTabLabel(activeTab) : t('center.noFile')}
           </span>

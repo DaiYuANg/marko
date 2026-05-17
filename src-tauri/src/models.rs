@@ -122,6 +122,9 @@ pub struct FsGraphNode {
   pub line: Option<usize>,
   pub level: Option<u8>,
   pub slug: Option<String>,
+  pub content: Option<String>,
+  pub content_start_line: Option<usize>,
+  pub content_end_line: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]

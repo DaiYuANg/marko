@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileSearch, FileText, FolderOpen, Home } from 'lucide-react'
+import { FileSearch, FileText, FolderOpen, GitGraph, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import ScmPanel from '@/components/ScmPanel'
-import type { FileEntry } from '@/store/useAppStore'
+import type { FileEntry, FileViewKind } from '@/store/useAppStore'
 import type { GitDiffRequest } from '@/services/gitApi'
 import type { FileTreeNode } from '@/logic/fileTree'
 import { useI18n } from '@/i18n/useI18n'
@@ -31,7 +31,9 @@ type SidebarProps = {
   fileTree: FileTreeNode[]
   activePath: string | null
   onOpenFile: (path: string) => void
+  onOpenFileView: (path: string, view: FileViewKind) => void
   onOpenProject: (path: string) => void
+  onOpenWorkspaceGraph: () => void
   onCreateFile: (path: string) => void
   onCreateFolder: (path: string) => void
   onRenamePath: (from: string, to: string) => void
@@ -51,7 +53,9 @@ const SidebarComponent = ({
   fileTree,
   activePath,
   onOpenFile,
+  onOpenFileView,
   onOpenProject,
+  onOpenWorkspaceGraph,
   onCreateFile,
   onCreateFolder,
   onRenamePath,
@@ -97,6 +101,8 @@ const SidebarComponent = ({
   const labels = useMemo(
     () => ({
       open: t('context.open'),
+      openSource: t('context.openSource'),
+      openGraph: t('context.openGraph'),
       newFile: t('context.newFile'),
       newFolder: t('context.newFolder'),
       rename: t('context.rename'),
@@ -177,6 +183,19 @@ const SidebarComponent = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t('sidebar.searchAction')}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="chrome-button h-8 w-8 rounded-md"
+                  onClick={onOpenWorkspaceGraph}
+                >
+                  <GitGraph className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('tabs.workspaceGraph')}</TooltipContent>
             </Tooltip>
             <div className="ml-auto">
               <Button
@@ -269,6 +288,7 @@ const SidebarComponent = ({
                       labels={labels}
                       onToggleFolder={toggleFolder}
                       onOpenFile={onOpenFile}
+                      onOpenFileView={onOpenFileView}
                       onCreateFile={onCreateFile}
                       onCreateFolder={onCreateFolder}
                       onRenamePath={onRenamePath}

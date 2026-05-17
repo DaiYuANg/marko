@@ -103,6 +103,9 @@ export const fsGraphNodeSchema = z.object({
   line: z.number().nullable().optional(),
   level: z.number().nullable().optional(),
   slug: z.string().nullable().optional(),
+  content: z.string().nullable().optional(),
+  content_start_line: z.number().nullable().optional(),
+  content_end_line: z.number().nullable().optional(),
 })
 
 export const fsGraphEdgeSchema = z.object({

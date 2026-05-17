@@ -5,19 +5,25 @@ import { getInitialLocale } from '@/i18n/utils'
 import { createIdleJsonStorage } from '@/store/persistStorage'
 import {
   areWorkspaceTabsEqual,
-  fileTabId,
+  fileViewTabId,
   normalizeWorkspaceTabId,
   normalizeWorkspaceTabs,
 } from '@/logic/tabs'
 
 export type ViewMode = 'wysiwyg' | 'source' | 'graph'
+export type FileViewKind = 'edit' | 'source' | 'graph'
 export type ThemeMode = 'light' | 'dark' | 'marko-light' | 'marko-dark'
 export type GitDiffSection = 'staged' | 'unstaged' | 'untracked' | 'conflicts'
+export type GraphContentMode = 'none' | 'summary' | 'full'
 
 export type WorkspaceTab =
   | {
       kind: 'file'
+      view: FileViewKind
       path: string
+    }
+  | {
+      kind: 'workspace-graph'
     }
   | {
       kind: 'git-diff'
@@ -29,13 +35,6 @@ export type FileEntry = {
   path: string
   kind: 'file' | 'folder'
 }
-
-export type GraphNodePosition = {
-  x: number
-  y: number
-}
-
-export type GraphLayoutPositions = Record<string, GraphNodePosition>
 
 type AppState = {
   rootPath: string
@@ -51,7 +50,9 @@ type AppState = {
   rightSidebarCollapsed: boolean
   silentSave: boolean
   showEditorStatusBar: boolean
-  graphLayouts: Record<string, GraphLayoutPositions>
+  defaultFileView: FileViewKind
+  graphMiniMapEnabled: boolean
+  graphContentMode: GraphContentMode
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external' | 'single') => void
   setEntries: (entries: FileEntry[]) => void
@@ -62,7 +63,9 @@ type AppState = {
   setLocale: (locale: Locale) => void
   setSilentSave: (silent: boolean) => void
   setShowEditorStatusBar: (show: boolean) => void
-  setGraphNodePosition: (layoutKey: string, nodeId: string, position: GraphNodePosition) => void
+  setDefaultFileView: (view: FileViewKind) => void
+  setGraphMiniMapEnabled: (enabled: boolean) => void
+  setGraphContentMode: (mode: GraphContentMode) => void
   toggleSidebar: () => void
   toggleRightSidebar: () => void
   touchRecentProject: (path: string) => void
@@ -84,7 +87,9 @@ export const useAppStore = create<AppState>()(
       rightSidebarCollapsed: false,
       silentSave: true,
       showEditorStatusBar: true,
-      graphLayouts: {},
+      defaultFileView: 'edit',
+      graphMiniMapEnabled: true,
+      graphContentMode: 'summary',
       setRootPath: (path) => set((state) => (state.rootPath === path ? state : { rootPath: path })),
       setRootKind: (kind) => set((state) => (state.rootKind === kind ? state : { rootKind: kind })),
       setEntries: (entries) => set((state) => (state.entries === entries ? state : { entries })),
@@ -108,23 +113,16 @@ export const useAppStore = create<AppState>()(
         set((state) =>
           state.showEditorStatusBar === showEditorStatusBar ? state : { showEditorStatusBar },
         ),
-      setGraphNodePosition: (layoutKey, nodeId, position) =>
-        set((state) => {
-          const currentLayout = state.graphLayouts[layoutKey] ?? {}
-          const currentPosition = currentLayout[nodeId]
-          if (currentPosition?.x === position.x && currentPosition.y === position.y) {
-            return state
-          }
-          return {
-            graphLayouts: {
-              ...state.graphLayouts,
-              [layoutKey]: {
-                ...currentLayout,
-                [nodeId]: position,
-              },
-            },
-          }
-        }),
+      setDefaultFileView: (defaultFileView) =>
+        set((state) => (state.defaultFileView === defaultFileView ? state : { defaultFileView })),
+      setGraphMiniMapEnabled: (graphMiniMapEnabled) =>
+        set((state) =>
+          state.graphMiniMapEnabled === graphMiniMapEnabled ? state : { graphMiniMapEnabled },
+        ),
+      setGraphContentMode: (graphContentMode) =>
+        set((state) =>
+          state.graphContentMode === graphContentMode ? state : { graphContentMode },
+        ),
       toggleSidebar: () =>
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
@@ -142,7 +140,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'marko.app',
       storage: createIdleJsonStorage('marko.app'),
-      version: 7,
+      version: 9,
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
         const legacyTheme =
@@ -169,7 +167,7 @@ export const useAppStore = create<AppState>()(
           typeof state.activeTabId === 'string'
             ? state.activeTabId
             : legacyActivePath
-              ? fileTabId(legacyActivePath)
+              ? fileViewTabId(legacyActivePath, 'edit')
               : null
         const normalizedActiveTabId = normalizeWorkspaceTabId(persistedActiveTabId, normalizedTabs)
         return {
@@ -181,7 +179,15 @@ export const useAppStore = create<AppState>()(
           rightSidebarCollapsed: state.rightSidebarCollapsed ?? false,
           silentSave: state.silentSave ?? true,
           showEditorStatusBar: state.showEditorStatusBar ?? true,
-          graphLayouts: state.graphLayouts ?? {},
+          defaultFileView:
+            state.defaultFileView === 'source' || state.defaultFileView === 'graph'
+              ? state.defaultFileView
+              : 'edit',
+          graphMiniMapEnabled: state.graphMiniMapEnabled ?? true,
+          graphContentMode:
+            state.graphContentMode === 'none' || state.graphContentMode === 'full'
+              ? state.graphContentMode
+              : 'summary',
         } as AppState
       },
       partialize: (state) => ({
@@ -197,7 +203,9 @@ export const useAppStore = create<AppState>()(
         rightSidebarCollapsed: state.rightSidebarCollapsed,
         silentSave: state.silentSave,
         showEditorStatusBar: state.showEditorStatusBar,
-        graphLayouts: state.graphLayouts,
+        defaultFileView: state.defaultFileView,
+        graphMiniMapEnabled: state.graphMiniMapEnabled,
+        graphContentMode: state.graphContentMode,
       }),
     },
   ),

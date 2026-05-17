@@ -1,18 +1,28 @@
 import { generatePath } from 'react-router-dom'
-import type { GitDiffSection } from '@/store/useAppStore'
+import type { FileViewKind, GitDiffSection } from '@/store/useAppStore'
 
 const GIT_DIFF_SECTIONS = new Set<string>(['staged', 'unstaged', 'untracked', 'conflicts'])
 
-export const FILE_ROUTE_PATTERN = '/*'
+export const FILE_ROUTE_PATTERN = '/files/edit/*'
 export const GIT_DIFF_ROUTE_PATTERN = '/_diff/:section/*'
-export const SOURCE_ROUTE_PATTERN = '/_source/*'
-export const GRAPH_FILE_ROUTE_PATTERN = '/_graph/file/*'
-export const GRAPH_WORKSPACE_ROUTE_PATTERN = '/_graph/workspace'
+export const SOURCE_ROUTE_PATTERN = '/files/source/*'
+export const GRAPH_FILE_ROUTE_PATTERN = '/files/graph/*'
+export const GRAPH_WORKSPACE_ROUTE_PATTERN = '/workspace/graph'
+
+export const fileViewToRoutePattern = (view: FileViewKind) => {
+  if (view === 'source') return SOURCE_ROUTE_PATTERN
+  if (view === 'graph') return GRAPH_FILE_ROUTE_PATTERN
+  return FILE_ROUTE_PATTERN
+}
 
 export const pathToRoute = (path: string) => {
+  return pathToFileViewRoute(path, 'edit')
+}
+
+export const pathToFileViewRoute = (path: string, view: FileViewKind) => {
   const trimmed = path.trim()
   if (!trimmed) return '/'
-  return generatePath(FILE_ROUTE_PATTERN, { '*': trimmed })
+  return generatePath(fileViewToRoutePattern(view), { '*': trimmed })
 }
 
 export const pathToGitDiffRoute = (section: GitDiffSection, path: string) => {
@@ -20,11 +30,11 @@ export const pathToGitDiffRoute = (section: GitDiffSection, path: string) => {
 }
 
 export const pathToSourceRoute = (path: string) => {
-  return generatePath(SOURCE_ROUTE_PATTERN, { '*': path })
+  return pathToFileViewRoute(path, 'source')
 }
 
 export const pathToGraphFileRoute = (path: string) => {
-  return generatePath(GRAPH_FILE_ROUTE_PATTERN, { '*': path })
+  return pathToFileViewRoute(path, 'graph')
 }
 
 export const pathToWorkspaceGraphRoute = () => generatePath(GRAPH_WORKSPACE_ROUTE_PATTERN)

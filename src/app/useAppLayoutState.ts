@@ -8,17 +8,11 @@ import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
 import { fsSnapshotSchema } from '@/services/fsApi'
 import { useWorkspaceIndex } from '@/app/useWorkspaceIndex'
-import {
-  useGraphLayoutStoreSlice,
-  useLayoutStoreSlice,
-  useWorkspaceStoreSlice,
-} from '@/store/selectors'
+import { useLayoutStoreSlice, useWorkspaceStoreSlice } from '@/store/selectors'
 import { getWorkspaceTabId } from '@/logic/tabs'
 import { useEditorRoutes } from '@/app/useEditorRoutes'
 import { useRouteTabSync } from '@/app/useRouteTabSync'
 import { useWorkspaceTabActions } from '@/app/useWorkspaceTabActions'
-
-const EMPTY_GRAPH_LAYOUT_POSITIONS: Record<string, { x: number; y: number }> = {}
 
 export function useAppLayoutState() {
   const {
@@ -41,11 +35,13 @@ export function useAppLayoutState() {
     theme,
     silentSave,
     showEditorStatusBar,
+    defaultFileView,
+    graphMiniMapEnabled,
+    graphContentMode,
     toggleSidebar,
     toggleRightSidebar,
     setTheme,
   } = useLayoutStoreSlice()
-  const { graphLayouts, setGraphNodePosition } = useGraphLayoutStoreSlice()
 
   const [isMaximized, setIsMaximized] = useState(false)
   const [tabViewModes, setTabViewModes] = useState<Record<string, ViewMode>>({})
@@ -66,6 +62,7 @@ export function useAppLayoutState() {
     graphWorkspaceMatch,
     gitDiffSection,
     gitDiffPath,
+    routeFileView,
     routeFilePath,
     routePath,
     internalRouteActive,
@@ -78,22 +75,29 @@ export function useAppLayoutState() {
   const currentFilePathRef = useLatest(currentFilePath)
   const inspectedPathRef = useLatest(inspectedPath)
   const locationPathnameRef = useLatest(location.pathname)
-  const rootKindRef = useLatest(rootKind)
   const tabsRef = useLatest(tabs)
-  const { setViewMode, onOpenFile, onOpenGitDiff, onOpenTab, onCloseTab, onCloseActiveTab } =
-    useWorkspaceTabActions({
-      activeTabIdRef,
-      currentFilePathRef,
-      inspectedPathRef,
-      locationPathnameRef,
-      rootKindRef,
-      tabsRef,
-      navigate,
-      setTabViewModes,
-      setTabs,
-      setActiveTabId,
-      setInspectedPath,
-    })
+  const {
+    setViewMode,
+    onOpenFile,
+    onOpenFileView,
+    onOpenGitDiff,
+    onOpenWorkspaceGraph,
+    onOpenTab,
+    onCloseTab,
+    onCloseActiveTab,
+  } = useWorkspaceTabActions({
+    activeTabIdRef,
+    currentFilePathRef,
+    inspectedPathRef,
+    locationPathnameRef,
+    tabsRef,
+    navigate,
+    setTabViewModes,
+    setTabs,
+    setActiveTabId,
+    setInspectedPath,
+    defaultFileView,
+  })
 
   const workspaceKey = `${rootKind}:${rootPath}`
   const { fileContents, editorValue, dirtyPaths, saveStates, onEditorChange } = useEditorBuffer({
@@ -119,6 +123,7 @@ export function useAppLayoutState() {
     activeTabId,
     locationPathname: location.pathname,
     preserveCurrentRoute: internalRouteActive,
+    defaultFileView,
     navigate,
     setEntries,
     setRootPath,
@@ -161,6 +166,7 @@ export function useAppLayoutState() {
     graphWorkspaceMatch,
     gitDiffSection,
     gitDiffPath,
+    routeFileView,
     routeFilePath,
     routePath,
     isRouteFile,
@@ -178,14 +184,8 @@ export function useAppLayoutState() {
     entries,
     entries.some((entry) => entry.kind === 'file'),
   )
-  const graph = useGraphData(viewMode === 'graph', workspaceIndex, currentFilePath, rootKind)
-  const graphLayoutPositions = useMemo(
-    () =>
-      graph.layoutKey
-        ? (graphLayouts[graph.layoutKey] ?? EMPTY_GRAPH_LAYOUT_POSITIONS)
-        : EMPTY_GRAPH_LAYOUT_POSITIONS,
-    [graph.layoutKey, graphLayouts],
-  )
+  const graphMode = graphWorkspaceMatch ? 'workspace' : graphFileMatch ? 'file' : null
+  const graph = useGraphData(graphMode, workspaceIndex, currentFilePath)
 
   return {
     rootPath,
@@ -205,18 +205,22 @@ export function useAppLayoutState() {
     theme,
     silentSave,
     showEditorStatusBar,
+    defaultFileView,
+    graphMiniMapEnabled,
+    graphContentMode,
     viewMode,
     fileTree,
     graph,
     workspaceIndex,
     inspectedPath: inspectedPath ?? activeResourcePath,
-    graphLayoutPositions,
     editorValue,
     isMaximized,
     setIsMaximized,
     onEditorChange,
     onOpenFile,
+    onOpenFileView,
     onOpenGitDiff,
+    onOpenWorkspaceGraph,
     onOpenTab,
     onCloseTab,
     onCloseActiveTab,
@@ -232,7 +236,6 @@ export function useAppLayoutState() {
     onInspectPath: setInspectedPath,
     setTheme,
     setViewMode,
-    setGraphNodePosition,
     toggleSidebar,
     toggleRightSidebar,
   }

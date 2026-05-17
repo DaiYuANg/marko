@@ -2,8 +2,8 @@ import { useCallback } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useLatest } from 'ahooks'
 import type { NavigateFunction } from 'react-router-dom'
-import type { FileEntry, WorkspaceTab } from '@/store/useAppStore'
-import { pathToGitDiffRoute, pathToRoute } from '@/logic/routing'
+import type { FileEntry, FileViewKind, WorkspaceTab } from '@/store/useAppStore'
+import { pathToFileViewRoute, pathToGitDiffRoute, pathToWorkspaceGraphRoute } from '@/logic/routing'
 import { useI18n } from '@/i18n/useI18n'
 import { fsApi, type FsSnapshot } from '@/services/fsApi'
 import { runInTauri } from '@/utils/tauri'
@@ -17,6 +17,7 @@ type UseProjectLoaderArgs = {
   activeTabId: string | null
   locationPathname: string
   preserveCurrentRoute: boolean
+  defaultFileView: FileViewKind
   navigate: NavigateFunction
   setEntries: (entries: FileEntry[]) => void
   setRootPath: (path: string) => void
@@ -63,6 +64,7 @@ export function useProjectLoader({
   activeTabId,
   locationPathname,
   preserveCurrentRoute,
+  defaultFileView,
   navigate,
   setEntries,
   setRootPath,
@@ -79,6 +81,7 @@ export function useProjectLoader({
   const rootKindRef = useLatest(rootKind)
   const locationPathnameRef = useLatest(locationPathname)
   const preserveCurrentRouteRef = useLatest(preserveCurrentRoute)
+  const defaultFileViewRef = useLatest(defaultFileView)
 
   const loadWorkspace = useCallback(
     async (options?: LoadWorkspaceOptions) => {
@@ -114,8 +117,14 @@ export function useProjectLoader({
         if (filesOnly.length > 0) {
           const available = new Set(filesOnly.map((file) => file.path))
           const defaultPath = filesOnly[0].path
-          const nextTabs = tabsRef.current.filter((tab) => available.has(tab.path))
-          const finalTabs = nextTabs.length > 0 ? nextTabs : [createFileTab(defaultPath)]
+          const nextTabs = tabsRef.current.filter((tab) => {
+            if (tab.kind === 'workspace-graph') return true
+            return available.has(tab.path)
+          })
+          const finalTabs =
+            nextTabs.length > 0
+              ? nextTabs
+              : [createFileTab(defaultPath, defaultFileViewRef.current)]
           if (!areTabListsEqual(tabsRef.current, finalTabs)) {
             setTabs(finalTabs)
           }
@@ -123,7 +132,10 @@ export function useProjectLoader({
           const currentActiveTab = finalTabs.find(
             (tab) => getWorkspaceTabId(tab) === currentActiveTabId,
           )
-          const nextActiveTab = currentActiveTab ?? finalTabs[0] ?? createFileTab(defaultPath)
+          const nextActiveTab =
+            currentActiveTab ??
+            finalTabs[0] ??
+            createFileTab(defaultPath, defaultFileViewRef.current)
           const nextActiveTabId = getWorkspaceTabId(nextActiveTab)
           if (nextActiveTabId !== currentActiveTabId) {
             setActiveTabId(nextActiveTabId)
@@ -131,8 +143,10 @@ export function useProjectLoader({
           if (preserveCurrentRouteRef.current) return
           const nextRoute =
             nextActiveTab.kind === 'file'
-              ? pathToRoute(nextActiveTab.path)
-              : pathToGitDiffRoute(nextActiveTab.section, nextActiveTab.path)
+              ? pathToFileViewRoute(nextActiveTab.path, nextActiveTab.view)
+              : nextActiveTab.kind === 'workspace-graph'
+                ? pathToWorkspaceGraphRoute()
+                : pathToGitDiffRoute(nextActiveTab.section, nextActiveTab.path)
           if (locationPathnameRef.current !== nextRoute) {
             navigate(nextRoute, { replace: true })
           }
@@ -141,6 +155,7 @@ export function useProjectLoader({
     },
     [
       activeTabIdRef,
+      defaultFileViewRef,
       entriesRef,
       locationPathnameRef,
       navigate,

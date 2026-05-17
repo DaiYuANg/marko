@@ -1,4 +1,14 @@
-import { Check, Languages, Palette, Save, SlidersHorizontal } from 'lucide-react'
+import {
+  Check,
+  Code2,
+  GitGraph,
+  Languages,
+  Map,
+  Palette,
+  PenLine,
+  Save,
+  SlidersHorizontal,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +21,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n/useI18n'
 import type { Locale } from '@/i18n/resources'
-import { useAppStore, type ThemeMode } from '@/store/useAppStore'
+import {
+  useAppStore,
+  type FileViewKind,
+  type GraphContentMode,
+  type ThemeMode,
+} from '@/store/useAppStore'
 
 type SettingsDialogProps = {
   open: boolean
@@ -34,6 +49,18 @@ const locales: Array<{ value: Locale; labelKey: string }> = [
   { value: 'en-US', labelKey: 'language.en' },
 ]
 
+const fileViews: Array<{ value: FileViewKind; labelKey: string; icon: React.ElementType }> = [
+  { value: 'edit', labelKey: 'editor.modeWysiwyg', icon: PenLine },
+  { value: 'source', labelKey: 'editor.modeSource', icon: Code2 },
+  { value: 'graph', labelKey: 'tabs.graph', icon: GitGraph },
+]
+
+const graphContentModes: Array<{ value: GraphContentMode; labelKey: string }> = [
+  { value: 'none', labelKey: 'settings.graphContentNone' },
+  { value: 'summary', labelKey: 'settings.graphContentSummary' },
+  { value: 'full', labelKey: 'settings.graphContentFull' },
+]
+
 export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { t, locale, setLocale } = useI18n()
   const theme = useAppStore((state) => state.theme)
@@ -42,6 +69,12 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
   const setSilentSave = useAppStore((state) => state.setSilentSave)
   const showEditorStatusBar = useAppStore((state) => state.showEditorStatusBar)
   const setShowEditorStatusBar = useAppStore((state) => state.setShowEditorStatusBar)
+  const defaultFileView = useAppStore((state) => state.defaultFileView)
+  const setDefaultFileView = useAppStore((state) => state.setDefaultFileView)
+  const graphMiniMapEnabled = useAppStore((state) => state.graphMiniMapEnabled)
+  const setGraphMiniMapEnabled = useAppStore((state) => state.setGraphMiniMapEnabled)
+  const graphContentMode = useAppStore((state) => state.graphContentMode)
+  const setGraphContentMode = useAppStore((state) => state.setGraphContentMode)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,6 +99,10 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
             <TabsTrigger value="appearance" className="justify-start gap-2 rounded-md">
               <Palette className="h-4 w-4" />
               {t('settings.appearance')}
+            </TabsTrigger>
+            <TabsTrigger value="graph" className="justify-start gap-2 rounded-md">
+              <GitGraph className="h-4 w-4" />
+              {t('settings.graphEditor')}
             </TabsTrigger>
           </TabsList>
 
@@ -93,6 +130,28 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
                   <Switch checked={showEditorStatusBar} onCheckedChange={setShowEditorStatusBar} />
                 }
               />
+              <section className="settings-row-surface rounded-md p-3">
+                <div className="mb-1 text-sm font-medium">{t('settings.defaultFileView')}</div>
+                <div className="mb-3 text-xs leading-5 text-muted-foreground">
+                  {t('settings.defaultFileViewDescription')}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {fileViews.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <Button
+                        key={item.value}
+                        variant={defaultFileView === item.value ? 'secondary' : 'outline'}
+                        className="h-9 justify-start rounded-md"
+                        onClick={() => setDefaultFileView(item.value)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="truncate">{t(item.labelKey)}</span>
+                      </Button>
+                    )
+                  })}
+                </div>
+              </section>
             </TabsContent>
 
             <TabsContent value="appearance" className="m-0 space-y-5">
@@ -136,6 +195,37 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
                       variant={locale === item.value ? 'secondary' : 'outline'}
                       className="h-9 justify-start rounded-md"
                       onClick={() => setLocale(item.value)}
+                    >
+                      {t(item.labelKey)}
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            </TabsContent>
+
+            <TabsContent value="graph" className="m-0 space-y-4">
+              <SettingsRow
+                title={t('settings.graphMiniMap')}
+                description={t('settings.graphMiniMapDescription')}
+                control={
+                  <Switch checked={graphMiniMapEnabled} onCheckedChange={setGraphMiniMapEnabled} />
+                }
+              />
+              <section className="settings-row-surface rounded-md p-3">
+                <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+                  <Map className="h-4 w-4 text-primary" />
+                  {t('settings.graphContentMode')}
+                </div>
+                <div className="mb-3 text-xs leading-5 text-muted-foreground">
+                  {t('settings.graphContentModeDescription')}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {graphContentModes.map((item) => (
+                    <Button
+                      key={item.value}
+                      variant={graphContentMode === item.value ? 'secondary' : 'outline'}
+                      className="h-9 rounded-md"
+                      onClick={() => setGraphContentMode(item.value)}
                     >
                       {t(item.labelKey)}
                     </Button>
