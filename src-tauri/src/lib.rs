@@ -15,12 +15,17 @@ use tauri::{Emitter, Listener, Manager};
 
 mod commands;
 mod models;
+mod services;
 mod state;
 
 use crate::state::{FsBufferState, FsState, FsStateData, FsWatcherState};
 
 fn run_impl() {
+  let app_services =
+    services::di::build_app_services().expect("failed to bootstrap application services");
+
   tauri::Builder::default()
+    .manage(app_services)
     .manage(FsState(RwLock::new(FsStateData {
       root_kind: "internal".to_string(),
       root_path: PathBuf::new(),
