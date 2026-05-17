@@ -376,7 +376,7 @@ const SidebarComponent = ({
       }`}
       data-collapsed={collapsed ? 'true' : 'false'}
     >
-      <SidebarHeader className="border-b border-sidebar-border px-1.5 py-1">
+      <SidebarHeader className="border-b border-sidebar-border/80 px-1.5 py-1.5">
         <TooltipProvider>
           <div className="flex items-center gap-1">
             <Tooltip>
@@ -384,7 +384,7 @@ const SidebarComponent = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-md"
+                  className="chrome-button h-8 w-8 rounded-md"
                   onClick={onUseInternalRoot}
                 >
                   <Home className="h-4 w-4" />
@@ -397,7 +397,7 @@ const SidebarComponent = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-md"
+                  className="chrome-button h-8 w-8 rounded-md"
                   onClick={() => {
                     focusFilterInput()
                   }}
@@ -411,7 +411,7 @@ const SidebarComponent = ({
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-6 rounded px-1.5 text-[10px] hover:cursor-pointer"
+                className="side-stat h-6 rounded px-1.5 text-[10px] shadow-none hover:cursor-pointer"
                 onClick={focusFilterInput}
                 aria-label={t('sidebar.searchAction')}
               >
@@ -421,13 +421,13 @@ const SidebarComponent = ({
           </div>
         </TooltipProvider>
       </SidebarHeader>
-      <SidebarContentContainer className="h-full p-1">
+      <SidebarContentContainer className="h-full p-1.5">
         {!collapsed ? (
-          <>
-            <SidebarGroup className="border-b border-sidebar-border/70 pb-1">
-              <SidebarGroupLabel className="flex h-7 items-center justify-between px-2 text-[11px] uppercase text-sidebar-foreground/60">
+          <div className="flex h-full min-h-0 flex-col gap-1.5">
+            <SidebarGroup className="sidebar-section rounded-md p-1">
+              <SidebarGroupLabel className="sidebar-section-header flex h-7 items-center justify-between px-2 text-[11px] uppercase">
                 <span>{t('sidebar.recentProjects')}</span>
-                <Badge variant="secondary" className="px-1.5 py-0">
+                <Badge variant="secondary" className="rounded px-1.5 py-0">
                   {recentProjects.length}
                 </Badge>
               </SidebarGroupLabel>
@@ -445,7 +445,7 @@ const SidebarComponent = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-full justify-start rounded-md px-2 hover:bg-sidebar-accent"
+                        className="h-7 w-full justify-start rounded-md px-2 text-sidebar-foreground/85 hover:bg-sidebar-accent"
                         onClick={() => onOpenProject(path)}
                       >
                         <FolderOpen className="h-4 w-4 text-primary" />
@@ -456,8 +456,8 @@ const SidebarComponent = ({
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            <SidebarGroup className="mt-1 min-h-0 flex-1">
-              <SidebarGroupLabel className="flex h-7 items-center justify-between px-2 text-[11px] uppercase text-sidebar-foreground/60">
+            <SidebarGroup className="sidebar-section min-h-0 flex-1 rounded-md p-1">
+              <SidebarGroupLabel className="sidebar-section-header flex h-7 items-center justify-between px-2 text-[11px] uppercase">
                 <span>{t('sidebar.files')}</span>
                 <span className="text-[10px] text-muted-foreground">Ctrl+P</span>
               </SidebarGroupLabel>
@@ -467,7 +467,7 @@ const SidebarComponent = ({
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                   placeholder={t('sidebar.search')}
-                  className="h-7 rounded-md border-sidebar-border bg-background/60 text-xs"
+                  className="h-7 rounded-md border-sidebar-border bg-background/70 text-xs shadow-sm"
                 />
                 <Separator className="bg-sidebar-border/70" />
                 <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full pr-1">
@@ -502,7 +502,7 @@ const SidebarComponent = ({
                 </ScrollArea>
               </SidebarGroupContent>
             </SidebarGroup>
-          </>
+          </div>
         ) : (
           <TooltipProvider>
             <div className="flex flex-col items-center gap-1 pt-1">

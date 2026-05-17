@@ -50,7 +50,7 @@ export const useAppStore = create<AppState>()(
       tabs: [],
       activePath: null,
       viewMode: 'wysiwyg',
-      theme: 'light',
+      theme: 'marko-light',
       locale: getInitialLocale(),
       sidebarCollapsed: false,
       rightSidebarCollapsed: false,
@@ -82,13 +82,22 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'marko.app',
-      version: 5,
-      migrate: (persistedState) => {
+      version: 6,
+      migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
+        const legacyTheme =
+          version < 6 && state.theme === 'light'
+            ? 'marko-light'
+            : version < 6 && state.theme === 'dark'
+              ? 'marko-dark'
+              : state.theme
         const normalizedTheme: ThemeMode =
-          state.theme === 'dark' || state.theme === 'marko-light' || state.theme === 'marko-dark'
-            ? (state.theme as ThemeMode)
-            : 'light'
+          legacyTheme === 'light' ||
+          legacyTheme === 'dark' ||
+          legacyTheme === 'marko-light' ||
+          legacyTheme === 'marko-dark'
+            ? (legacyTheme as ThemeMode)
+            : 'marko-light'
         const normalizedViewMode: ViewMode =
           state.viewMode === 'graph' || state.viewMode === 'source' ? state.viewMode : 'wysiwyg'
         return {

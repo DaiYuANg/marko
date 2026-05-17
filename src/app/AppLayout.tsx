@@ -266,7 +266,7 @@ export default function AppLayout() {
           rootKind={state.rootKind}
           onInspectPath={state.onInspectPath}
         />
-        <section className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/70">
+        <section className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/80">
           <TabsBar
             tabs={state.tabs}
             dirtyPaths={state.dirtyPaths}

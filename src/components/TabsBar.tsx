@@ -72,7 +72,7 @@ const TabsBarComponent = ({
   }, [])
 
   return (
-    <div className="flex h-10 items-center gap-2 border-b border-border bg-background px-2">
+    <div className="tab-strip flex h-10 items-center gap-2 border-b border-border/80 px-2">
       <Tabs
         className="min-w-0 flex-1"
         value={activeTab}
@@ -97,7 +97,7 @@ const TabsBarComponent = ({
                 <TabsTrigger
                   key={path}
                   value={path}
-                  className="group relative h-8 gap-1.5 rounded-md px-2 text-xs data-[state=active]:bg-muted data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:bg-primary data-[state=active]:after:block"
+                  className="tab-item group relative h-8 gap-1.5 rounded-md px-2 text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
                   title={path}
                 >
                   <FileText className="h-3.5 w-3.5" />
@@ -109,7 +109,7 @@ const TabsBarComponent = ({
                   <span
                     role="button"
                     tabIndex={0}
-                    className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:bg-background ${
+                    className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:bg-muted ${
                       isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
                     onClick={(event) => {
@@ -152,7 +152,7 @@ const TabsBarComponent = ({
           )}
         </div>
         <TooltipProvider>
-          <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
+          <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/70 p-0.5 shadow-sm">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

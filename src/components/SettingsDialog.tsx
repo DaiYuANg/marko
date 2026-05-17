@@ -1,4 +1,4 @@
-import { Languages, Palette, Save, SlidersHorizontal } from 'lucide-react'
+import { Check, Languages, Palette, Save, SlidersHorizontal } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -18,11 +18,15 @@ type SettingsDialogProps = {
   onOpenChange: (open: boolean) => void
 }
 
-const themes: Array<{ value: ThemeMode; labelKey: string }> = [
-  { value: 'light', labelKey: 'theme.light' },
-  { value: 'dark', labelKey: 'theme.dark' },
-  { value: 'marko-light', labelKey: 'theme.markoLight' },
-  { value: 'marko-dark', labelKey: 'theme.markoDark' },
+const themes: Array<{ value: ThemeMode; labelKey: string; swatchClass: string }> = [
+  { value: 'light', labelKey: 'theme.light', swatchClass: 'theme-swatch-light' },
+  { value: 'dark', labelKey: 'theme.dark', swatchClass: 'theme-swatch-dark' },
+  {
+    value: 'marko-light',
+    labelKey: 'theme.markoLight',
+    swatchClass: 'theme-swatch-marko-light',
+  },
+  { value: 'marko-dark', labelKey: 'theme.markoDark', swatchClass: 'theme-swatch-marko-dark' },
 ]
 
 const locales: Array<{ value: Locale; labelKey: string }> = [
@@ -41,8 +45,8 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-md p-0">
-        <DialogHeader className="border-b border-border px-5 py-4">
+      <DialogContent className="max-w-2xl overflow-hidden rounded-md p-0">
+        <DialogHeader className="tab-strip border-b border-border/80 px-5 py-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <SlidersHorizontal className="h-4 w-4 text-primary" />
             {t('settings.title')}
@@ -51,7 +55,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
         </DialogHeader>
 
         <Tabs defaultValue="general" className="grid min-h-[360px] grid-cols-[160px_1fr]">
-          <TabsList className="flex h-full flex-col items-stretch justify-start rounded-none border-r border-border bg-muted/30 p-2">
+          <TabsList className="flex h-full flex-col items-stretch justify-start rounded-none border-r border-border bg-muted/35 p-2">
             <TabsTrigger value="general" className="justify-start gap-2 rounded-md">
               <Save className="h-4 w-4" />
               {t('settings.general')}
@@ -101,11 +105,14 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
                   {themes.map((item) => (
                     <Button
                       key={item.value}
-                      variant={theme === item.value ? 'secondary' : 'outline'}
-                      className="h-9 justify-start rounded-md"
+                      variant="ghost"
+                      data-selected={theme === item.value ? 'true' : 'false'}
+                      className="theme-choice h-auto justify-start gap-3 rounded-md p-2 text-left shadow-none"
                       onClick={() => setTheme(item.value)}
                     >
-                      {t(item.labelKey)}
+                      <ThemePreview swatchClass={item.swatchClass} />
+                      <span className="min-w-0 flex-1 truncate text-sm">{t(item.labelKey)}</span>
+                      {theme === item.value && <Check className="h-4 w-4 text-primary" />}
                     </Button>
                   ))}
                 </div>
@@ -150,12 +157,24 @@ function SettingsRow({
   control: React.ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-card p-3">
+    <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-card p-3 shadow-sm">
       <div className="min-w-0">
         <div className="text-sm font-medium">{title}</div>
         <div className="mt-1 text-xs leading-5 text-muted-foreground">{description}</div>
       </div>
       <div className="shrink-0 pt-0.5">{control}</div>
     </div>
+  )
+}
+
+function ThemePreview({ swatchClass }: { swatchClass: string }) {
+  return (
+    <span className={`theme-swatch ${swatchClass} block h-9 w-12 shrink-0 overflow-hidden rounded`}>
+      <span className="theme-swatch-preview relative block h-full w-full">
+        <span className="absolute inset-y-0 left-0 w-4 bg-[var(--swatch-rail)]" />
+        <span className="absolute left-5 top-2 h-1.5 w-5 rounded-full bg-[var(--swatch-accent)]" />
+        <span className="absolute bottom-2 left-5 h-1 w-3 rounded-full bg-[var(--swatch-accent)] opacity-60" />
+      </span>
+    </span>
   )
 }

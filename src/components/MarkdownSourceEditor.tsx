@@ -159,6 +159,7 @@ export default function MarkdownSourceEditor({
         height="100%"
         language="markdown"
         theme={darkMode ? 'vs-dark' : 'vs'}
+        path={activePath ?? 'marko-empty.md'}
         value={value}
         onChange={(next) => onChange(next ?? '')}
         onMount={handleMount}

@@ -106,10 +106,10 @@ export default function EditorPage({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="editor-stage min-h-0 flex-1 overflow-hidden p-3">
+      <div className="editor-stage min-h-0 flex-1 overflow-hidden p-3 md:p-4">
         <div
           className={`relative h-full overflow-hidden ${
-            viewMode === 'graph' ? '' : 'editor-paper mx-auto max-w-[1040px] rounded-md'
+            viewMode === 'graph' ? '' : 'editor-paper mx-auto max-w-[1060px] rounded-md'
           }`}
         >
           <div
@@ -158,7 +158,7 @@ export default function EditorPage({
         </div>
       )}
       {showStatusBar && activePath && viewMode !== 'graph' && (
-        <div className="flex h-7 items-center justify-between gap-3 border-t border-border bg-background px-3 text-[11px] text-muted-foreground">
+        <div className="tab-strip flex h-7 items-center justify-between gap-3 border-t border-border/80 px-3 text-[11px] text-muted-foreground">
           <div className="min-w-0 truncate">{activePath}</div>
           <div className="flex shrink-0 items-center gap-3">
             <span>{viewLabel}</span>
@@ -190,9 +190,9 @@ const EditorEmptyState = ({
 
   return (
     <div className="editor-stage flex h-full items-center justify-center p-6">
-      <div className="w-full max-w-xl rounded-md border border-border bg-card p-6 text-left shadow-sm">
+      <div className="editor-paper w-full max-w-xl rounded-md p-6 text-left">
         <div className="mb-4 flex items-start gap-3">
-          <div className="rounded-md border border-border bg-muted p-2">
+          <div className="rounded-md border border-border bg-muted p-2 shadow-sm">
             <FileText className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">

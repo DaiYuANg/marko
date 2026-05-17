@@ -22,7 +22,6 @@ export type MarkdownEditorHandle = {
   getMarkdown: () => string
 }
 
-const THROTTLE_MS = 200
 const MERMAID_ALIASES = new Set(['mermaid', 'mmd'])
 let mermaidRenderSequence = 0
 let mermaidLoader: Promise<(typeof import('mermaid'))['default']> | null = null
@@ -83,33 +82,6 @@ const escapeHtml = (value: string) => {
     .replaceAll("'", '&#39;')
 }
 
-const createThrottledEmitter = (onChange: (value: string) => void) => {
-  let lastCall = 0
-  let timer: number | null = null
-  let pending: string | null = null
-
-  return (value: string) => {
-    const now = Date.now()
-    const remaining = THROTTLE_MS - (now - lastCall)
-    if (remaining <= 0) {
-      lastCall = now
-      onChange(value)
-      return
-    }
-
-    pending = value
-    if (timer) return
-    timer = window.setTimeout(() => {
-      timer = null
-      if (pending !== null) {
-        lastCall = Date.now()
-        onChange(pending)
-        pending = null
-      }
-    }, remaining)
-  }
-}
-
 const findHeadingPosition = (doc: ProseMirrorNode, targetSlug: string) => {
   const usedSlugs = new Map<string, number>()
   let headingIndex = 0
@@ -151,7 +123,13 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
     const rootRef = useRef<HTMLDivElement | null>(null)
     const crepeRef = useRef<Crepe | null>(null)
     const latestValue = useRef(value)
-    const emitChangeRef = useRef(createThrottledEmitter(onChange))
+    const onChangeRef = useRef(onChange)
+    const activePathRef = useRef(activePath)
+    const localEchoRef = useRef<{ path: string | null; value: string } | null>(null)
+    const applyingExternalValueRef = useRef(false)
+    const isComposingRef = useRef(false)
+    const lastSyncedPathRef = useRef(activePath)
+    const pendingExternalValueRef = useRef<{ path: string | null; value: string } | null>(null)
     const darkMode = useDarkMode()
 
     useImperativeHandle(ref, () => ({
@@ -159,12 +137,36 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
     }))
 
     useEffect(() => {
-      latestValue.current = value
-    }, [value])
+      onChangeRef.current = onChange
+    }, [onChange])
 
     useEffect(() => {
-      emitChangeRef.current = createThrottledEmitter(onChange)
-    }, [onChange])
+      activePathRef.current = activePath
+    }, [activePath])
+
+    const applyExternalValue = (crepe: Crepe, nextValue: string) => {
+      crepe.editor.action((ctx) => {
+        applyingExternalValueRef.current = true
+        try {
+          const view = ctx.get(editorViewCtx)
+          const parser = ctx.get(parserCtx)
+          const doc = parser(nextValue)
+          if (!doc) return
+          const state = view.state
+          const selection = state.selection
+          const { from } = selection
+          let tr = state.tr
+          tr = tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
+          const docSize = doc.content.size
+          const safeFrom = Math.max(0, Math.min(from, docSize - 2))
+          tr = tr.setSelection(Selection.near(tr.doc.resolve(safeFrom)))
+          view.dispatch(tr)
+          latestValue.current = nextValue
+        } finally {
+          applyingExternalValueRef.current = false
+        }
+      })
+    }
 
     useEffect(() => {
       const handler = (event: Event) => {
@@ -212,8 +214,17 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
       crepe.editor
         .config((ctx) => {
           ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
+            if (applyingExternalValueRef.current) {
+              latestValue.current = markdown
+              return
+            }
             if (markdown === latestValue.current) return
-            emitChangeRef.current(markdown)
+            latestValue.current = markdown
+            localEchoRef.current = {
+              path: activePathRef.current,
+              value: markdown,
+            }
+            onChangeRef.current(markdown)
           })
 
           ctx.update(codeBlockConfig.key, (prev) => ({
@@ -282,28 +293,64 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
 
     useEffect(() => {
       const crepe = crepeRef.current
-      if (!crepe) return
-      if (readCrepeMarkdown(crepe, latestValue.current) === value) return
+      if (!crepe) {
+        latestValue.current = value
+        lastSyncedPathRef.current = activePath
+        return
+      }
+      const pathChanged = lastSyncedPathRef.current !== activePath
+      const localEcho = localEchoRef.current
+      if (localEcho?.path === activePath && localEcho.value === value) {
+        latestValue.current = value
+        localEchoRef.current = null
+        lastSyncedPathRef.current = activePath
+        return
+      }
+      if (readCrepeMarkdown(crepe, latestValue.current) === value) {
+        latestValue.current = value
+        lastSyncedPathRef.current = activePath
+        return
+      }
 
-      crepe.editor.action((ctx) => {
-        const view = ctx.get(editorViewCtx)
-        const parser = ctx.get(parserCtx)
-        const doc = parser(value)
-        if (!doc) return
-        const state = view.state
-        const selection = state.selection
-        const { from } = selection
-        let tr = state.tr
-        tr = tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
-        const docSize = doc.content.size
-        const safeFrom = Math.min(from, docSize - 2)
-        tr = tr.setSelection(Selection.near(tr.doc.resolve(safeFrom)))
-        view.dispatch(tr)
-      })
-    }, [value])
+      if (isComposingRef.current && !pathChanged) {
+        if (localEcho?.path === activePath && localEcho.value !== value) {
+          return
+        }
+        pendingExternalValueRef.current = { path: activePath, value }
+        return
+      }
+
+      pendingExternalValueRef.current = null
+      applyExternalValue(crepe, value)
+      lastSyncedPathRef.current = activePath
+    }, [activePath, value])
+
+    const handleCompositionStart = () => {
+      isComposingRef.current = true
+    }
+
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false
+      const pending = pendingExternalValueRef.current
+      const crepe = crepeRef.current
+      if (!pending || !crepe || pending.path !== activePathRef.current) return
+
+      pendingExternalValueRef.current = null
+      if (readCrepeMarkdown(crepe, latestValue.current) === pending.value) {
+        latestValue.current = pending.value
+        lastSyncedPathRef.current = pending.path
+        return
+      }
+      applyExternalValue(crepe, pending.value)
+      lastSyncedPathRef.current = pending.path
+    }
 
     return (
-      <div className="crepe flex h-full flex-1 flex-col">
+      <div
+        className="crepe flex h-full flex-1 flex-col"
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+      >
         <ScrollArea className="h-full flex-1">
           <div className="milkdown min-h-full" ref={rootRef} />
         </ScrollArea>

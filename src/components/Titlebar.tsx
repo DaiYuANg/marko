@@ -275,7 +275,7 @@ export default function Titlebar({
 
   return (
     <header
-      className={`app-titlebar flex h-10 items-center justify-between border-b border-border bg-background px-2 ${isMacTauri ? 'pl-[68px]' : ''}`}
+      className={`app-titlebar flex h-11 items-center justify-between border-b border-border/80 px-2.5 ${isMacTauri ? 'pl-[68px]' : ''}`}
       data-tauri-drag-region
       onMouseDown={handleTitlebarMouseDown}
     >
@@ -288,15 +288,18 @@ export default function Titlebar({
                 size="icon"
                 onClick={onToggleSidebar}
                 aria-label={t('actions.toggleSidebar')}
-                className="h-8 w-8 rounded-md"
+                className="chrome-button h-8 w-8 rounded-md"
               >
                 <PanelLeft className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('actions.toggleSidebar')}</TooltipContent>
           </Tooltip>
-          <div className="min-w-0 px-1 leading-none">
-            <div className="truncate text-sm font-semibold">{t('app.name')}</div>
+          <div className="flex min-w-0 items-center gap-2 px-1 leading-none">
+            <div className="grid h-6 w-6 place-items-center rounded-md border border-border bg-primary text-[11px] font-semibold text-primary-foreground shadow-sm">
+              M
+            </div>
+            <div className="truncate text-sm font-semibold tracking-[0.01em]">{t('app.name')}</div>
           </div>
           {showInlineMenu && <AppMenuBar groups={menuGroups} onAction={onMenuAction} />}
         </div>
@@ -305,7 +308,7 @@ export default function Titlebar({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 w-full max-w-md justify-start rounded-md border border-border bg-muted/35 px-3 text-left text-xs text-muted-foreground hover:bg-muted/70"
+            className="command-trigger h-7 w-full max-w-md justify-start rounded-md px-3 text-left text-xs text-muted-foreground"
             onClick={onOpenSearch}
           >
             <span className="flex w-full items-center gap-2">
@@ -324,7 +327,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="chrome-button h-8 w-8 rounded-md"
                 onClick={onSelectProject}
                 aria-label={t('actions.openProject')}
               >
@@ -338,7 +341,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="chrome-button h-8 w-8 rounded-md"
                 onClick={onSelectSingleFile}
                 aria-label={t('actions.openFile')}
               >
@@ -352,7 +355,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md md:hidden"
+                className="chrome-button h-8 w-8 rounded-md md:hidden"
                 onClick={onOpenSearch}
                 aria-label={t('sidebar.searchAction')}
               >
@@ -366,7 +369,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="chrome-button h-8 w-8 rounded-md"
                 aria-label={t('menu.theme')}
               >
                 <Palette className="h-4 w-4" />
@@ -433,7 +436,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="chrome-button h-8 w-8 rounded-md"
                 onClick={() => setSettingsOpen(true)}
                 aria-label={t('menu.settings')}
               >
@@ -447,7 +450,7 @@ export default function Titlebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="chrome-button h-8 w-8 rounded-md"
                 onClick={onToggleRightSidebar}
                 aria-label={t('actions.toggleRightSidebar')}
               >

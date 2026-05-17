@@ -7,33 +7,33 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 48 11% 96%;
-    --foreground: 45 8% 12%;
+    --background: 210 24% 97%;
+    --foreground: 220 22% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 45 8% 12%;
+    --card-foreground: 220 22% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 45 8% 12%;
-    --primary: 177 43% 30%;
+    --popover-foreground: 220 22% 12%;
+    --primary: 174 63% 31%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 50 10% 91%;
-    --secondary-foreground: 45 8% 14%;
-    --muted: 48 12% 92%;
-    --muted-foreground: 42 6% 43%;
-    --accent: 176 24% 88%;
-    --accent-foreground: 177 40% 22%;
+    --secondary: 213 21% 92%;
+    --secondary-foreground: 218 22% 16%;
+    --muted: 210 22% 93%;
+    --muted-foreground: 218 9% 43%;
+    --accent: 38 74% 90%;
+    --accent-foreground: 31 64% 23%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 45 10% 84%;
-    --input: 45 10% 84%;
-    --ring: 177 43% 30%;
-    --sidebar: 48 12% 94%;
-    --sidebar-foreground: 45 8% 18%;
-    --sidebar-primary: 177 43% 30%;
+    --border: 214 18% 84%;
+    --input: 214 18% 84%;
+    --ring: 174 63% 31%;
+    --sidebar: 214 24% 94%;
+    --sidebar-foreground: 220 18% 17%;
+    --sidebar-primary: 174 63% 31%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 48 13% 90%;
-    --sidebar-accent-foreground: 45 8% 16%;
-    --sidebar-border: 45 10% 82%;
-    --sidebar-ring: 177 43% 30%;
+    --sidebar-accent: 211 23% 89%;
+    --sidebar-accent-foreground: 220 20% 16%;
+    --sidebar-border: 213 18% 82%;
+    --sidebar-ring: 174 63% 31%;
     --radius: 0.5rem;
   }
 
@@ -101,65 +101,65 @@
 
   :root[data-theme='marko-light'] {
     color-scheme: light;
-    --background: 48 13% 96%;
-    --foreground: 45 8% 12%;
+    --background: 210 24% 97%;
+    --foreground: 220 22% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 45 8% 12%;
+    --card-foreground: 220 22% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 45 8% 12%;
-    --primary: 177 43% 30%;
+    --popover-foreground: 220 22% 12%;
+    --primary: 174 63% 31%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 50 10% 91%;
-    --secondary-foreground: 45 8% 14%;
-    --muted: 48 12% 92%;
-    --muted-foreground: 42 6% 43%;
-    --accent: 176 24% 88%;
-    --accent-foreground: 177 40% 22%;
+    --secondary: 213 21% 92%;
+    --secondary-foreground: 218 22% 16%;
+    --muted: 210 22% 93%;
+    --muted-foreground: 218 9% 43%;
+    --accent: 38 74% 90%;
+    --accent-foreground: 31 64% 23%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 45 10% 84%;
-    --input: 45 10% 84%;
-    --ring: 177 43% 30%;
-    --sidebar: 48 13% 94%;
-    --sidebar-foreground: 45 8% 18%;
-    --sidebar-primary: 177 43% 30%;
+    --border: 214 18% 84%;
+    --input: 214 18% 84%;
+    --ring: 174 63% 31%;
+    --sidebar: 214 24% 94%;
+    --sidebar-foreground: 220 18% 17%;
+    --sidebar-primary: 174 63% 31%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 48 13% 90%;
-    --sidebar-accent-foreground: 45 8% 16%;
-    --sidebar-border: 45 10% 82%;
-    --sidebar-ring: 177 43% 30%;
+    --sidebar-accent: 211 23% 89%;
+    --sidebar-accent-foreground: 220 20% 16%;
+    --sidebar-border: 213 18% 82%;
+    --sidebar-ring: 174 63% 31%;
     --radius: 0.5rem;
   }
 
   :root[data-theme='marko-dark'] {
     color-scheme: dark;
-    --background: 120 3% 9%;
-    --foreground: 45 16% 89%;
-    --card: 120 3% 12%;
-    --card-foreground: 45 16% 89%;
-    --popover: 120 3% 11%;
-    --popover-foreground: 45 16% 89%;
-    --primary: 173 35% 60%;
-    --primary-foreground: 160 20% 9%;
-    --secondary: 90 4% 17%;
-    --secondary-foreground: 45 14% 87%;
-    --muted: 90 4% 15%;
-    --muted-foreground: 45 8% 62%;
-    --accent: 173 20% 22%;
-    --accent-foreground: 170 34% 84%;
+    --background: 150 6% 8%;
+    --foreground: 43 19% 91%;
+    --card: 150 6% 11%;
+    --card-foreground: 43 19% 91%;
+    --popover: 150 6% 10%;
+    --popover-foreground: 43 19% 91%;
+    --primary: 174 54% 57%;
+    --primary-foreground: 172 35% 8%;
+    --secondary: 30 8% 17%;
+    --secondary-foreground: 42 18% 88%;
+    --muted: 150 5% 15%;
+    --muted-foreground: 42 8% 64%;
+    --accent: 205 28% 22%;
+    --accent-foreground: 196 44% 86%;
     --destructive: 0 74% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 80 4% 24%;
-    --input: 80 4% 24%;
-    --ring: 173 35% 60%;
-    --sidebar: 120 3% 11%;
-    --sidebar-foreground: 45 16% 86%;
-    --sidebar-primary: 173 35% 60%;
-    --sidebar-primary-foreground: 160 20% 9%;
-    --sidebar-accent: 90 4% 16%;
-    --sidebar-accent-foreground: 45 14% 87%;
-    --sidebar-border: 80 4% 22%;
-    --sidebar-ring: 173 35% 60%;
+    --border: 150 5% 23%;
+    --input: 150 5% 23%;
+    --ring: 174 54% 57%;
+    --sidebar: 150 7% 10%;
+    --sidebar-foreground: 43 17% 88%;
+    --sidebar-primary: 174 54% 57%;
+    --sidebar-primary-foreground: 172 35% 8%;
+    --sidebar-accent: 150 5% 16%;
+    --sidebar-accent-foreground: 43 17% 88%;
+    --sidebar-border: 150 5% 21%;
+    --sidebar-ring: 174 54% 57%;
     --radius: 0.5rem;
   }
 
@@ -184,6 +184,11 @@
 
 .app-shell {
   background: hsl(var(--background));
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--card)) 52%, transparent),
+    transparent 42%
+  );
 }
 
 .panel-surface {
@@ -218,21 +223,123 @@
 }
 
 .workspace-rail {
-  background: hsl(var(--sidebar));
+  background: color-mix(in srgb, hsl(var(--sidebar)) 92%, hsl(var(--background)));
 }
 
 .workspace-main {
-  background: hsl(var(--background));
+  background: hsl(var(--card));
 }
 
 .editor-stage {
-  background: color-mix(in srgb, hsl(var(--background)) 86%, hsl(var(--muted)) 14%);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, hsl(var(--muted)) 34%, transparent),
+      transparent 8.5rem
+    ),
+    color-mix(in srgb, hsl(var(--background)) 84%, hsl(var(--card)) 16%);
 }
 
 .editor-paper {
+  background: color-mix(in srgb, hsl(var(--card)) 97%, hsl(var(--background)));
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 86%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 7%, transparent),
+    0 16px 42px -34px color-mix(in srgb, hsl(var(--foreground)) 38%, transparent);
+}
+
+.app-titlebar {
+  background: color-mix(in srgb, hsl(var(--card)) 92%, hsl(var(--background)));
+  -webkit-app-region: drag;
+}
+
+.chrome-button {
+  color: color-mix(in srgb, hsl(var(--foreground)) 78%, transparent);
+}
+
+.chrome-button:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.command-trigger {
+  background: color-mix(in srgb, hsl(var(--muted)) 72%, hsl(var(--card)));
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, hsl(var(--card)) 88%, transparent);
+}
+
+.command-trigger:hover {
+  background: color-mix(in srgb, hsl(var(--muted)) 90%, hsl(var(--card)));
+}
+
+.sidebar-section {
+  border: 1px solid color-mix(in srgb, hsl(var(--sidebar-border)) 78%, transparent);
+  background: color-mix(in srgb, hsl(var(--card)) 44%, hsl(var(--sidebar)));
+}
+
+.sidebar-section-header {
+  color: color-mix(in srgb, hsl(var(--sidebar-foreground)) 56%, transparent);
+}
+
+.side-stat {
+  border: 1px solid color-mix(in srgb, hsl(var(--sidebar-border)) 80%, transparent);
+  background: color-mix(in srgb, hsl(var(--card)) 40%, hsl(var(--sidebar-accent)));
+}
+
+.tab-strip {
+  background: color-mix(in srgb, hsl(var(--card)) 94%, hsl(var(--background)));
+}
+
+.tab-item {
+  color: color-mix(in srgb, hsl(var(--foreground)) 70%, transparent);
+}
+
+.tab-item:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.theme-choice {
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 7%, transparent);
+}
+
+.theme-choice[data-selected='true'] {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+
+.theme-swatch {
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 85%, transparent);
+  background: hsl(var(--background));
+}
+
+.theme-swatch-light {
+  --swatch-bg: hsl(0 0% 100%);
+  --swatch-rail: hsl(0 0% 98%);
+  --swatch-accent: hsl(240 5.9% 10%);
+}
+
+.theme-swatch-dark {
+  --swatch-bg: hsl(240 10% 3.9%);
+  --swatch-rail: hsl(240 5.9% 10%);
+  --swatch-accent: hsl(0 0% 98%);
+}
+
+.theme-swatch-marko-light {
+  --swatch-bg: hsl(210 24% 97%);
+  --swatch-rail: hsl(214 24% 94%);
+  --swatch-accent: hsl(174 63% 31%);
+}
+
+.theme-swatch-marko-dark {
+  --swatch-bg: hsl(150 6% 8%);
+  --swatch-rail: hsl(150 7% 10%);
+  --swatch-accent: hsl(174 54% 57%);
+}
+
+.theme-swatch-preview {
+  background: var(--swatch-bg);
 }
 
 .inspector-row {
@@ -262,10 +369,6 @@
 
 .react-flow__controls-button svg {
   fill: currentColor;
-}
-
-.app-titlebar {
-  -webkit-app-region: drag;
 }
 
 .app-titlebar button,

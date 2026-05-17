@@ -6,18 +6,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/useI18n'
 import {
+  CheckCircle2,
   CircleAlert,
   CircleX,
   Code2,
   FileText,
   GitGraph,
+  Hash,
   LayoutGrid,
   NotebookTabs,
   PenLine,
   Link2,
   ListTree,
 } from 'lucide-react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   createFileLabel,
   extractHeadings,
@@ -105,6 +107,14 @@ const problemIcon = (severity: MarkdownSourceDiagnostic['severity']) => {
 
 const problemClasses = (severity: MarkdownSourceDiagnostic['severity']) => {
   return severity === 'error' ? 'text-destructive' : 'text-amber-500'
+}
+
+const getDocumentStats = (value: string) => {
+  const trimmed = value.trim()
+  return {
+    lines: value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length,
+    words: trimmed.length === 0 ? 0 : trimmed.split(/\s+/).filter(Boolean).length,
+  }
 }
 
 const RightSidebarComponent = ({
@@ -222,6 +232,23 @@ const RightSidebarComponent = ({
       workspaceIndex,
     })
   }, [files, workspaceIndex, targetPath, targetContent, workspaceContents])
+  const documentStats = useMemo(() => getDocumentStats(targetContent), [targetContent])
+  const outgoingLinkCount = useMemo(() => {
+    if (!targetPath) return 0
+    if (targetPath !== activePath && indexedTargetFile) {
+      return indexedTargetFile.links.filter((link) => !link.is_external).length
+    }
+    return extractLinks(targetContent).filter((link) => !isExternalLink(link.target)).length
+  }, [activePath, indexedTargetFile, targetContent, targetPath])
+  const errorProblems = useMemo(
+    () => problems.filter((problem) => problem.severity === 'error'),
+    [problems],
+  )
+  const warningProblems = useMemo(
+    () => problems.filter((problem) => problem.severity !== 'error'),
+    [problems],
+  )
+  const targetLabel = targetPath ? createFileLabel(targetPath) : t('inspector.none')
 
   const quickActions = useMemo(() => {
     return [
@@ -341,24 +368,28 @@ const RightSidebarComponent = ({
 
   return (
     <aside
-      className={`layout-rail workspace-rail flex flex-col border-l border-sidebar-border ${
+      className={`layout-rail workspace-rail flex flex-col border-l border-sidebar-border/80 ${
         collapsed ? 'w-14' : 'w-72'
       }`}
       data-collapsed={collapsed ? 'true' : 'false'}
     >
       {!collapsed ? (
-        <div className="flex h-full flex-col">
-          <div className="border-b border-sidebar-border px-2 py-1.5">
-            <div className="mb-1.5 flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                <div className="text-xs font-semibold">{totalFiles}</div>
+        <div className="flex h-full flex-col p-1.5">
+          <div className="sidebar-section rounded-md p-2">
+            <div className="flex min-w-0 items-start gap-2">
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-sidebar-border bg-background/70">
+                <FileText className="h-4 w-4 text-primary" />
               </div>
-              <div className="flex items-center gap-1">
-                <NotebookTabs className="h-4 w-4 text-muted-foreground" />
-                <div className="text-xs font-semibold">{tabs.length}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{targetLabel}</div>
+                <div
+                  className="mt-0.5 truncate text-[11px] text-muted-foreground"
+                  title={targetPath ?? ''}
+                >
+                  {targetPath ?? t('editor.empty')}
+                </div>
               </div>
-              <Badge variant="secondary" className="ml-auto rounded px-2 py-0.5 text-[10px]">
+              <Badge variant="secondary" className="rounded px-2 py-0.5 text-[10px]">
                 {viewMode === 'graph'
                   ? t('tabs.workspaceGraph')
                   : activePath
@@ -366,7 +397,30 @@ const RightSidebarComponent = ({
                     : t('inspector.none')}
               </Badge>
             </div>
-            <Separator className="my-1 bg-sidebar-border" />
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <InspectorMetric
+                icon={<Hash className="h-3.5 w-3.5" />}
+                label={t('inspector.outline')}
+                value={outline.length}
+              />
+              <InspectorMetric
+                icon={<Link2 className="h-3.5 w-3.5" />}
+                label={t('inspector.backlinks')}
+                value={backlinks.length}
+              />
+              <InspectorMetric
+                icon={<CircleAlert className="h-3.5 w-3.5" />}
+                label={t('inspector.problems')}
+                value={problems.length}
+                tone={problems.length > 0 ? 'warning' : 'normal'}
+              />
+              <InspectorMetric
+                icon={<FileText className="h-3.5 w-3.5" />}
+                label={t('status.lines')}
+                value={documentStats.lines}
+              />
+            </div>
+            <Separator className="my-1 bg-sidebar-border/70" />
             <div className="flex gap-1">
               <TooltipProvider>
                 {quickActions.map((action) => (
@@ -375,7 +429,7 @@ const RightSidebarComponent = ({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className={`h-7 w-7 rounded-md ${
+                        className={`chrome-button h-7 w-7 rounded-md ${
                           (viewMode === 'graph' && action.icon === GitGraph) ||
                           (viewMode === 'source' && action.icon === Code2) ||
                           (viewMode === 'wysiwyg' && action.icon === PenLine)
@@ -395,8 +449,8 @@ const RightSidebarComponent = ({
             </div>
           </div>
 
-          <Tabs defaultValue="outline" className="flex min-h-0 flex-1 flex-col p-1">
-            <TabsList className="grid h-8 w-full grid-cols-4 rounded-md bg-muted/35 p-0.5">
+          <Tabs defaultValue="outline" className="mt-1.5 flex min-h-0 flex-1 flex-col">
+            <TabsList className="grid h-8 w-full grid-cols-4 rounded-md border border-sidebar-border bg-background/65 p-0.5">
               <TabsTrigger value="outline" className="gap-1 rounded px-1 text-[11px]">
                 <ListTree className="h-3.5 w-3.5" />
                 {t('inspector.outline')}
@@ -418,11 +472,19 @@ const RightSidebarComponent = ({
             <TabsContent value="outline" className="mt-1 min-h-0 flex-1 overflow-hidden">
               <ScrollArea className="h-full" viewportClassName="p-1">
                 {!targetPath ? (
-                  <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
+                  <InspectorEmptyState
+                    icon={<FileText className="h-4 w-4" />}
+                    title={t('inspector.none')}
+                    description={t('editor.empty')}
+                  />
                 ) : outline.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">{t('inspector.noOutline')}</div>
+                  <InspectorEmptyState
+                    icon={<ListTree className="h-4 w-4" />}
+                    title={t('inspector.noOutline')}
+                    description={targetLabel}
+                  />
                 ) : (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1.5">
                     {outline.map((heading) => (
                       <Button
                         key={`${heading.slug}-${heading.level}`}
@@ -446,17 +508,25 @@ const RightSidebarComponent = ({
             <TabsContent value="backlinks" className="mt-1 min-h-0 flex-1 overflow-hidden">
               <ScrollArea className="h-full" viewportClassName="p-1">
                 {!targetPath ? (
-                  <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
+                  <InspectorEmptyState
+                    icon={<FileText className="h-4 w-4" />}
+                    title={t('inspector.none')}
+                    description={t('editor.empty')}
+                  />
                 ) : backlinks.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">{t('inspector.noBacklinks')}</div>
+                  <InspectorEmptyState
+                    icon={<Link2 className="h-4 w-4" />}
+                    title={t('inspector.noBacklinks')}
+                    description={targetLabel}
+                  />
                 ) : (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1.5">
                     {backlinks.map((backlink, index) => (
                       <Button
                         key={`${backlink.sourcePath}-${index}`}
                         variant="ghost"
                         size="sm"
-                        className="inspector-row h-auto min-h-9 w-full justify-start rounded-md px-2 py-1 text-left"
+                        className="inspector-row h-auto min-h-11 w-full items-start justify-start rounded-md px-2 py-1.5 text-left"
                         onClick={() => handleOpenBacklink(backlink)}
                       >
                         <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -468,7 +538,7 @@ const RightSidebarComponent = ({
                             {backlink.text}
                           </span>
                           {backlink.context && (
-                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/80">
+                            <span className="mt-0.5 block whitespace-normal text-[11px] leading-4 text-muted-foreground/80">
                               {backlink.context}
                             </span>
                           )}
@@ -483,16 +553,31 @@ const RightSidebarComponent = ({
             <TabsContent value="problems" className="mt-1 min-h-0 flex-1 overflow-hidden">
               <ScrollArea className="h-full" viewportClassName="p-1">
                 {!targetPath ? (
-                  <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
+                  <InspectorEmptyState
+                    icon={<FileText className="h-4 w-4" />}
+                    title={t('inspector.none')}
+                    description={t('editor.empty')}
+                  />
                 ) : problems.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">{t('inspector.noProblems')}</div>
+                  <InspectorEmptyState
+                    icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                    title={t('inspector.noProblems')}
+                    description={targetLabel}
+                  />
                 ) : (
-                  <div className="flex flex-col gap-1">
-                    {problems.map((problem, index) => {
+                  <div className="flex flex-col gap-2">
+                    {errorProblems.length > 0 && (
+                      <ProblemGroupHeader
+                        label={t('inspector.problemError')}
+                        count={errorProblems.length}
+                        tone="error"
+                      />
+                    )}
+                    {errorProblems.map((problem, index) => {
                       const Icon = problemIcon(problem.severity)
                       return (
                         <Button
-                          key={`${problem.line}-${problem.startColumn}-${index}`}
+                          key={`error-${problem.line}-${problem.startColumn}-${index}`}
                           variant="ghost"
                           size="sm"
                           className="inspector-row h-auto min-h-9 w-full justify-start rounded-md px-2 py-1 text-left"
@@ -506,6 +591,40 @@ const RightSidebarComponent = ({
                               {problem.severity === 'error'
                                 ? t('inspector.problemError')
                                 : t('inspector.problemWarning')}
+                            </span>
+                            <span className="block truncate text-[11px] text-muted-foreground">
+                              {problem.message}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/80">
+                              {t('tabs.editor')} · line {problem.line}:{problem.startColumn}
+                            </span>
+                          </span>
+                        </Button>
+                      )
+                    })}
+                    {warningProblems.length > 0 && (
+                      <ProblemGroupHeader
+                        label={t('inspector.problemWarning')}
+                        count={warningProblems.length}
+                        tone="warning"
+                      />
+                    )}
+                    {warningProblems.map((problem, index) => {
+                      const Icon = problemIcon(problem.severity)
+                      return (
+                        <Button
+                          key={`warning-${problem.line}-${problem.startColumn}-${index}`}
+                          variant="ghost"
+                          size="sm"
+                          className="inspector-row h-auto min-h-9 w-full justify-start rounded-md px-2 py-1 text-left"
+                          onClick={() => handleOpenProblem(problem)}
+                        >
+                          <Icon
+                            className={`h-4 w-4 shrink-0 ${problemClasses(problem.severity)}`}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium">
+                              {t('inspector.problemWarning')}
                             </span>
                             <span className="block truncate text-[11px] text-muted-foreground">
                               {problem.message}
@@ -538,31 +657,34 @@ const RightSidebarComponent = ({
                   <div className="text-xs text-muted-foreground">{t('inspector.none')}</div>
                 ) : (
                   <div className="space-y-2 text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <PropertyCell label={t('status.lines')} value={documentStats.lines} />
+                      <PropertyCell label={t('status.words')} value={documentStats.words} />
+                      <PropertyCell label={t('inspector.outline')} value={outline.length} />
+                      <PropertyCell label={t('inspector.backlinks')} value={outgoingLinkCount} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <PropertyCell label={t('inspector.kind')} value={displayMetadata.kind} />
+                      <PropertyCell
+                        label={t('inspector.size')}
+                        value={formatBytes(displayMetadata.size_bytes)}
+                      />
+                      <PropertyCell
+                        label={t('inspector.modified')}
+                        value={
+                          displayMetadata.modified_ms
+                            ? new Date(displayMetadata.modified_ms).toLocaleString()
+                            : t('inspector.unknown')
+                        }
+                      />
+                      <PropertyCell
+                        label={t('inspector.readonly')}
+                        value={displayMetadata.readonly ? t('common.yes') : t('common.no')}
+                      />
+                    </div>
                     <div>
                       <div className="text-muted-foreground">{t('inspector.path')}</div>
                       <div className="break-all font-medium">{displayMetadata.path}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <div className="text-muted-foreground">{t('inspector.kind')}</div>
-                        <div>{displayMetadata.kind}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">{t('inspector.size')}</div>
-                        <div>{formatBytes(displayMetadata.size_bytes)}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">{t('inspector.modified')}</div>
-                        <div>
-                          {displayMetadata.modified_ms
-                            ? new Date(displayMetadata.modified_ms).toLocaleString()
-                            : t('inspector.unknown')}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">{t('inspector.readonly')}</div>
-                        <div>{displayMetadata.readonly ? t('common.yes') : t('common.no')}</div>
-                      </div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">{t('inspector.absolutePath')}</div>
@@ -601,6 +723,85 @@ const RightSidebarComponent = ({
         </TooltipProvider>
       )}
     </aside>
+  )
+}
+
+function InspectorMetric({
+  icon,
+  label,
+  value,
+  tone = 'normal',
+}: {
+  icon: ReactNode
+  label: string
+  value: ReactNode
+  tone?: 'normal' | 'warning' | 'error'
+}) {
+  const toneClass =
+    tone === 'error'
+      ? 'text-destructive'
+      : tone === 'warning'
+        ? 'text-amber-600'
+        : 'text-foreground'
+
+  return (
+    <div className="side-stat flex min-w-0 items-center gap-1.5 rounded px-1.5 py-1">
+      <span className="shrink-0 text-muted-foreground">{icon}</span>
+      <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">{label}</span>
+      <span className={`shrink-0 text-xs font-semibold ${toneClass}`}>{value}</span>
+    </div>
+  )
+}
+
+function InspectorEmptyState({
+  icon,
+  title,
+  description,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <div className="flex min-h-28 flex-col items-center justify-center rounded-md border border-dashed border-sidebar-border/80 bg-background/45 px-3 text-center">
+      <div className="mb-2 rounded-md border border-border bg-muted p-2 text-muted-foreground">
+        {icon}
+      </div>
+      <div className="text-xs font-medium">{title}</div>
+      <div className="mt-1 max-w-[13rem] truncate text-[11px] text-muted-foreground">
+        {description}
+      </div>
+    </div>
+  )
+}
+
+function ProblemGroupHeader({
+  label,
+  count,
+  tone,
+}: {
+  label: string
+  count: number
+  tone: 'warning' | 'error'
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded px-2 py-1 text-[11px] font-medium ${
+        tone === 'error' ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-600'
+      }`}
+    >
+      <span>{label}</span>
+      <span>{count}</span>
+    </div>
+  )
+}
+
+function PropertyCell({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-md border border-border bg-background/55 p-2">
+      <div className="truncate text-[10px] text-muted-foreground">{label}</div>
+      <div className="mt-0.5 truncate text-xs font-medium">{value}</div>
+    </div>
   )
 }
 
