@@ -46,6 +46,7 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
   )
 
   const fileContentsRef = useLatest(fileContents)
+  const dirtyPathsRef = useLatest(dirtyPaths)
   const activePathRef = useLatest(activePath)
   const workspaceKeyRef = useLatest(workspaceKey)
   const syncTimers = useRef<Record<string, number>>({})
@@ -109,6 +110,16 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
   useEffect(() => {
     if (!activePath) return
     if (!isTauriRuntime()) return
+    const hasLocalChange = Boolean(
+      dirtyPathsRef.current[activePath] || syncTimers.current[activePath],
+    )
+    const hasLoadedContent = Object.prototype.hasOwnProperty.call(
+      fileContentsRef.current,
+      activePath,
+    )
+    if (hasLocalChange || (hasLoadedContent && syncedContentsRef.current[activePath] != null)) {
+      return
+    }
 
     const token = loadToken.current + 1
     loadToken.current = token
@@ -144,7 +155,7 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
           message: String(error),
         })
       })
-  }, [activePath, setPathSaveState, workspaceKey, workspaceKeyRef])
+  }, [activePath, dirtyPathsRef, fileContentsRef, setPathSaveState, workspaceKey, workspaceKeyRef])
 
   useEffect(() => {
     if (!isTauriRuntime()) return
@@ -160,6 +171,14 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
         const { path, revision, dirty } = parsed.data
         const currentWorkspace = workspaceKeyRef.current
         if (dirty) {
+          const revisionVersion = revisionVersionRef.current[path]?.[revision]
+          const revisionContent = revisionContentRef.current[path]?.[revision]
+          if (revisionVersion == null || revisionContent == null) return
+
+          const hasNewChange = changeVersionRef.current[path] !== revisionVersion
+          const currentValue = fileContentsRef.current[path] ?? ''
+          if (hasNewChange || currentValue !== revisionContent) return
+
           markPathDirty(currentWorkspace, path, { status: 'saving' })
           return
         }

@@ -1,7 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
+import { FileText, Search } from 'lucide-react'
 import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
 import { useI18n } from '@/i18n/useI18n'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import type { GraphData } from '@/logic/graph'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
@@ -21,6 +23,15 @@ type EditorPageProps = {
   workspaceIndex: FsWorkspaceIndex | null
   onOpenFile: (path: string) => void
   viewMode: ViewMode
+}
+
+const getDocumentStats = (value: string) => {
+  const trimmed = value.trim()
+  return {
+    lines: value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length,
+    words: trimmed.length === 0 ? 0 : trimmed.split(/\s+/).filter(Boolean).length,
+    characters: value.replace(/\s/g, '').length,
+  }
 }
 
 export default function EditorPage({
@@ -77,6 +88,20 @@ export default function EditorPage({
     [onChange],
   )
 
+  const availableFiles = files.filter((file) => file.kind === 'file')
+  const showEmptyState = !activePath && viewMode !== 'graph'
+  const stats = getDocumentStats(editorValue)
+  const viewLabel =
+    viewMode === 'graph'
+      ? t('tabs.workspaceGraph')
+      : viewMode === 'source'
+        ? t('editor.modeSource')
+        : t('editor.modeWysiwyg')
+
+  if (showEmptyState) {
+    return <EditorEmptyState files={availableFiles} onOpenFile={onOpenFile} />
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="editor-stage min-h-0 flex-1 overflow-hidden p-3">
@@ -125,11 +150,87 @@ export default function EditorPage({
           )}
         </div>
       </div>
-      {!activePath && (
+      {!activePath && viewMode === 'graph' && (
         <div className="border-t border-border bg-background px-3 py-2 text-sm text-muted-foreground">
           {t('editor.empty')}
         </div>
       )}
+      {activePath && viewMode !== 'graph' && (
+        <div className="flex h-7 items-center justify-between gap-3 border-t border-border bg-background px-3 text-[11px] text-muted-foreground">
+          <div className="min-w-0 truncate">{activePath}</div>
+          <div className="flex shrink-0 items-center gap-3">
+            <span>{viewLabel}</span>
+            <span>
+              {stats.lines} {t('status.lines')}
+            </span>
+            <span>
+              {stats.words} {t('status.words')}
+            </span>
+            <span>
+              {stats.characters} {t('status.characters')}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const EditorEmptyState = ({
+  files,
+  onOpenFile,
+}: {
+  files: FileEntry[]
+  onOpenFile: (path: string) => void
+}) => {
+  const { t } = useI18n()
+  const visibleFiles = files.slice(0, 6)
+
+  return (
+    <div className="editor-stage flex h-full items-center justify-center p-6">
+      <div className="w-full max-w-xl rounded-md border border-border bg-card p-6 text-left shadow-sm">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="rounded-md border border-border bg-muted p-2">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-base font-semibold">{t('editor.emptyTitle')}</div>
+            <div className="mt-1 text-sm leading-6 text-muted-foreground">
+              {t('editor.emptyDescription')}
+            </div>
+          </div>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mb-4 h-8 rounded-md"
+          onClick={() => window.dispatchEvent(new CustomEvent('marko:focus-file-search'))}
+        >
+          <Search className="h-4 w-4" />
+          {t('editor.emptySearch')}
+        </Button>
+        {visibleFiles.length > 0 && (
+          <div>
+            <div className="mb-2 text-[11px] uppercase text-muted-foreground">
+              {t('editor.emptyRecent')}
+            </div>
+            <div className="grid gap-1">
+              {visibleFiles.map((file) => (
+                <Button
+                  key={file.path}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 justify-start rounded-md px-2 text-xs"
+                  onClick={() => onOpenFile(file.path)}
+                >
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">{file.path}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

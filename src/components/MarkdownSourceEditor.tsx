@@ -172,6 +172,8 @@ export default function MarkdownSourceEditor({
           smoothScrolling: true,
           renderWhitespace: 'selection',
           automaticLayout: true,
+          lineNumbersMinChars: 3,
+          padding: { top: 24, bottom: 24 },
         }}
       />
     </div>

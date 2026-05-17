@@ -178,6 +178,10 @@
   }
 }
 
+* {
+  scrollbar-color: color-mix(in srgb, hsl(var(--foreground)) 22%, transparent) transparent;
+}
+
 .app-shell {
   background: hsl(var(--background));
 }
@@ -237,6 +241,27 @@
 
 .inspector-row:hover {
   border-left-color: hsl(var(--primary) / 0.5);
+}
+
+.react-flow__controls {
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 10%, transparent);
+}
+
+.react-flow__controls-button {
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
+.react-flow__controls-button:hover {
+  background: hsl(var(--muted));
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
 }
 
 .app-titlebar {

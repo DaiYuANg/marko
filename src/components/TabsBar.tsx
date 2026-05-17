@@ -29,7 +29,7 @@ const formatTabLabel = (path: string, compact: boolean) => {
 
 const getSaveLabelKey = (state?: SaveState) => {
   if (!state) return null
-  if (state.status === 'saved') return 'save.saved'
+  if (state.status === 'saved') return null
   if (state.status === 'saving') return 'save.saving'
   if (state.status === 'error') return 'save.error'
   return 'save.unsaved'
