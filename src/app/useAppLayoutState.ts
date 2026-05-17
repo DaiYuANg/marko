@@ -102,27 +102,6 @@ export function useAppLayoutState() {
   }, [loadWorkspace])
 
   useEffect(() => {
-    if (!currentPath) return
-    setInspectedPath(currentPath)
-  }, [currentPath])
-
-  useEffect(() => {
-    const allowed = new Set(tabs)
-    setTabViewModes((prev) => {
-      let changed = false
-      const next: Record<string, ViewMode> = {}
-      Object.entries(prev).forEach(([path, mode]) => {
-        if (allowed.has(path)) {
-          next[path] = mode
-        } else {
-          changed = true
-        }
-      })
-      return changed ? next : prev
-    })
-  }, [tabs])
-
-  useEffect(() => {
     let unlisten: (() => void) | undefined
     const setup = async () => {
       const { listen } = await import('@tauri-apps/api/event')
@@ -238,7 +217,7 @@ export function useAppLayoutState() {
     fileTree,
     graph,
     workspaceIndex,
-    inspectedPath,
+    inspectedPath: inspectedPath ?? currentPath,
     editorValue,
     isMaximized,
     setIsMaximized,

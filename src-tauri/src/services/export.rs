@@ -260,7 +260,7 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
           docx = flush_para(docx, &mut run_buf, &heading_style);
           heading_style = None;
         }
-        Tag::BlockQuote => {
+        Tag::BlockQuote(_) => {
           docx = flush_para(docx, &mut run_buf, &heading_style);
         }
         Tag::List(_) | Tag::Item => {

@@ -6,7 +6,7 @@ import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { exportApi } from '@/services/exportApi'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { requestExportContent } from '@/utils/exportContent'
@@ -37,18 +37,6 @@ export default function AppLayout() {
   const openFile = state.onOpenFile
   const changeView = state.setViewMode
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
-
-  // Ref for export: always use latest active tab (avoids stale closure when menu opens)
-  const exportStateRef = useRef({
-    activePath: state.activePath,
-    rootPath: state.rootPath,
-    editorValue: state.editorValue,
-  })
-  exportStateRef.current = {
-    activePath: state.activePath,
-    rootPath: state.rootPath,
-    editorValue: state.editorValue,
-  }
 
   const totalFiles = useMemo(
     () => state.files.reduce((count, file) => count + (file.kind === 'file' ? 1 : 0), 0),
@@ -188,7 +176,7 @@ export default function AppLayout() {
         if (!isTauriRuntime()) return
         const format =
           id === 'file.export_pdf' ? 'pdf' : id === 'file.export_docx' ? 'docx' : 'html'
-        const { activePath, rootPath, editorValue } = exportStateRef.current
+        const { activePath, rootPath, editorValue } = currentState
         void (async () => {
           const content = await requestExportContent(editorValue, {
             expectedActivePath: activePath,

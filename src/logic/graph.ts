@@ -125,23 +125,24 @@ export function buildGraph(entries: FileEntry[], contents: Record<string, string
 
         const { path: linkPath, anchor } = splitLinkTarget(link.target)
         const anchorSlug = anchor ? normalizeHeadingAnchor(anchor) : ''
-        let targetPath = linkPath
-        if (link.type === 'wiki') {
-          const mapped = nameIndex.get(linkPath.toLowerCase())
-          targetPath = mapped ?? `${linkPath}.md`
-        } else {
-          if (linkPath.trim().length === 0) {
-            targetPath = entry.path
-          } else {
-            const normalized = resolveRelativePath(entry.path, linkPath)
-            if (!normalized) {
-              return
-            }
-            targetPath =
-              normalized.endsWith('.md') || normalized.endsWith('.markdown')
-                ? normalized
-                : `${normalized}.md`
+        const targetPath = (() => {
+          if (link.type === 'wiki') {
+            const mapped = nameIndex.get(linkPath.toLowerCase())
+            return mapped ?? `${linkPath}.md`
           }
+          if (linkPath.trim().length === 0) {
+            return entry.path
+          }
+          const normalized = resolveRelativePath(entry.path, linkPath)
+          if (!normalized) {
+            return null
+          }
+          return normalized.endsWith('.md') || normalized.endsWith('.markdown')
+            ? normalized
+            : `${normalized}.md`
+        })()
+        if (!targetPath) {
+          return
         }
 
         const targetHeadingId = anchorSlug
