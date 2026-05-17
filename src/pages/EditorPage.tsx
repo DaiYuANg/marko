@@ -1,4 +1,13 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react'
 import { FileText, Search } from 'lucide-react'
 import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
 import { useI18n } from '@/i18n/useI18n'
@@ -92,13 +101,17 @@ function EditorPage({
 
   const availableFiles = useMemo(() => files.filter((file) => file.kind === 'file'), [files])
   const showEmptyState = !activePath && viewMode !== 'graph'
-  const stats = useMemo(() => getDocumentStats(editorValue), [editorValue])
+  const deferredStatsValue = useDeferredValue(editorValue)
+  const stats = useMemo(() => getDocumentStats(deferredStatsValue), [deferredStatsValue])
   const sourceFileContents = useMemo(
-    () => ({
-      ...fileContents,
-      ...(activePath ? { [activePath]: editorValue } : {}),
-    }),
-    [activePath, editorValue, fileContents],
+    () =>
+      viewMode === 'source' && activePath
+        ? {
+            ...fileContents,
+            [activePath]: editorValue,
+          }
+        : fileContents,
+    [activePath, editorValue, fileContents, viewMode],
   )
   const viewLabel =
     viewMode === 'graph'

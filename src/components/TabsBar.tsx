@@ -1,8 +1,15 @@
-import { memo, useCallback, useEffect, useRef, type WheelEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type WheelEvent,
+} from 'react'
 import { Code2, FileText, GitGraph, PenLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -42,6 +49,99 @@ const getSaveBadgeClassName = (state?: SaveState) => {
   return 'border-amber-500/30 text-amber-600'
 }
 
+type EditorTabButtonProps = {
+  path: string
+  compact: boolean
+  isActive: boolean
+  isDirty: boolean
+  hasError: boolean
+  onOpenFile: (path: string) => void
+  onCloseTab: (path: string) => void
+}
+
+const EditorTabButton = memo(
+  ({
+    path,
+    compact,
+    isActive,
+    isDirty,
+    hasError,
+    onOpenFile,
+    onCloseTab,
+  }: EditorTabButtonProps) => {
+    const openTab = useCallback(() => {
+      onOpenFile(path)
+    }, [onOpenFile, path])
+
+    const handleTabKeyDown = useCallback(
+      (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onOpenFile(path)
+      },
+      [onOpenFile, path],
+    )
+
+    const closeTab = useCallback(
+      (event: MouseEvent<HTMLSpanElement> | KeyboardEvent<HTMLSpanElement>) => {
+        event.stopPropagation()
+        onCloseTab(path)
+      },
+      [onCloseTab, path],
+    )
+
+    const handleCloseKeyDown = useCallback(
+      (event: KeyboardEvent<HTMLSpanElement>) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        closeTab(event)
+      },
+      [closeTab],
+    )
+
+    return (
+      <div
+        role="tab"
+        tabIndex={0}
+        aria-selected={isActive}
+        data-state={isActive ? 'active' : 'inactive'}
+        data-tab-path={path}
+        className="tab-item group relative inline-flex h-8 shrink-0 cursor-default select-none items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
+        title={path}
+        onClick={openTab}
+        onKeyDown={handleTabKeyDown}
+      >
+        <FileText className="h-3.5 w-3.5" />
+        <span className={`${compact ? 'max-w-[86px]' : 'max-w-[160px]'} truncate`}>
+          {formatTabLabel(path, compact)}
+        </span>
+        {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+        {hasError && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
+        <span
+          role="button"
+          tabIndex={0}
+          className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:bg-muted ${
+            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          onClick={closeTab}
+          onKeyDown={handleCloseKeyDown}
+          aria-label="Close tab"
+        >
+          <X className="h-3.5 w-3.5" />
+        </span>
+      </div>
+    )
+  },
+  (prev, next) =>
+    prev.path === next.path &&
+    prev.compact === next.compact &&
+    prev.isActive === next.isActive &&
+    prev.isDirty === next.isDirty &&
+    prev.hasError === next.hasError &&
+    prev.onOpenFile === next.onOpenFile &&
+    prev.onCloseTab === next.onCloseTab,
+)
+
 const TabsBarComponent = ({
   tabs,
   dirtyPaths,
@@ -55,7 +155,6 @@ const TabsBarComponent = ({
 }: TabsBarProps) => {
   const { t } = useI18n()
   const tabsViewportRef = useRef<HTMLDivElement | null>(null)
-  const activeTab = activePath ?? ''
   const compact = tabs.length >= 8
   const activeSaveState = activePath ? saveStates[activePath] : undefined
   const activeSaveLabelKey = getSaveLabelKey(activeSaveState)
@@ -68,6 +167,43 @@ const TabsBarComponent = ({
     event.preventDefault()
   }, [])
 
+  const handleTabListKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (
+        event.key !== 'ArrowLeft' &&
+        event.key !== 'ArrowRight' &&
+        event.key !== 'Home' &&
+        event.key !== 'End'
+      ) {
+        return
+      }
+
+      const tabElements = Array.from(
+        event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"][data-tab-path]'),
+      )
+      const currentTab = (event.target as HTMLElement).closest<HTMLElement>('[role="tab"]')
+      const currentIndex = currentTab ? tabElements.indexOf(currentTab) : -1
+      if (currentIndex < 0 || tabElements.length === 0) return
+
+      const nextIndex =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? tabElements.length - 1
+            : event.key === 'ArrowLeft'
+              ? (currentIndex - 1 + tabElements.length) % tabElements.length
+              : (currentIndex + 1) % tabElements.length
+      const nextTab = tabElements[nextIndex]
+      const nextPath = nextTab.dataset.tabPath
+      if (!nextPath) return
+
+      event.preventDefault()
+      nextTab.focus()
+      onOpenFile(nextPath)
+    },
+    [onOpenFile],
+  )
+
   useEffect(() => {
     if (!activePath) return
     const viewport = tabsViewportRef.current
@@ -79,66 +215,39 @@ const TabsBarComponent = ({
 
   return (
     <div className="tab-strip flex h-10 items-center gap-2 border-b border-border/80 px-2">
-      <Tabs
-        className="min-w-0 flex-1"
-        value={activeTab}
-        onValueChange={(path) => {
-          if (path) {
-            onOpenFile(path)
-          }
-        }}
-      >
+      <div className="min-w-0 flex-1">
         <div
           ref={tabsViewportRef}
           className="tabs-scrollbar w-full overflow-x-auto overflow-y-hidden whitespace-nowrap"
           onWheel={handleTabsWheel}
         >
-          <TabsList className="inline-flex h-8 w-max min-w-full justify-start rounded-none bg-transparent p-0">
+          <div
+            role="tablist"
+            aria-label="Open files"
+            className="inline-flex h-8 w-max min-w-full justify-start"
+            onKeyDown={handleTabListKeyDown}
+          >
             {tabs.map((path) => {
               const saveState = saveStates[path]
               const isDirty = !silentSave && Boolean(dirtyPaths[path])
               const hasError = saveState?.status === 'error'
               const isActive = path === activePath
               return (
-                <TabsTrigger
+                <EditorTabButton
                   key={path}
-                  value={path}
-                  data-tab-path={path}
-                  className="tab-item group relative h-8 shrink-0 gap-1.5 rounded-md px-2 text-xs data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
-                  title={path}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span className={`${compact ? 'max-w-[86px]' : 'max-w-[160px]'} truncate`}>
-                    {formatTabLabel(path, compact)}
-                  </span>
-                  {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-                  {hasError && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className={`ml-0.5 rounded p-0.5 transition-all duration-150 hover:bg-muted ${
-                      isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onCloseTab(path)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
-                      event.stopPropagation()
-                      onCloseTab(path)
-                    }}
-                    aria-label="Close tab"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </span>
-                </TabsTrigger>
+                  path={path}
+                  compact={compact}
+                  isActive={isActive}
+                  isDirty={isDirty}
+                  hasError={hasError}
+                  onOpenFile={onOpenFile}
+                  onCloseTab={onCloseTab}
+                />
               )
             })}
-          </TabsList>
+          </div>
         </div>
-      </Tabs>
+      </div>
       <div className="hidden min-w-0 items-center gap-2 md:flex">
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           <FileText className="h-3.5 w-3.5" />

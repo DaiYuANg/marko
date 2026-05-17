@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Locale } from '@/i18n/resources'
 import { getInitialLocale } from '@/i18n/utils'
+import { createIdleJsonStorage } from '@/store/persistStorage'
 
 export type ViewMode = 'wysiwyg' | 'source' | 'graph'
 export type ThemeMode = 'light' | 'dark' | 'marko-light' | 'marko-dark'
@@ -40,6 +41,12 @@ type AppState = {
   touchRecentProject: (path: string) => void
 }
 
+const equalStringArrays = (left: string[], right: string[]) => {
+  if (left === right) return true
+  if (left.length !== right.length) return false
+  return left.every((value, index) => value === right[index])
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -56,16 +63,21 @@ export const useAppStore = create<AppState>()(
       rightSidebarCollapsed: false,
       silentSave: true,
       showEditorStatusBar: true,
-      setRootPath: (path) => set({ rootPath: path }),
-      setRootKind: (kind) => set({ rootKind: kind }),
-      setEntries: (entries) => set({ entries }),
-      setTabs: (tabs) => set({ tabs }),
-      setActivePath: (path) => set({ activePath: path }),
-      setViewMode: (mode) => set({ viewMode: mode }),
-      setTheme: (theme) => set({ theme }),
-      setLocale: (locale) => set({ locale }),
-      setSilentSave: (silentSave) => set({ silentSave }),
-      setShowEditorStatusBar: (showEditorStatusBar) => set({ showEditorStatusBar }),
+      setRootPath: (path) => set((state) => (state.rootPath === path ? state : { rootPath: path })),
+      setRootKind: (kind) => set((state) => (state.rootKind === kind ? state : { rootKind: kind })),
+      setEntries: (entries) => set((state) => (state.entries === entries ? state : { entries })),
+      setTabs: (tabs) => set((state) => (equalStringArrays(state.tabs, tabs) ? state : { tabs })),
+      setActivePath: (path) =>
+        set((state) => (state.activePath === path ? state : { activePath: path })),
+      setViewMode: (mode) => set((state) => (state.viewMode === mode ? state : { viewMode: mode })),
+      setTheme: (theme) => set((state) => (state.theme === theme ? state : { theme })),
+      setLocale: (locale) => set((state) => (state.locale === locale ? state : { locale })),
+      setSilentSave: (silentSave) =>
+        set((state) => (state.silentSave === silentSave ? state : { silentSave })),
+      setShowEditorStatusBar: (showEditorStatusBar) =>
+        set((state) =>
+          state.showEditorStatusBar === showEditorStatusBar ? state : { showEditorStatusBar },
+        ),
       toggleSidebar: () =>
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
@@ -82,6 +94,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'marko.app',
+      storage: createIdleJsonStorage('marko.app'),
       version: 6,
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }

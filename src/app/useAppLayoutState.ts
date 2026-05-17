@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLatest } from 'ahooks'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAppStore, type ViewMode } from '@/store/useAppStore'
@@ -60,7 +60,7 @@ export function useAppLayoutState() {
     (mode: ViewMode) => {
       const path = currentPathRef.current
       if (!path) return
-      setTabViewModes((prev) => ({ ...prev, [path]: mode }))
+      setTabViewModes((prev) => (prev[path] === mode ? prev : { ...prev, [path]: mode }))
     },
     [currentPathRef],
   )
@@ -141,13 +141,25 @@ export function useAppLayoutState() {
       if (activePathRef.current !== relativePath) {
         setActivePath(relativePath)
       }
-      setInspectedPath(relativePath)
+      if (inspectedPathRef.current !== relativePath) {
+        setInspectedPath(relativePath)
+      }
       const nextRoute = pathToRoute(relativePath)
       if (locationPathnameRef.current !== nextRoute) {
-        navigate(nextRoute)
+        startTransition(() => {
+          navigate(nextRoute)
+        })
       }
     },
-    [activePathRef, locationPathnameRef, navigate, setActivePath, setTabs, tabsRef],
+    [
+      activePathRef,
+      inspectedPathRef,
+      locationPathnameRef,
+      navigate,
+      setActivePath,
+      setTabs,
+      tabsRef,
+    ],
   )
 
   const onCloseTab = useCallback(
@@ -164,11 +176,15 @@ export function useAppLayoutState() {
         if (nextActive) {
           const nextRoute = pathToRoute(nextActive)
           if (locationPathnameRef.current !== nextRoute) {
-            navigate(nextRoute)
+            startTransition(() => {
+              navigate(nextRoute)
+            })
           }
         } else {
           if (locationPathnameRef.current !== '/') {
-            navigate('/')
+            startTransition(() => {
+              navigate('/')
+            })
           }
         }
       }
