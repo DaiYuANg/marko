@@ -13,25 +13,20 @@ import { Badge } from '@/components/ui/badge'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import type { ViewMode } from '@/store/useAppStore'
+import type { ViewMode, WorkspaceTab } from '@/store/useAppStore'
 import type { SaveState } from '@/app/useEditorBuffer'
+import { getWorkspaceTabId } from '@/logic/tabs'
 
 type TabsBarProps = {
-  tabs: string[]
+  tabs: WorkspaceTab[]
   dirtyPaths: Record<string, true>
   saveStates: Record<string, SaveState>
-  activePath: string | null
-  onOpenFile: (path: string) => void
-  onCloseTab: (path: string) => void
+  activeTabId: string | null
+  onOpenTab: (id: string) => void
+  onCloseTab: (id: string) => void
   viewMode: ViewMode
   onChangeView: (mode: ViewMode) => void
   silentSave: boolean
-}
-
-const formatTabLabel = (path: string, compact: boolean) => {
-  const label = createFileLabel(path)
-  if (!compact || label.length <= 12) return label
-  return `${label.slice(0, 11)}…`
 }
 
 const getSaveLabelKey = (state?: SaveState) => {
@@ -49,45 +44,54 @@ const getSaveBadgeClassName = (state?: SaveState) => {
   return 'border-amber-500/30 text-amber-600'
 }
 
-type EditorTabButtonProps = {
-  path: string
+const getTabLabel = (tab: WorkspaceTab) => {
+  const label = createFileLabel(tab.path)
+  if (tab.kind === 'file') return label
+  return `${label} · Diff`
+}
+
+type WorkspaceTabButtonProps = {
+  id: string
+  tab: WorkspaceTab
   compact: boolean
   isActive: boolean
   isDirty: boolean
   hasError: boolean
-  onOpenFile: (path: string) => void
-  onCloseTab: (path: string) => void
+  onOpenTab: (id: string) => void
+  onCloseTab: (id: string) => void
 }
 
-const EditorTabButton = memo(
+const WorkspaceTabButton = memo(
   ({
-    path,
+    id,
+    tab,
     compact,
     isActive,
     isDirty,
     hasError,
-    onOpenFile,
+    onOpenTab,
     onCloseTab,
-  }: EditorTabButtonProps) => {
+  }: WorkspaceTabButtonProps) => {
+    const label = getTabLabel(tab)
     const openTab = useCallback(() => {
-      onOpenFile(path)
-    }, [onOpenFile, path])
+      onOpenTab(id)
+    }, [id, onOpenTab])
 
     const handleTabKeyDown = useCallback(
       (event: KeyboardEvent<HTMLDivElement>) => {
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
-        onOpenFile(path)
+        onOpenTab(id)
       },
-      [onOpenFile, path],
+      [id, onOpenTab],
     )
 
     const closeTab = useCallback(
       (event: MouseEvent<HTMLSpanElement> | KeyboardEvent<HTMLSpanElement>) => {
         event.stopPropagation()
-        onCloseTab(path)
+        onCloseTab(id)
       },
-      [onCloseTab, path],
+      [id, onCloseTab],
     )
 
     const handleCloseKeyDown = useCallback(
@@ -105,15 +109,19 @@ const EditorTabButton = memo(
         tabIndex={0}
         aria-selected={isActive}
         data-state={isActive ? 'active' : 'inactive'}
-        data-tab-path={path}
+        data-tab-id={id}
         className="tab-item group relative inline-flex h-8 shrink-0 cursor-default select-none items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm after:absolute after:bottom-0 after:left-2 after:right-2 after:hidden after:h-0.5 after:rounded-full after:bg-primary data-[state=active]:after:block"
-        title={path}
+        title={tab.path}
         onClick={openTab}
         onKeyDown={handleTabKeyDown}
       >
-        <FileText className="h-3.5 w-3.5" />
+        {tab.kind === 'file' ? (
+          <FileText className="h-3.5 w-3.5" />
+        ) : (
+          <GitGraph className="h-3.5 w-3.5" />
+        )}
         <span className={`${compact ? 'max-w-[86px]' : 'max-w-[160px]'} truncate`}>
-          {formatTabLabel(path, compact)}
+          {compact && label.length > 12 ? `${label.slice(0, 11)}…` : label}
         </span>
         {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
         {hasError && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
@@ -133,12 +141,13 @@ const EditorTabButton = memo(
     )
   },
   (prev, next) =>
-    prev.path === next.path &&
+    prev.id === next.id &&
+    prev.tab === next.tab &&
     prev.compact === next.compact &&
     prev.isActive === next.isActive &&
     prev.isDirty === next.isDirty &&
     prev.hasError === next.hasError &&
-    prev.onOpenFile === next.onOpenFile &&
+    prev.onOpenTab === next.onOpenTab &&
     prev.onCloseTab === next.onCloseTab,
 )
 
@@ -146,8 +155,8 @@ const TabsBarComponent = ({
   tabs,
   dirtyPaths,
   saveStates,
-  activePath,
-  onOpenFile,
+  activeTabId,
+  onOpenTab,
   onCloseTab,
   viewMode,
   onChangeView,
@@ -156,8 +165,11 @@ const TabsBarComponent = ({
   const { t } = useI18n()
   const tabsViewportRef = useRef<HTMLDivElement | null>(null)
   const compact = tabs.length >= 8
+  const activeTab = tabs.find((tab) => getWorkspaceTabId(tab) === activeTabId) ?? null
+  const activePath = activeTab?.kind === 'file' ? activeTab.path : null
   const activeSaveState = activePath ? saveStates[activePath] : undefined
   const activeSaveLabelKey = getSaveLabelKey(activeSaveState)
+  const fileTabActive = activeTab?.kind === 'file'
 
   const handleTabsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const viewport = event.currentTarget
@@ -179,7 +191,7 @@ const TabsBarComponent = ({
       }
 
       const tabElements = Array.from(
-        event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"][data-tab-path]'),
+        event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"][data-tab-id]'),
       )
       const currentTab = (event.target as HTMLElement).closest<HTMLElement>('[role="tab"]')
       const currentIndex = currentTab ? tabElements.indexOf(currentTab) : -1
@@ -194,24 +206,24 @@ const TabsBarComponent = ({
               ? (currentIndex - 1 + tabElements.length) % tabElements.length
               : (currentIndex + 1) % tabElements.length
       const nextTab = tabElements[nextIndex]
-      const nextPath = nextTab.dataset.tabPath
-      if (!nextPath) return
+      const nextId = nextTab.dataset.tabId
+      if (!nextId) return
 
       event.preventDefault()
       nextTab.focus()
-      onOpenFile(nextPath)
+      onOpenTab(nextId)
     },
-    [onOpenFile],
+    [onOpenTab],
   )
 
   useEffect(() => {
-    if (!activePath) return
+    if (!activeTabId) return
     const viewport = tabsViewportRef.current
     const activeTrigger = Array.from(
-      viewport?.querySelectorAll<HTMLElement>('[data-tab-path]') ?? [],
-    ).find((trigger) => trigger.dataset.tabPath === activePath)
+      viewport?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [],
+    ).find((trigger) => trigger.dataset.tabId === activeTabId)
     activeTrigger?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activePath])
+  }, [activeTabId])
 
   return (
     <div className="tab-strip flex h-10 items-center gap-2 border-b border-border/80 px-2">
@@ -227,20 +239,22 @@ const TabsBarComponent = ({
             className="inline-flex h-8 w-max min-w-full justify-start"
             onKeyDown={handleTabListKeyDown}
           >
-            {tabs.map((path) => {
-              const saveState = saveStates[path]
-              const isDirty = !silentSave && Boolean(dirtyPaths[path])
+            {tabs.map((tab) => {
+              const id = getWorkspaceTabId(tab)
+              const saveState = tab.kind === 'file' ? saveStates[tab.path] : undefined
+              const isDirty = tab.kind === 'file' && !silentSave && Boolean(dirtyPaths[tab.path])
               const hasError = saveState?.status === 'error'
-              const isActive = path === activePath
+              const isActive = id === activeTabId
               return (
-                <EditorTabButton
-                  key={path}
-                  path={path}
+                <WorkspaceTabButton
+                  key={id}
+                  id={id}
+                  tab={tab}
                   compact={compact}
                   isActive={isActive}
                   isDirty={isDirty}
                   hasError={hasError}
-                  onOpenFile={onOpenFile}
+                  onOpenTab={onOpenTab}
                   onCloseTab={onCloseTab}
                 />
               )
@@ -250,9 +264,13 @@ const TabsBarComponent = ({
       </div>
       <div className="hidden min-w-0 items-center gap-2 md:flex">
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <FileText className="h-3.5 w-3.5" />
+          {activeTab?.kind === 'git-diff' ? (
+            <GitGraph className="h-3.5 w-3.5" />
+          ) : (
+            <FileText className="h-3.5 w-3.5" />
+          )}
           <span className="max-w-[180px] truncate">
-            {activePath ? createFileLabel(activePath) : t('center.noFile')}
+            {activeTab ? getTabLabel(activeTab) : t('center.noFile')}
           </span>
           {!silentSave && activePath && dirtyPaths[activePath] && (
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
@@ -276,6 +294,7 @@ const TabsBarComponent = ({
                   size="icon"
                   className="h-6 w-6 rounded"
                   aria-label={t('editor.modeWysiwyg')}
+                  disabled={!fileTabActive}
                   onClick={() => onChangeView('wysiwyg')}
                 >
                   <PenLine className="h-3.5 w-3.5" />
@@ -290,6 +309,7 @@ const TabsBarComponent = ({
                   size="icon"
                   className="h-6 w-6 rounded"
                   aria-label={t('editor.modeSource')}
+                  disabled={!fileTabActive}
                   onClick={() => onChangeView('source')}
                 >
                   <Code2 className="h-3.5 w-3.5" />
@@ -304,6 +324,7 @@ const TabsBarComponent = ({
                   size="icon"
                   className="h-6 w-6 rounded"
                   aria-label={t('tabs.workspaceGraph')}
+                  disabled={!fileTabActive}
                   onClick={() => onChangeView('graph')}
                 >
                   <GitGraph className="h-3.5 w-3.5" />

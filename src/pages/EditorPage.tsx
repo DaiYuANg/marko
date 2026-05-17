@@ -16,11 +16,12 @@ import { Button } from '@/components/ui/button'
 import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { withGraphLayoutPositions, type GraphData } from '@/logic/graph'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
-import type { FileEntry, GraphLayoutPositions, ViewMode } from '@/store/useAppStore'
+import type { FileEntry, GraphLayoutPositions, ViewMode, WorkspaceTab } from '@/store/useAppStore'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
 const GraphPage = lazy(() => import('@/pages/GraphPage'))
+const GitDiffView = lazy(() => import('@/components/GitDiffView'))
 
 type EditorPageProps = {
   activePath: string | null
@@ -32,6 +33,9 @@ type EditorPageProps = {
   workspaceIndex: FsWorkspaceIndex | null
   onOpenFile: (path: string) => void
   viewMode: ViewMode
+  rootPath: string
+  activeTab: WorkspaceTab | null
+  onCloseActiveTab: () => void
   showStatusBar: boolean
   graphLayoutPositions: GraphLayoutPositions
   onSaveGraphNodePosition: (
@@ -60,6 +64,9 @@ function EditorPage({
   workspaceIndex,
   onOpenFile,
   viewMode,
+  rootPath,
+  activeTab,
+  onCloseActiveTab,
   showStatusBar,
   graphLayoutPositions,
   onSaveGraphNodePosition,
@@ -108,7 +115,14 @@ function EditorPage({
   )
 
   const availableFiles = useMemo(() => files.filter((file) => file.kind === 'file'), [files])
-  const showEmptyState = !activePath && viewMode !== 'graph'
+  const gitDiffRequest =
+    activeTab?.kind === 'git-diff'
+      ? {
+          path: activeTab.path,
+          section: activeTab.section,
+        }
+      : null
+  const showEmptyState = !activePath && viewMode !== 'graph' && !gitDiffRequest
   const deferredStatsValue = useDeferredValue(editorValue)
   const stats = useMemo(() => getDocumentStats(deferredStatsValue), [deferredStatsValue])
   const graphWithSavedLayout = useMemo(
@@ -131,6 +145,19 @@ function EditorPage({
       : viewMode === 'source'
         ? t('editor.modeSource')
         : t('editor.modeWysiwyg')
+
+  if (gitDiffRequest) {
+    return (
+      <Suspense fallback={<EditorPaneFallback />}>
+        <GitDiffView
+          rootPath={rootPath}
+          request={gitDiffRequest}
+          onClose={onCloseActiveTab}
+          onOpenFile={onOpenFile}
+        />
+      </Suspense>
+    )
+  }
 
   if (showEmptyState) {
     return <EditorEmptyState files={availableFiles} onOpenFile={onOpenFile} />

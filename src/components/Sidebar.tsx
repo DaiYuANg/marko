@@ -14,7 +14,9 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import ScmPanel from '@/components/ScmPanel'
 import type { FileEntry } from '@/store/useAppStore'
+import type { GitDiffRequest } from '@/services/gitApi'
 import type { FileTreeNode } from '@/logic/fileTree'
 import { useI18n } from '@/i18n/useI18n'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -53,6 +55,8 @@ type SidebarProps = {
   onDeletePath: (path: string) => void
   onUseInternalRoot: () => void
   rootKind: 'internal' | 'external' | 'single'
+  rootPath: string
+  onOpenGitDiff: (request: GitDiffRequest) => void
   onInspectPath: (path: string) => void
 }
 
@@ -328,6 +332,8 @@ const SidebarComponent = ({
   onDeletePath,
   onUseInternalRoot,
   rootKind,
+  rootPath,
+  onOpenGitDiff,
   onInspectPath,
 }: SidebarProps) => {
   const { t } = useI18n()
@@ -494,6 +500,12 @@ const SidebarComponent = ({
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+            <ScmPanel
+              collapsed={collapsed}
+              rootKind={rootKind}
+              rootPath={rootPath}
+              onOpenDiff={onOpenGitDiff}
+            />
             <SidebarGroup className="sidebar-section min-h-0 flex-1 rounded-md p-1">
               <SidebarGroupLabel className="sidebar-section-header flex h-7 items-center justify-between px-2 text-[11px] uppercase">
                 <span>{t('sidebar.files')}</span>
@@ -544,6 +556,12 @@ const SidebarComponent = ({
         ) : (
           <TooltipProvider>
             <div className="flex flex-col items-center gap-1 pt-1">
+              <ScmPanel
+                collapsed={collapsed}
+                rootKind={rootKind}
+                rootPath={rootPath}
+                onOpenDiff={onOpenGitDiff}
+              />
               {compactFiles.map((file) => {
                 const isActive = file.path === activePath
                 return (

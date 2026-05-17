@@ -111,3 +111,39 @@ pub struct FsGraph {
   pub nodes: Vec<FsGraphNode>,
   pub edges: Vec<FsGraphEdge>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GitRepoInfo {
+  pub is_repository: bool,
+  pub workdir: Option<String>,
+  pub git_dir: Option<String>,
+  pub branch: Option<String>,
+  pub head: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GitFileChange {
+  pub path: String,
+  pub old_path: Option<String>,
+  pub status: String,
+  pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GitStatusSnapshot {
+  pub repo: GitRepoInfo,
+  pub staged: Vec<GitFileChange>,
+  pub unstaged: Vec<GitFileChange>,
+  pub untracked: Vec<GitFileChange>,
+  pub conflicts: Vec<GitFileChange>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GitFileDiff {
+  pub path: String,
+  pub old_path: Option<String>,
+  pub original_label: String,
+  pub modified_label: String,
+  pub original_content: String,
+  pub modified_content: String,
+}

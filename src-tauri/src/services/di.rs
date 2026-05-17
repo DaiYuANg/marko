@@ -1,7 +1,7 @@
 use fluxdi::{Application, Error, Injector, Module, Provider, Shared};
 
 use super::{
-  fs_buffer::BufferService, markdown_graph::MarkdownGraphService,
+  fs_buffer::BufferService, git::GitService, markdown_graph::MarkdownGraphService,
   markdown_index::MarkdownIndexService, path_resolver::PathResolver, workspace::WorkspaceService,
   AppServices, ExportService,
 };
@@ -11,6 +11,7 @@ struct AppModule;
 impl Module for AppModule {
   fn configure(&self, injector: &Injector) -> Result<(), Error> {
     injector.try_provide::<ExportService>(Provider::root(|_| Shared::new(ExportService)))?;
+    injector.try_provide::<GitService>(Provider::root(|_| Shared::new(GitService)))?;
     injector.try_provide::<PathResolver>(Provider::root(|_| Shared::new(PathResolver)))?;
     injector.try_provide::<BufferService>(Provider::root(|injector| {
       Shared::new(BufferService::new(
@@ -57,6 +58,7 @@ pub fn build_app_services() -> Result<AppServices, Error> {
   Ok(AppServices {
     export: injector.try_resolve::<ExportService>()?,
     fs_buffer: injector.try_resolve::<BufferService>()?,
+    git: injector.try_resolve::<GitService>()?,
     workspace: injector.try_resolve::<WorkspaceService>()?,
   })
 }

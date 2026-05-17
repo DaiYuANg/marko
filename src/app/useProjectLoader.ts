@@ -2,25 +2,26 @@ import { useCallback } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useLatest } from 'ahooks'
 import type { NavigateFunction } from 'react-router-dom'
-import type { FileEntry } from '@/store/useAppStore'
-import { pathToRoute } from '@/logic/routing'
+import type { FileEntry, WorkspaceTab } from '@/store/useAppStore'
+import { pathToGitDiffRoute, pathToRoute } from '@/logic/routing'
 import { useI18n } from '@/i18n/useI18n'
 import { fsApi, type FsSnapshot } from '@/services/fsApi'
 import { runInTauri } from '@/utils/tauri'
+import { createFileTab, getWorkspaceTabId } from '@/logic/tabs'
 
 type UseProjectLoaderArgs = {
   rootPath: string
   rootKind: 'internal' | 'external' | 'single'
   entries: FileEntry[]
-  tabs: string[]
-  activePath: string | null
+  tabs: WorkspaceTab[]
+  activeTabId: string | null
   locationPathname: string
   navigate: NavigateFunction
   setEntries: (entries: FileEntry[]) => void
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external' | 'single') => void
-  setTabs: (tabs: string[]) => void
-  setActivePath: (path: string | null) => void
+  setTabs: (tabs: WorkspaceTab[]) => void
+  setActiveTabId: (id: string | null) => void
   touchRecentProject: (path: string) => void
 }
 
@@ -32,10 +33,10 @@ const isFile = (entry: FileEntry) => {
   return entry.kind === 'file'
 }
 
-const arePathListsEqual = (left: string[], right: string[]) => {
+const areTabListsEqual = (left: WorkspaceTab[], right: WorkspaceTab[]) => {
   if (left.length !== right.length) return false
   for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) return false
+    if (getWorkspaceTabId(left[index]) !== getWorkspaceTabId(right[index])) return false
   }
   return true
 }
@@ -58,20 +59,20 @@ export function useProjectLoader({
   rootKind,
   entries,
   tabs,
-  activePath,
+  activeTabId,
   locationPathname,
   navigate,
   setEntries,
   setRootPath,
   setRootKind,
   setTabs,
-  setActivePath,
+  setActiveTabId,
   touchRecentProject,
 }: UseProjectLoaderArgs) {
   const { t } = useI18n()
   const entriesRef = useLatest(entries)
   const tabsRef = useLatest(tabs)
-  const activePathRef = useLatest(activePath)
+  const activeTabIdRef = useLatest(activeTabId)
   const rootPathRef = useLatest(rootPath)
   const rootKindRef = useLatest(rootKind)
   const locationPathnameRef = useLatest(locationPathname)
@@ -110,18 +111,24 @@ export function useProjectLoader({
         if (filesOnly.length > 0) {
           const available = new Set(filesOnly.map((file) => file.path))
           const defaultPath = filesOnly[0].path
-          const nextTabs = tabsRef.current.filter((tab) => available.has(tab))
-          const finalTabs = nextTabs.length > 0 ? nextTabs : [defaultPath]
-          if (!arePathListsEqual(tabsRef.current, finalTabs)) {
+          const nextTabs = tabsRef.current.filter((tab) => available.has(tab.path))
+          const finalTabs = nextTabs.length > 0 ? nextTabs : [createFileTab(defaultPath)]
+          if (!areTabListsEqual(tabsRef.current, finalTabs)) {
             setTabs(finalTabs)
           }
-          const currentActivePath = activePathRef.current
-          const nextActive =
-            currentActivePath && available.has(currentActivePath) ? currentActivePath : defaultPath
-          if (nextActive !== currentActivePath) {
-            setActivePath(nextActive)
+          const currentActiveTabId = activeTabIdRef.current
+          const currentActiveTab = finalTabs.find(
+            (tab) => getWorkspaceTabId(tab) === currentActiveTabId,
+          )
+          const nextActiveTab = currentActiveTab ?? finalTabs[0] ?? createFileTab(defaultPath)
+          const nextActiveTabId = getWorkspaceTabId(nextActiveTab)
+          if (nextActiveTabId !== currentActiveTabId) {
+            setActiveTabId(nextActiveTabId)
           }
-          const nextRoute = pathToRoute(nextActive)
+          const nextRoute =
+            nextActiveTab.kind === 'file'
+              ? pathToRoute(nextActiveTab.path)
+              : pathToGitDiffRoute(nextActiveTab.section, nextActiveTab.path)
           if (locationPathnameRef.current !== nextRoute) {
             navigate(nextRoute, { replace: true })
           }
@@ -129,13 +136,13 @@ export function useProjectLoader({
       })
     },
     [
-      activePathRef,
+      activeTabIdRef,
       entriesRef,
       locationPathnameRef,
       navigate,
       rootKindRef,
       rootPathRef,
-      setActivePath,
+      setActiveTabId,
       setEntries,
       setRootKind,
       setRootPath,

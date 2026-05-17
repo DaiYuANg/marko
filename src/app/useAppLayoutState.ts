@@ -1,9 +1,9 @@
-import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLatest } from 'ahooks'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { ViewMode } from '@/store/useAppStore'
+import type { GitDiffSection, ViewMode } from '@/store/useAppStore'
 import { buildFileTree } from '@/logic/fileTree'
-import { pathToRoute, routeToPath } from '@/logic/routing'
+import { pathToGitDiffRoute, pathToRoute, routeToGitDiff, routeToPath } from '@/logic/routing'
 import { useProjectLoader } from '@/app/useProjectLoader'
 import { useEditorBuffer } from '@/app/useEditorBuffer'
 import { useGraphData } from '@/app/useGraphData'
@@ -14,6 +14,14 @@ import {
   useLayoutStoreSlice,
   useWorkspaceStoreSlice,
 } from '@/store/selectors'
+import {
+  createFileTab,
+  createGitDiffTab,
+  fileTabId,
+  getWorkspaceTabId,
+  getWorkspaceTabPath,
+  gitDiffTabId,
+} from '@/logic/tabs'
 
 const EMPTY_GRAPH_LAYOUT_POSITIONS: Record<string, { x: number; y: number }> = {}
 
@@ -24,12 +32,12 @@ export function useAppLayoutState() {
     recentProjects,
     entries,
     tabs,
-    activePath,
+    activeTabId,
     setRootPath,
     setRootKind,
     setEntries,
     setTabs,
-    setActivePath,
+    setActiveTabId,
     touchRecentProject,
   } = useWorkspaceStoreSlice()
   const {
@@ -51,34 +59,44 @@ export function useAppLayoutState() {
   const location = useLocation()
   const navigate = useNavigate()
   const params = useParams()
+  const lastHandledRouteRef = useRef<string | null>(null)
 
   const routeSegment = params['*']
+  const routeGitDiff = useMemo(() => routeToGitDiff(location.pathname), [location.pathname])
   const routePath = useMemo(() => routeToPath(routeSegment), [routeSegment])
   const isRouteFile = useMemo(
     () =>
+      !routeGitDiff &&
       routePath !== null &&
       entries.some((entry) => entry.kind === 'file' && entry.path === routePath),
-    [entries, routePath],
+    [entries, routeGitDiff, routePath],
   )
-  const currentPath = isRouteFile ? routePath : activePath
-  const activePathRef = useLatest(activePath)
-  const currentPathRef = useLatest(currentPath)
+  const activeTab = useMemo(
+    () => tabs.find((tab) => getWorkspaceTabId(tab) === activeTabId) ?? null,
+    [activeTabId, tabs],
+  )
+  const activeFilePath = activeTab?.kind === 'file' ? activeTab.path : null
+  const activeResourcePath = getWorkspaceTabPath(activeTab)
+  const activeTabIdRef = useLatest(activeTabId)
   const inspectedPathRef = useLatest(inspectedPath)
   const locationPathnameRef = useLatest(location.pathname)
   const tabsRef = useLatest(tabs)
-  const viewMode: ViewMode = currentPath ? (tabViewModes[currentPath] ?? 'wysiwyg') : 'wysiwyg'
+  const viewMode: ViewMode = activeFilePath
+    ? (tabViewModes[activeFilePath] ?? 'wysiwyg')
+    : 'wysiwyg'
   const setViewMode = useCallback(
     (mode: ViewMode) => {
-      const path = currentPathRef.current
+      const tab = tabsRef.current.find((item) => getWorkspaceTabId(item) === activeTabIdRef.current)
+      const path = tab?.kind === 'file' ? tab.path : null
       if (!path) return
       setTabViewModes((prev) => (prev[path] === mode ? prev : { ...prev, [path]: mode }))
     },
-    [currentPathRef],
+    [activeTabIdRef, tabsRef],
   )
 
   const workspaceKey = `${rootKind}:${rootPath}`
   const { fileContents, editorValue, dirtyPaths, saveStates, onEditorChange } = useEditorBuffer({
-    activePath: currentPath,
+    activePath: activeFilePath,
     workspaceKey,
   })
 
@@ -97,14 +115,14 @@ export function useAppLayoutState() {
     rootKind,
     entries,
     tabs,
-    activePath: currentPath,
+    activeTabId,
     locationPathname: location.pathname,
     navigate,
     setEntries,
     setRootPath,
     setRootKind,
     setTabs,
-    setActivePath,
+    setActiveTabId,
     touchRecentProject,
   })
 
@@ -135,22 +153,47 @@ export function useAppLayoutState() {
   }, [loadWorkspace])
 
   useEffect(() => {
+    if (!routeGitDiff) return
+    if (lastHandledRouteRef.current === location.pathname) return
+    lastHandledRouteRef.current = location.pathname
+
+    const id = gitDiffTabId(routeGitDiff.section, routeGitDiff.path)
+    const currentTabs = tabsRef.current
+    if (!currentTabs.some((tab) => getWorkspaceTabId(tab) === id)) {
+      setTabs([...currentTabs, createGitDiffTab(routeGitDiff.path, routeGitDiff.section)])
+    }
+    setActiveTabId(id)
+    if (inspectedPathRef.current !== routeGitDiff.path) {
+      setInspectedPath(routeGitDiff.path)
+    }
+  }, [inspectedPathRef, location.pathname, routeGitDiff, setActiveTabId, setTabs, tabsRef])
+
+  useEffect(() => {
     if (!isRouteFile) return
-    if (routePath === activePath) return
-    setActivePath(routePath)
-  }, [activePath, isRouteFile, routePath, setActivePath])
+    if (!routePath) return
+    if (lastHandledRouteRef.current === location.pathname) return
+    lastHandledRouteRef.current = location.pathname
+
+    const id = fileTabId(routePath)
+    const currentTabs = tabsRef.current
+    if (!currentTabs.some((tab) => getWorkspaceTabId(tab) === id)) {
+      setTabs([...currentTabs, createFileTab(routePath)])
+    }
+    setActiveTabId(id)
+  }, [isRouteFile, location.pathname, routePath, setActiveTabId, setTabs, tabsRef])
 
   const onOpenFile = useCallback(
     (relativePath: string) => {
       const currentTabs = tabsRef.current
-      const nextTabs = currentTabs.includes(relativePath)
+      const id = fileTabId(relativePath)
+      const nextTabs = currentTabs.some((tab) => getWorkspaceTabId(tab) === id)
         ? currentTabs
-        : [...currentTabs, relativePath]
+        : [...currentTabs, createFileTab(relativePath)]
       if (nextTabs !== currentTabs) {
         setTabs(nextTabs)
       }
-      if (activePathRef.current !== relativePath) {
-        setActivePath(relativePath)
+      if (activeTabIdRef.current !== id) {
+        setActiveTabId(id)
       }
       if (inspectedPathRef.current !== relativePath) {
         setInspectedPath(relativePath)
@@ -163,36 +206,80 @@ export function useAppLayoutState() {
       }
     },
     [
-      activePathRef,
+      activeTabIdRef,
       inspectedPathRef,
       locationPathnameRef,
       navigate,
-      setActivePath,
+      setActiveTabId,
+      setTabs,
+      tabsRef,
+    ],
+  )
+
+  const onOpenGitDiff = useCallback(
+    (path: string, section: GitDiffSection) => {
+      const currentTabs = tabsRef.current
+      const id = gitDiffTabId(section, path)
+      const nextTabs = currentTabs.some((tab) => getWorkspaceTabId(tab) === id)
+        ? currentTabs
+        : [...currentTabs, createGitDiffTab(path, section)]
+      if (nextTabs !== currentTabs) {
+        setTabs(nextTabs)
+      }
+      if (activeTabIdRef.current !== id) {
+        setActiveTabId(id)
+      }
+      if (inspectedPathRef.current !== path) {
+        setInspectedPath(path)
+      }
+      const nextRoute = pathToGitDiffRoute(section, path)
+      if (locationPathnameRef.current !== nextRoute) {
+        startTransition(() => {
+          navigate(nextRoute)
+        })
+      }
+    },
+    [
+      activeTabIdRef,
+      inspectedPathRef,
+      locationPathnameRef,
+      navigate,
+      setActiveTabId,
       setTabs,
       tabsRef,
     ],
   )
 
   const onCloseTab = useCallback(
-    (relativePath: string) => {
+    (tabId: string) => {
       const currentTabs = tabsRef.current
-      const nextTabs = currentTabs.filter((tab) => tab !== relativePath)
+      const closedIndex = currentTabs.findIndex((tab) => getWorkspaceTabId(tab) === tabId)
+      const closedTab = currentTabs.find((tab) => getWorkspaceTabId(tab) === tabId)
+      const nextTabs = currentTabs.filter((tab) => getWorkspaceTabId(tab) !== tabId)
       setTabs(nextTabs)
-      if (inspectedPathRef.current === relativePath) {
-        setInspectedPath(nextTabs[0] ?? null)
+      if (closedTab && inspectedPathRef.current === closedTab.path) {
+        setInspectedPath(nextTabs[0]?.path ?? null)
       }
-      if (currentPathRef.current === relativePath) {
-        const nextActive = nextTabs[0] ?? null
-        setActivePath(nextActive)
-        if (nextActive) {
-          const nextRoute = pathToRoute(nextActive)
+      if (activeTabIdRef.current === tabId) {
+        const nextActive = nextTabs[Math.max(0, closedIndex - 1)] ?? nextTabs[0] ?? null
+        const nextActiveId = nextActive ? getWorkspaceTabId(nextActive) : null
+        setActiveTabId(nextActiveId)
+        if (nextActive?.kind === 'file') {
+          const nextRoute = pathToRoute(nextActive.path)
+          if (locationPathnameRef.current !== nextRoute) {
+            startTransition(() => {
+              navigate(nextRoute)
+            })
+          }
+        } else if (nextActive?.kind === 'git-diff') {
+          const nextRoute = pathToGitDiffRoute(nextActive.section, nextActive.path)
           if (locationPathnameRef.current !== nextRoute) {
             startTransition(() => {
               navigate(nextRoute)
             })
           }
         } else {
-          if (locationPathnameRef.current !== '/') {
+          if (!nextActive && locationPathnameRef.current !== '/') {
             startTransition(() => {
               navigate('/')
             })
@@ -201,15 +288,52 @@ export function useAppLayoutState() {
       }
     },
     [
-      currentPathRef,
+      activeTabIdRef,
       inspectedPathRef,
       locationPathnameRef,
       navigate,
-      setActivePath,
+      setActiveTabId,
       setTabs,
       tabsRef,
     ],
   )
+
+  const onOpenTab = useCallback(
+    (tabId: string) => {
+      const tab = tabsRef.current.find((item) => getWorkspaceTabId(item) === tabId)
+      if (!tab) return
+      if (tab.kind === 'file') {
+        onOpenFile(tab.path)
+        return
+      }
+      if (activeTabIdRef.current !== tabId) {
+        setActiveTabId(tabId)
+      }
+      if (inspectedPathRef.current !== tab.path) {
+        setInspectedPath(tab.path)
+      }
+      const nextRoute = pathToGitDiffRoute(tab.section, tab.path)
+      if (locationPathnameRef.current !== nextRoute) {
+        startTransition(() => {
+          navigate(nextRoute)
+        })
+      }
+    },
+    [
+      activeTabIdRef,
+      inspectedPathRef,
+      locationPathnameRef,
+      navigate,
+      onOpenFile,
+      setActiveTabId,
+      tabsRef,
+    ],
+  )
+
+  const onCloseActiveTab = useCallback(() => {
+    const currentActiveTabId = activeTabIdRef.current
+    if (currentActiveTabId) onCloseTab(currentActiveTabId)
+  }, [activeTabIdRef, onCloseTab])
 
   const fileTree = useMemo(() => buildFileTree(entries), [entries])
   const workspaceIndex = useWorkspaceIndex(
@@ -221,7 +345,7 @@ export function useAppLayoutState() {
     fileContents,
     viewMode === 'graph',
     workspaceIndex,
-    currentPath,
+    activeFilePath,
     rootKind,
   )
   const graphLayoutPositions = useMemo(
@@ -239,9 +363,12 @@ export function useAppLayoutState() {
     files: entries,
     fileContents,
     tabs,
+    activeTab,
+    activeTabId,
     dirtyPaths,
     saveStates,
-    activePath: currentPath,
+    activePath: activeFilePath,
+    activeResourcePath,
     sidebarCollapsed,
     rightSidebarCollapsed,
     theme,
@@ -251,14 +378,17 @@ export function useAppLayoutState() {
     fileTree,
     graph,
     workspaceIndex,
-    inspectedPath: inspectedPath ?? currentPath,
+    inspectedPath: inspectedPath ?? activeResourcePath,
     graphLayoutPositions,
     editorValue,
     isMaximized,
     setIsMaximized,
     onEditorChange,
     onOpenFile,
+    onOpenGitDiff,
+    onOpenTab,
     onCloseTab,
+    onCloseActiveTab,
     onSelectProject: onSelectFolder,
     onSelectSingleFile,
     onOpenProject: openFolder,

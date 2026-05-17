@@ -5,7 +5,13 @@ import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
-import type { FileEntry, GraphLayoutPositions, ThemeMode, ViewMode } from '@/store/useAppStore'
+import type {
+  FileEntry,
+  GraphLayoutPositions,
+  ThemeMode,
+  ViewMode,
+  WorkspaceTab,
+} from '@/store/useAppStore'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { exportApi } from '@/services/exportApi'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
@@ -15,6 +21,8 @@ import type { SaveState } from '@/app/useEditorBuffer'
 import { requestFocusHeading, type FocusHeadingRequest } from '@/utils/editorNavigation'
 import { useLatest } from 'ahooks'
 import { useTauriReadySignal } from '@/app/useTauriReadySignal'
+import type { GitDiffRequest } from '@/services/gitApi'
+import { getWorkspaceTabId } from '@/logic/tabs'
 
 export type LayoutContext = {
   activePath: string | null
@@ -29,6 +37,8 @@ export type LayoutContext = {
   workspaceIndex: FsWorkspaceIndex | null
   saveStates: Record<string, SaveState>
   currentView: ViewMode
+  activeTab: WorkspaceTab | null
+  rootPath: string
   showEditorStatusBar: boolean
   graphLayoutPositions: GraphLayoutPositions
   onSaveGraphNodePosition: (
@@ -36,15 +46,31 @@ export type LayoutContext = {
     nodeId: string,
     position: { x: number; y: number },
   ) => void
+  onCloseActiveTab: () => void
 }
 
 export default function AppLayout() {
   const state = useAppLayoutState()
   const stateRef = useLatest(state)
-  const openFile = state.onOpenFile
+  const stateOpenFile = state.onOpenFile
+  const stateOpenGitDiff = state.onOpenGitDiff
   const changeView = state.setViewMode
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
   useTauriReadySignal()
+
+  const handleOpenFile = useCallback(
+    (path: string) => {
+      stateOpenFile(path)
+    },
+    [stateOpenFile],
+  )
+
+  const handleOpenGitDiff = useCallback(
+    (request: GitDiffRequest) => {
+      stateOpenGitDiff(request.path, request.section)
+    },
+    [stateOpenGitDiff],
+  )
 
   const totalFiles = useMemo(
     () => state.files.reduce((count, file) => count + (file.kind === 'file' ? 1 : 0), 0),
@@ -59,7 +85,7 @@ export default function AppLayout() {
       editorValue: state.editorValue,
       graph: state.graph,
       onEditorChange: state.onEditorChange,
-      onOpenFile: state.onOpenFile,
+      onOpenFile: handleOpenFile,
       theme: state.theme,
       setTheme: state.setTheme,
       files: state.files,
@@ -67,16 +93,19 @@ export default function AppLayout() {
       workspaceIndex: state.workspaceIndex,
       saveStates: state.saveStates,
       currentView: state.viewMode,
+      activeTab: state.activeTab,
+      rootPath: state.rootPath,
       showEditorStatusBar: state.showEditorStatusBar,
       graphLayoutPositions: state.graphLayoutPositions,
       onSaveGraphNodePosition: state.setGraphNodePosition,
+      onCloseActiveTab: state.onCloseActiveTab,
     } as LayoutContext
   }, [
     state.activePath,
     state.editorValue,
     state.graph,
     state.onEditorChange,
-    state.onOpenFile,
+    handleOpenFile,
     state.theme,
     state.setTheme,
     state.files,
@@ -84,9 +113,12 @@ export default function AppLayout() {
     state.workspaceIndex,
     state.saveStates,
     state.viewMode,
+    state.activeTab,
+    state.rootPath,
     state.showEditorStatusBar,
     state.graphLayoutPositions,
     state.setGraphNodePosition,
+    state.onCloseActiveTab,
   ])
 
   useEffect(() => {
@@ -95,11 +127,11 @@ export default function AppLayout() {
 
   const openHeading = useCallback(
     (path: string, slug: string) => {
-      openFile(path)
+      handleOpenFile(path)
       changeView('wysiwyg')
       setPendingHeading({ path, slug })
     },
-    [changeView, openFile],
+    [changeView, handleOpenFile],
   )
 
   useEffect(() => {
@@ -238,7 +270,7 @@ export default function AppLayout() {
         onToggleRightSidebar={state.toggleRightSidebar}
         onSelectProject={state.onSelectProject}
         onSelectSingleFile={state.onSelectSingleFile}
-        onOpenFile={state.onOpenFile}
+        onOpenFile={handleOpenFile}
         onOpenHeading={openHeading}
         onChangeView={state.setViewMode}
         files={state.files}
@@ -254,8 +286,8 @@ export default function AppLayout() {
           recentProjects={state.recentProjects}
           files={state.files}
           fileTree={state.fileTree}
-          activePath={state.activePath}
-          onOpenFile={state.onOpenFile}
+          activePath={state.activeResourcePath}
+          onOpenFile={handleOpenFile}
           onOpenProject={state.onOpenProject}
           onCreateFile={state.createFile}
           onCreateFolder={state.createFolder}
@@ -263,6 +295,8 @@ export default function AppLayout() {
           onDeletePath={state.deletePath}
           onUseInternalRoot={state.onUseInternalRoot}
           rootKind={state.rootKind}
+          rootPath={state.rootPath}
+          onOpenGitDiff={handleOpenGitDiff}
           onInspectPath={state.onInspectPath}
         />
         <section className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/80">
@@ -270,8 +304,8 @@ export default function AppLayout() {
             tabs={state.tabs}
             dirtyPaths={state.dirtyPaths}
             saveStates={state.saveStates}
-            activePath={state.activePath}
-            onOpenFile={state.onOpenFile}
+            activeTabId={state.activeTabId}
+            onOpenTab={state.onOpenTab}
             onCloseTab={state.onCloseTab}
             viewMode={state.viewMode}
             onChangeView={state.setViewMode}
@@ -288,9 +322,9 @@ export default function AppLayout() {
           files={state.files}
           fileContents={state.fileContents}
           workspaceIndex={state.workspaceIndex}
-          tabs={state.tabs}
+          tabs={state.tabs.map(getWorkspaceTabId)}
           totalFiles={totalFiles}
-          onOpenFile={state.onOpenFile}
+          onOpenFile={handleOpenFile}
           viewMode={state.viewMode}
           onChangeView={state.setViewMode}
           inspectedPath={state.inspectedPath}
