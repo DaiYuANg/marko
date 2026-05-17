@@ -110,6 +110,8 @@
     "typescript-eslint": "^8.59.3",
     "unplugin-turbo-console": "^2.3.2",
     "vite": "^8.0.13",
+    "vite-plugin-compression2": "^2.5.3",
+    "vite-plugin-static-copy": "^4.1.0",
     "vitest": "^4.1.6"
   }
 }

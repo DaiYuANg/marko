@@ -5,10 +5,9 @@ import 'reactflow/dist/style.css'
 import '@/index.css'
 import '@/i18n/setup'
 import App from '@/App.tsx'
-import { isDevelopment } from '@/utils/share.ts'
 import { queryClient } from '@/app/queryClient'
 
-if (isDevelopment() && import.meta.env.VITE_REACT_SCAN !== 'false') {
+if (import.meta.env.DEV && import.meta.env.VITE_REACT_SCAN !== 'false') {
   void import('react-scan')
     .then(({ scan }) => scan({ enabled: true }))
     .catch((error) => {
@@ -16,7 +15,7 @@ if (isDevelopment() && import.meta.env.VITE_REACT_SCAN !== 'false') {
     })
 }
 
-if (isDevelopment()) {
+if (import.meta.env.DEV) {
   const loadReactDevTools = () => {
     const script = document.createElement('script')
     script.src = 'http://localhost:8097'

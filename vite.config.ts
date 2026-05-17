@@ -1,61 +1,121 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import { constants as zlibConstants } from 'node:zlib'
 import TurboConsole from 'unplugin-turbo-console/vite'
+import { compression, defineAlgorithm } from 'vite-plugin-compression2'
+import { viteStaticCopy } from 'vite-plugin-static-copy'
+
+const isNodeModule = (id: string) => id.includes('/node_modules/')
+
+const includesAny = (id: string, values: string[]) => values.some((value) => id.includes(value))
+
+const packagePathMatches = (id: string, pattern: RegExp) => pattern.test(id)
+
+const katexFontsPath = path.resolve(__dirname, 'node_modules/.pnpm/node_modules/katex/dist/fonts/*')
 
 // https://vite.dev/config/
-export default defineConfig({
-  server: {
-    port: 5173,
-    strictPort: true, // fail if port is taken so Tauri doesn't load wrong address
-  },
-  plugins: [
-    react(),
-    !process.env.VITEST &&
-      TurboConsole({
-        /* options here */
-      }),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
+export default defineConfig(({ command }) => {
+  const isBuild = command === 'build'
+  const isServe = command === 'serve'
+
+  return {
+    server: {
+      port: 5173,
+      strictPort: true, // fail if port is taken so Tauri doesn't load wrong address
     },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          const normalizedId = id.replaceAll('\\', '/')
-          if (!normalizedId.includes('node_modules')) return undefined
-          if (normalizedId.includes('react-scan')) return 'vendor-react-scan'
-          if (normalizedId.includes('reactflow')) return 'vendor-graph'
-          if (normalizedId.includes('lucide-react')) return 'vendor-icons'
-          if (
-            /\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler|use-sync-external-store|zustand|@tanstack\/react-query|@tanstack\/query-core)\//.test(
-              normalizedId,
-            )
-          ) {
-            return 'vendor-react'
-          }
-          if (normalizedId.includes('monaco-editor') || normalizedId.includes('@monaco-editor')) {
-            return 'vendor-monaco'
-          }
-          if (
-            normalizedId.includes('@milkdown') ||
-            normalizedId.includes('prosemirror') ||
-            normalizedId.includes('@codemirror')
-          ) {
-            return 'vendor-markdown-editor'
-          }
-          if (normalizedId.includes('mermaid')) return 'vendor-mermaid'
-          if (normalizedId.includes('@radix-ui')) return 'vendor-radix'
-          return undefined
+    plugins: [
+      react(),
+      isBuild &&
+        viteStaticCopy({
+          targets: [
+            {
+              src: katexFontsPath,
+              dest: 'assets/fonts',
+              rename: { stripBase: true },
+            },
+          ],
+        }),
+      isBuild &&
+        compression({
+          include: /\.(html|xml|css|json|js|mjs|svg|wasm)$/,
+          threshold: 10 * 1024,
+          deleteOriginalAssets: false,
+          skipIfLargerOrEqual: true,
+          algorithms: [
+            defineAlgorithm('gzip', { level: 9 }),
+            defineAlgorithm('brotliCompress', {
+              params: {
+                [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
+              },
+            }),
+          ],
+        }),
+      isServe &&
+        !process.env.VITEST &&
+        TurboConsole({
+          /* options here */
+        }),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src'),
+      },
+    },
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.ts',
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const normalizedId = id.replaceAll('\\', '/')
+            if (!isNodeModule(normalizedId)) return undefined
+            if (normalizedId.includes('react-scan')) return 'dev-react-scan'
+            if (normalizedId.includes('reactflow')) return 'vendor-graph'
+            if (normalizedId.includes('lucide-react')) return 'vendor-icons'
+            if (
+              packagePathMatches(
+                normalizedId,
+                /\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler|use-sync-external-store|zustand|@tanstack\/react-query|@tanstack\/query-core)\//,
+              )
+            ) {
+              return 'vendor-react'
+            }
+            if (includesAny(normalizedId, ['monaco-editor', '@monaco-editor'])) {
+              return 'vendor-monaco'
+            }
+            if (normalizedId.includes('@codemirror/language-data')) {
+              return 'vendor-codemirror-language-data'
+            }
+            const codemirrorLanguageMatch = normalizedId.match(/@codemirror\/(lang-[^/]+)/)
+            if (codemirrorLanguageMatch?.[1]) {
+              return `vendor-codemirror-${codemirrorLanguageMatch[1]}`
+            }
+            const lezerLanguageMatch = normalizedId.match(/@lezer\/([^/]+)/)
+            if (lezerLanguageMatch?.[1]) {
+              return `vendor-lezer-${lezerLanguageMatch[1]}`
+            }
+            if (includesAny(normalizedId, ['@codemirror', 'style-mod', 'w3c-keyname'])) {
+              return 'vendor-codemirror-core'
+            }
+            if (normalizedId.includes('prosemirror')) return 'vendor-prosemirror'
+            if (normalizedId.includes('@milkdown/crepe')) return 'vendor-milkdown-crepe'
+            if (normalizedId.includes('@milkdown')) return 'vendor-milkdown-core'
+            if (includesAny(normalizedId, ['katex', 'mhchem'])) return 'vendor-katex'
+            if (includesAny(normalizedId, ['d3-', '/d3/'])) return 'vendor-d3'
+            if (normalizedId.includes('elkjs')) return 'vendor-elk'
+            if (normalizedId.includes('cytoscape')) return 'vendor-cytoscape'
+            if (includesAny(normalizedId, ['dagre', 'graphlib', 'layout-base', 'cose-base'])) {
+              return 'vendor-graph-layout'
+            }
+            if (normalizedId.includes('mermaid')) return 'vendor-mermaid'
+            if (normalizedId.includes('@radix-ui')) return 'vendor-radix'
+            return undefined
+          },
         },
       },
     },
-  },
+  }
 })

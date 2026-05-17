@@ -12,7 +12,6 @@ import {
   Search,
   Settings2,
 } from 'lucide-react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   memo,
   useCallback,
@@ -84,7 +83,11 @@ function Titlebar({
   theme,
   setTheme,
 }: TitlebarProps) {
-  const getAppWindow = useCallback(() => (isTauriRuntime() ? getCurrentWindow() : null), [])
+  const getAppWindow = useCallback(async () => {
+    if (!isTauriRuntime()) return null
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    return getCurrentWindow()
+  }, [])
   const { t, locale, setLocale } = useI18n()
   const [platform, setPlatform] = useState<AppPlatform>(inferPlatformFromUserAgent())
   const [commandOpen, setCommandOpen] = useState(false)
@@ -291,9 +294,9 @@ function Titlebar({
         )
       )
         return
-      void getCurrentWindow().startDragging()
+      void getAppWindow().then((windowHandle) => windowHandle?.startDragging())
     },
-    [platform],
+    [getAppWindow, platform],
   )
 
   return (
@@ -622,8 +625,8 @@ function Titlebar({
             variant="ghost"
             size="icon"
             className={`win-caption-btn ${isWindows ? 'is-windows' : 'h-8 w-8'}`}
-            onClick={() => {
-              const windowHandle = getAppWindow()
+            onClick={async () => {
+              const windowHandle = await getAppWindow()
               if (windowHandle) {
                 void windowHandle.minimize()
               }
@@ -643,7 +646,7 @@ function Titlebar({
             size="icon"
             className={`win-caption-btn ${isWindows ? 'is-windows' : 'h-8 w-8'}`}
             onClick={async () => {
-              const windowHandle = getAppWindow()
+              const windowHandle = await getAppWindow()
               if (!windowHandle) return
               const next = !(await windowHandle.isMaximized())
               if (next) {
@@ -667,8 +670,8 @@ function Titlebar({
             variant="ghost"
             size="icon"
             className={`win-caption-btn win-caption-close ${isWindows ? 'is-windows' : 'h-8 w-8 hover:bg-destructive hover:text-destructive-foreground'}`}
-            onClick={() => {
-              const windowHandle = getAppWindow()
+            onClick={async () => {
+              const windowHandle = await getAppWindow()
               if (windowHandle) {
                 void windowHandle.close()
               }
