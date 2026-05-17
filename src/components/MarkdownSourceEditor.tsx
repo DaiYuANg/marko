@@ -8,11 +8,12 @@ import {
   MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER,
 } from '@/logic/markdownDiagnostics'
 import type { FileEntry } from '@/store/useAppStore'
-import type { FsWorkspaceIndex } from '@/services/fsApi'
+import { fsApi, type FsMarkdownDiagnostic, type FsWorkspaceIndex } from '@/services/fsApi'
 import {
   FOCUS_SOURCE_POSITION_EVENT,
   type FocusSourcePositionRequest,
 } from '@/utils/editorNavigation'
+import { isTauriRuntime } from '@/utils/tauri'
 
 type MarkdownSourceEditorProps = {
   activePath: string | null
@@ -40,6 +41,7 @@ export default function MarkdownSourceEditor({
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null)
   const diagnosticsDisposableRef = useRef<{ dispose: () => void } | null>(null)
   const diagnosticsTimerRef = useRef<number | null>(null)
+  const diagnosticsRequestRef = useRef(0)
   const completionContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
   const diagnosticsContextRef = useRef({ activePath, files, fileContents, workspaceIndex })
 
@@ -48,31 +50,68 @@ export default function MarkdownSourceEditor({
     diagnosticsContextRef.current = { activePath, files, fileContents, workspaceIndex }
   }, [activePath, fileContents, files, workspaceIndex])
 
+  const applyDiagnostics = useCallback(
+    (
+      diagnostics: Array<
+        FsMarkdownDiagnostic | ReturnType<typeof getMarkdownSourceDiagnostics>[number]
+      >,
+    ) => {
+      const host = diagnosticHostRef.current
+      const editor = host?.editor
+      const monaco = host?.monaco
+      const model = editor?.getModel()
+      if (!host || !model || !monaco) return
+
+      const markers = diagnostics.map((diagnostic) => {
+        const startColumn =
+          'start_column' in diagnostic ? diagnostic.start_column : diagnostic.startColumn
+        const endColumn = 'end_column' in diagnostic ? diagnostic.end_column : diagnostic.endColumn
+        return {
+          severity:
+            diagnostic.severity === 'error'
+              ? monaco.MarkerSeverity.Error
+              : monaco.MarkerSeverity.Warning,
+          message: diagnostic.message,
+          startLineNumber: diagnostic.line,
+          startColumn,
+          endLineNumber: diagnostic.line,
+          endColumn: Math.max(startColumn + 1, endColumn),
+          source: 'markdown',
+          code: diagnostic.severity === 'error' ? 'M001' : 'M002',
+        }
+      })
+      monaco.editor.setModelMarkers(model, MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER, markers)
+    },
+    [],
+  )
+
   const refreshDiagnostics = useCallback(() => {
     const host = diagnosticHostRef.current
     const editor = host?.editor
-    const monaco = host?.monaco
     const model = editor?.getModel()
-    if (!host || !model || !monaco) return
+    if (!host || !model) return
 
-    const markers = getMarkdownSourceDiagnostics({
-      ...diagnosticsContextRef.current,
-      content: model.getValue(),
-    }).map((diagnostic) => ({
-      severity:
-        diagnostic.severity === 'error'
-          ? monaco.MarkerSeverity.Error
-          : monaco.MarkerSeverity.Warning,
-      message: diagnostic.message,
-      startLineNumber: diagnostic.line,
-      startColumn: diagnostic.startColumn,
-      endLineNumber: diagnostic.line,
-      endColumn: Math.max(diagnostic.startColumn + 1, diagnostic.endColumn),
-      source: 'markdown',
-      code: diagnostic.severity === 'error' ? 'M001' : 'M002',
-    }))
-    monaco.editor.setModelMarkers(model, MARKDOWN_SOURCE_LINK_DIAGNOSTIC_OWNER, markers)
-  }, [])
+    const content = model.getValue()
+    const context = diagnosticsContextRef.current
+    const requestId = diagnosticsRequestRef.current + 1
+    diagnosticsRequestRef.current = requestId
+
+    if (isTauriRuntime() && context.activePath) {
+      void fsApi
+        .analyzeMarkdownBuffer(context.activePath, content)
+        .then((diagnostics) => {
+          if (diagnosticsRequestRef.current !== requestId) return
+          applyDiagnostics(diagnostics)
+        })
+        .catch(() => {
+          if (diagnosticsRequestRef.current !== requestId) return
+          applyDiagnostics(getMarkdownSourceDiagnostics({ ...context, content }))
+        })
+      return
+    }
+
+    applyDiagnostics(getMarkdownSourceDiagnostics({ ...context, content }))
+  }, [applyDiagnostics])
 
   const scheduleDiagnostics = useCallback(() => {
     if (diagnosticsTimerRef.current !== null) {

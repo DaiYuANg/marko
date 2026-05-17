@@ -6,7 +6,8 @@ use fluxdi::Shared;
 use pathdiff::diff_paths;
 
 use crate::models::{
-  FsBufferStatus, FsEntry, FsGraph, FsPathMetadata, FsRootInfo, FsSnapshot, FsWorkspaceIndex,
+  FsBufferStatus, FsEntry, FsGraph, FsMarkdownDiagnostic, FsPathMetadata, FsRootInfo, FsSnapshot,
+  FsWorkspaceIndex,
 };
 use crate::services::{
   fs_buffer::BufferService, markdown_graph::MarkdownGraphService,
@@ -192,6 +193,45 @@ impl WorkspaceService {
     tokio::task::spawn_blocking(move || markdown_index.build_workspace_index(&files, &contents))
       .await
       .map_err(|err| format!("Workspace index task failed: {err}"))
+  }
+
+  pub async fn analyze_markdown_buffer(
+    &self,
+    path: String,
+    content: String,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<Vec<FsMarkdownDiagnostic>, String> {
+    let data = state
+      .0
+      .read()
+      .map_err(|_| "Failed to lock fs state")?
+      .clone();
+    let entries = list_entries_async(data.clone()).await?;
+    let files = entries
+      .into_iter()
+      .filter(|entry| entry.kind == "file")
+      .collect::<Vec<_>>();
+
+    let mut contents = Vec::with_capacity(files.len());
+    for file in &files {
+      let file_content = if file.path == path {
+        content.clone()
+      } else if let Some(content) = self.buffer.read(&file.path, buffer_state)? {
+        content
+      } else {
+        self.read_from_disk_data(&file.path, &data).await?
+      };
+      contents.push((file.path.clone(), file_content));
+    }
+
+    let markdown_index = self.markdown_index.clone();
+    tokio::task::spawn_blocking(move || {
+      let index = markdown_index.build_workspace_index(&files, &contents);
+      markdown_index.diagnostics_for_file(&index, &path)
+    })
+    .await
+    .map_err(|err| format!("Markdown analysis task failed: {err}"))
   }
 
   pub async fn workspace_graph(

@@ -87,6 +87,15 @@ pub struct FsWorkspaceIndex {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FsMarkdownDiagnostic {
+  pub line: usize,
+  pub start_column: usize,
+  pub end_column: usize,
+  pub message: String,
+  pub severity: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct FsGraphNode {
   pub id: String,
   pub kind: String,

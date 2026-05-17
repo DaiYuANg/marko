@@ -1,17 +1,4 @@
-import {
-  CircleHelp,
-  FileText,
-  FolderOpen,
-  GitGraph,
-  Languages,
-  ListTree,
-  PanelLeft,
-  PanelRight,
-  Palette,
-  PenLine,
-  Search,
-  Settings2,
-} from 'lucide-react'
+import { FileText, FolderOpen, PanelLeft, PanelRight, Search, Settings2 } from 'lucide-react'
 import {
   memo,
   useCallback,
@@ -21,36 +8,19 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command'
-import AppCommandDialog from '@/components/AppCommandDialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
 import { useI18n } from '@/i18n/useI18n'
-import type { Locale } from '@/i18n/resources'
 import { appApi, type AppPlatform } from '@/services/appApi'
 import AppMenuBar from '@/components/AppMenuBar'
 import SettingsDialog from '@/components/SettingsDialog'
 import { inferPlatformFromUserAgent, isTauriRuntime } from '@/utils/tauri'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
 import { createFileLabel } from '@/logic/paths'
+import TitlebarCommandDialog from '@/components/TitlebarCommandDialog'
+import WindowControls from '@/components/WindowControls'
+import TitlebarThemeMenu from '@/components/TitlebarThemeMenu'
 
 type TitlebarProps = {
   onToggleSidebar: () => void
@@ -88,7 +58,7 @@ function Titlebar({
     const { getCurrentWindow } = await import('@tauri-apps/api/window')
     return getCurrentWindow()
   }, [])
-  const { t, locale, setLocale } = useI18n()
+  const { t } = useI18n()
   const [platform, setPlatform] = useState<AppPlatform>(inferPlatformFromUserAgent())
   const [commandOpen, setCommandOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -390,73 +360,11 @@ function Titlebar({
             </TooltipTrigger>
             <TooltipContent>{t('sidebar.searchAction')}</TooltipContent>
           </Tooltip>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="chrome-button h-8 w-8 rounded-md"
-                aria-label={t('menu.theme')}
-              >
-                <Palette className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel>{t('menu.theme')}</DropdownMenuLabel>
-              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
-                {t('theme.groupShadcn')}
-              </DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={theme}
-                onValueChange={(value) => setTheme(value as ThemeMode)}
-              >
-                <DropdownMenuRadioItem value="light">{t('theme.light')}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">{t('theme.dark')}</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
-                {t('theme.groupMarko')}
-              </DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={theme}
-                onValueChange={(value) => setTheme(value as ThemeMode)}
-              >
-                <DropdownMenuRadioItem value="marko-light">
-                  <PenLine className="mr-1 h-3.5 w-3.5" />
-                  {t('theme.markoLight')}
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="marko-dark">
-                  <GitGraph className="mr-1 h-3.5 w-3.5" />
-                  {t('theme.markoDark')}
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t('menu.language')}</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={locale}
-                onValueChange={(value) => setLocale(value as Locale)}
-              >
-                <DropdownMenuRadioItem value="zh-CN">
-                  <Languages className="mr-1 h-3.5 w-3.5" />
-                  {t('language.zh')}
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="en-US">
-                  <Languages className="mr-1 h-3.5 w-3.5" />
-                  {t('language.en')}
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={() => onMenuAction('help.about')}
-              >
-                <CircleHelp className="mr-2 h-3.5 w-3.5" />
-                About marko
-              </Button>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <TitlebarThemeMenu
+            theme={theme}
+            setTheme={setTheme}
+            onAbout={() => onMenuAction('help.about')}
+          />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -487,207 +395,23 @@ function Titlebar({
           </Tooltip>
         </div>
       </TooltipProvider>
-      <AppCommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
-        <CommandInput placeholder={t('sidebar.search')} />
-        <CommandList>
-          <CommandEmpty>{t('center.noFile')}</CommandEmpty>
-          {commandFiles.length > 0 && (
-            <>
-              <CommandGroup heading={t('command.files')}>
-                {commandFiles.map((file) => (
-                  <CommandItem
-                    key={file.path}
-                    value={`${file.label} ${file.path}`}
-                    onSelect={() => onCommandOpenFile(file.path)}
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span className="min-w-0">
-                      <span className="block truncate">{file.label}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
-                        {file.path}
-                      </span>
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-            </>
-          )}
-          {commandHeadings.length > 0 && (
-            <>
-              <CommandGroup heading={t('command.headings')}>
-                {commandHeadings.map((heading) => (
-                  <CommandItem
-                    key={`${heading.path}#${heading.slug}`}
-                    value={`${heading.text} ${heading.slug} ${heading.path}`}
-                    onSelect={() => onCommandOpenHeading(heading.path, heading.slug)}
-                  >
-                    <ListTree className="h-4 w-4" />
-                    <span className="min-w-0">
-                      <span className="block truncate">
-                        {'#'.repeat(Math.min(heading.level, 6))} {heading.text}
-                      </span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
-                        {heading.label}#{heading.slug}
-                      </span>
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-            </>
-          )}
-          <CommandGroup heading="File">
-            <CommandItem onSelect={() => onCommandAction('file.open_project')}>
-              <FolderOpen className="h-4 w-4" />
-              {t('actions.openProject')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('file.open_file')}>
-              <FileText className="h-4 w-4" />
-              {t('actions.openFile')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('view.focus_file_search')}>
-              <Search className="h-4 w-4" />
-              {t('sidebar.searchAction')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('file.export_pdf')}>
-              <FileText className="h-4 w-4" />
-              {t('actions.exportPdf')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('file.export_docx')}>
-              <FileText className="h-4 w-4" />
-              {t('actions.exportDocx')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('file.export_html')}>
-              <FileText className="h-4 w-4" />
-              {t('actions.exportHtml')}
-            </CommandItem>
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading="View">
-            <CommandItem onSelect={() => onCommandAction('view.wysiwyg')}>
-              <PenLine className="h-4 w-4" />
-              {t('editor.modeWysiwyg')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('view.source')}>
-              <FileText className="h-4 w-4" />
-              {t('editor.modeSource')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('view.graph')}>
-              <GitGraph className="h-4 w-4" />
-              {t('tabs.workspaceGraph')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('view.toggle_sidebar')}>
-              <PanelLeft className="h-4 w-4" />
-              {t('actions.toggleSidebar')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('view.toggle_right_sidebar')}>
-              <PanelRight className="h-4 w-4" />
-              {t('actions.toggleRightSidebar')}
-            </CommandItem>
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading={t('menu.settings')}>
-            <CommandItem onSelect={() => onCommandAction('settings.open')}>
-              <Settings2 className="h-4 w-4" />
-              {t('menu.settings')}
-            </CommandItem>
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading={t('menu.theme')}>
-            <CommandItem onSelect={() => onCommandAction('theme.light')}>
-              {t('theme.light')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('theme.dark')}>
-              {t('theme.dark')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('theme.marko-light')}>
-              {t('theme.markoLight')}
-            </CommandItem>
-            <CommandItem onSelect={() => onCommandAction('theme.marko-dark')}>
-              {t('theme.markoDark')}
-            </CommandItem>
-          </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading="Help">
-            <CommandItem onSelect={() => onCommandAction('help.about')}>
-              <CircleHelp className="h-4 w-4" />
-              About marko
-            </CommandItem>
-          </CommandGroup>
-        </CommandList>
-      </AppCommandDialog>
+      <TitlebarCommandDialog
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        files={commandFiles}
+        headings={commandHeadings}
+        onOpenFile={onCommandOpenFile}
+        onOpenHeading={onCommandOpenHeading}
+        onAction={onCommandAction}
+      />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      {(platform === 'windows' || platform === 'linux') && isTauriRuntime() && (
-        <div className="window-controls flex items-center">
-          <Separator orientation="vertical" className="mr-1 h-6" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`win-caption-btn ${isWindows ? 'is-windows' : 'h-8 w-8'}`}
-            onClick={async () => {
-              const windowHandle = await getAppWindow()
-              if (windowHandle) {
-                void windowHandle.minimize()
-              }
-            }}
-            aria-label={t('actions.minimize')}
-          >
-            {isWindows ? (
-              <span className="win-caption-glyph" aria-hidden>
-                {'\uE921'}
-              </span>
-            ) : (
-              <span aria-hidden>-</span>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`win-caption-btn ${isWindows ? 'is-windows' : 'h-8 w-8'}`}
-            onClick={async () => {
-              const windowHandle = await getAppWindow()
-              if (!windowHandle) return
-              const next = !(await windowHandle.isMaximized())
-              if (next) {
-                await windowHandle.maximize()
-              } else {
-                await windowHandle.unmaximize()
-              }
-              setIsMaximized(next)
-            }}
-            aria-label={isMaximized ? t('actions.restore') : t('actions.maximize')}
-          >
-            {isWindows ? (
-              <span className="win-caption-glyph" aria-hidden>
-                {isMaximized ? '\uE923' : '\uE922'}
-              </span>
-            ) : (
-              <span aria-hidden>{isMaximized ? '◱' : '□'}</span>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`win-caption-btn win-caption-close ${isWindows ? 'is-windows' : 'h-8 w-8 hover:bg-destructive hover:text-destructive-foreground'}`}
-            onClick={async () => {
-              const windowHandle = await getAppWindow()
-              if (windowHandle) {
-                void windowHandle.close()
-              }
-            }}
-            aria-label={t('actions.close')}
-          >
-            {isWindows ? (
-              <span className="win-caption-glyph" aria-hidden>
-                {'\uE8BB'}
-              </span>
-            ) : (
-              <span aria-hidden>×</span>
-            )}
-          </Button>
-        </div>
-      )}
+      <WindowControls
+        platform={platform}
+        isWindows={isWindows}
+        isMaximized={isMaximized}
+        setIsMaximized={setIsMaximized}
+        getAppWindow={getAppWindow}
+      />
     </header>
   )
 }

@@ -1,5 +1,6 @@
 use crate::models::BackgroundTaskStatus;
 use notify::RecommendedWatcher;
+use notify_debouncer_mini::Debouncer;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
@@ -14,7 +15,7 @@ pub struct FsStateData {
 
 pub struct FsState(pub RwLock<FsStateData>);
 
-pub struct FsWatcherState(pub Mutex<Option<RecommendedWatcher>>);
+pub struct FsWatcherState(pub Mutex<Option<Debouncer<RecommendedWatcher>>>);
 
 #[derive(Debug, Clone)]
 pub struct FsBufferEntry {

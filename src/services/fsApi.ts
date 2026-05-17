@@ -71,6 +71,14 @@ export const fsWorkspaceIndexSchema = z.object({
   files: z.array(fsIndexedMarkdownFileSchema),
 })
 
+export const fsMarkdownDiagnosticSchema = z.object({
+  line: z.number(),
+  start_column: z.number(),
+  end_column: z.number(),
+  message: z.string(),
+  severity: z.enum(['error', 'warning']),
+})
+
 export const fsGraphNodeSchema = z.object({
   id: z.string(),
   kind: z.enum(['file', 'heading', 'missing', 'external']),
@@ -105,6 +113,7 @@ export type FsMarkdownHeading = z.infer<typeof fsMarkdownHeadingSchema>
 export type FsMarkdownLink = z.infer<typeof fsMarkdownLinkSchema>
 export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
 export type FsWorkspaceIndex = z.infer<typeof fsWorkspaceIndexSchema>
+export type FsMarkdownDiagnostic = z.infer<typeof fsMarkdownDiagnosticSchema>
 export type FsGraphNode = z.infer<typeof fsGraphNodeSchema>
 export type FsGraphEdge = z.infer<typeof fsGraphEdgeSchema>
 export type FsGraph = z.infer<typeof fsGraphSchema>
@@ -139,6 +148,10 @@ export const fsApi = {
   async getOutlineGraph(path: string) {
     const result = await invoke<unknown>('fs_get_outline_graph', { path })
     return fsGraphSchema.parse(result)
+  },
+  async analyzeMarkdownBuffer(path: string, content: string) {
+    const result = await invoke<unknown>('fs_analyze_markdown_buffer', { path, content })
+    return z.array(fsMarkdownDiagnosticSchema).parse(result)
   },
   async updateBuffer(path: string, content: string) {
     const result = await invoke<unknown>('fs_update_buffer', { path, content })
