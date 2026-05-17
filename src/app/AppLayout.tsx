@@ -18,11 +18,16 @@ import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { requestExportContent } from '@/utils/exportContent'
 import { isTauriRuntime } from '@/utils/tauri'
 import type { SaveState } from '@/app/useEditorBuffer'
-import { requestFocusHeading, type FocusHeadingRequest } from '@/utils/editorNavigation'
+import {
+  requestFocusHeading,
+  requestFocusSourcePosition,
+  type FocusHeadingRequest,
+} from '@/utils/editorNavigation'
 import { useLatest } from 'ahooks'
 import { useTauriReadySignal } from '@/app/useTauriReadySignal'
 import type { GitDiffRequest } from '@/services/gitApi'
 import { getWorkspaceTabId } from '@/logic/tabs'
+import type { FsSearchResult } from '@/services/fsApi'
 
 export type LayoutContext = {
   activePath: string | null
@@ -70,6 +75,21 @@ export default function AppLayout() {
       stateOpenGitDiff(request.path, request.section)
     },
     [stateOpenGitDiff],
+  )
+
+  const handleOpenSearchResult = useCallback(
+    (result: FsSearchResult) => {
+      stateOpenFile(result.path)
+      changeView('source')
+      window.setTimeout(() => {
+        requestFocusSourcePosition({
+          path: result.path,
+          line: result.line,
+          column: result.column,
+        })
+      }, 80)
+    },
+    [changeView, stateOpenFile],
   )
 
   const totalFiles = useMemo(
@@ -272,6 +292,7 @@ export default function AppLayout() {
         onSelectSingleFile={state.onSelectSingleFile}
         onOpenFile={handleOpenFile}
         onOpenHeading={openHeading}
+        onOpenSearchResult={handleOpenSearchResult}
         onChangeView={state.setViewMode}
         files={state.files}
         workspaceIndex={state.workspaceIndex}
@@ -298,6 +319,7 @@ export default function AppLayout() {
           rootPath={state.rootPath}
           onOpenGitDiff={handleOpenGitDiff}
           onInspectPath={state.onInspectPath}
+          onOpenSearchResult={handleOpenSearchResult}
         />
         <section className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/80">
           <TabsBar

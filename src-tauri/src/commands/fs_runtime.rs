@@ -87,6 +87,15 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
             .await
           {
             Ok(statuses) => {
+              if let Ok(index_parent) = app_handle.path().app_data_dir() {
+                if let Err(err) = services
+                  .workspace
+                  .rebuild_search_index(index_parent, &state, &buffer_state)
+                  .await
+                {
+                  log::warn!("rebuild search index failed: {err}");
+                }
+              }
               if let Err(err) =
                 set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)
               {
@@ -176,10 +185,20 @@ fn handle_fs_watch_events(
       }
       let app_handle = app_handle.clone();
       runtime.spawn(async move {
-        if let (Some(state), Some(services)) = (
+        if let (Some(state), Some(buffer_state), Some(services)) = (
           app_handle.try_state::<FsState>(),
+          app_handle.try_state::<FsBufferState>(),
           app_handle.try_state::<crate::services::AppServices>(),
         ) {
+          if let Ok(index_parent) = app_handle.path().app_data_dir() {
+            if let Err(err) = services
+              .workspace
+              .rebuild_search_index(index_parent, &state, &buffer_state)
+              .await
+            {
+              log::warn!("rebuild search index failed: {err}");
+            }
+          }
           let _ = emit_fs_changed_async(&app_handle, &state, &services).await;
         }
       });

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Titlebar from '@/components/Titlebar'
 import i18n from '@/i18n/setup'
 import { useAppStore } from '@/store/useAppStore'
@@ -49,6 +50,7 @@ const createProps = (overrides: Partial<TitlebarProps> = {}): TitlebarProps => (
   onSelectSingleFile: vi.fn(),
   onOpenFile: vi.fn(),
   onOpenHeading: vi.fn(),
+  onOpenSearchResult: vi.fn(),
   onChangeView: vi.fn(),
   files: [{ path: 'notes/target.md', kind: 'file' }],
   workspaceIndex,
@@ -59,6 +61,21 @@ const createProps = (overrides: Partial<TitlebarProps> = {}): TitlebarProps => (
   ...overrides,
 })
 
+const renderTitlebar = (props: TitlebarProps) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Titlebar {...props} />
+    </QueryClientProvider>,
+  )
+}
+
 beforeEach(async () => {
   localStorage.clear()
   useAppStore.setState({ locale: 'en-US' })
@@ -68,7 +85,7 @@ beforeEach(async () => {
 describe('Titlebar command palette', () => {
   it('opens workspace files from the command palette', async () => {
     const onOpenFile = vi.fn()
-    render(<Titlebar {...createProps({ onOpenFile })} />)
+    renderTitlebar(createProps({ onOpenFile }))
 
     fireEvent.keyDown(window, { key: 'p', ctrlKey: true })
     await userEvent.click(await screen.findByText('target'))
@@ -78,7 +95,7 @@ describe('Titlebar command palette', () => {
 
   it('opens indexed headings from the command palette', async () => {
     const onOpenHeading = vi.fn()
-    render(<Titlebar {...createProps({ onOpenHeading })} />)
+    renderTitlebar(createProps({ onOpenHeading }))
 
     fireEvent.keyDown(window, { key: 'p', ctrlKey: true })
     await userEvent.click(await screen.findByText('## Indexed Detail'))

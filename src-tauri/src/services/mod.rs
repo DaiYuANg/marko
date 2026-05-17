@@ -5,6 +5,7 @@ pub mod git;
 pub mod markdown_graph;
 pub mod markdown_index;
 pub mod path_resolver;
+pub mod search;
 pub mod workspace;
 
 use fluxdi::Shared;

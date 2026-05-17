@@ -10,6 +10,8 @@ import {
   Search,
   Settings2,
 } from 'lucide-react'
+import { useDeferredValue, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import AppCommandDialog from '@/components/AppCommandDialog'
 import {
   CommandEmpty,
@@ -20,6 +22,8 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { useI18n } from '@/i18n/useI18n'
+import { fsApi, type FsSearchResult } from '@/services/fsApi'
+import { isTauriRuntime } from '@/utils/tauri'
 
 type CommandFile = {
   path: string
@@ -41,6 +45,7 @@ type TitlebarCommandDialogProps = {
   headings: CommandHeading[]
   onOpenFile: (path: string) => void
   onOpenHeading: (path: string, slug: string) => void
+  onOpenSearchResult: (result: FsSearchResult) => void
   onAction: (id: string) => void
 }
 
@@ -51,15 +56,46 @@ export default function TitlebarCommandDialog({
   headings,
   onOpenFile,
   onOpenHeading,
+  onOpenSearchResult,
   onAction,
 }: TitlebarCommandDialogProps) {
   const { t } = useI18n()
+  const [query, setQuery] = useState('')
+  const deferredQuery = useDeferredValue(query.trim())
+  const fullTextSearch = useQuery({
+    queryKey: ['command-workspace-search', deferredQuery],
+    queryFn: () => fsApi.searchWorkspace(deferredQuery, 8),
+    enabled: open && isTauriRuntime() && deferredQuery.length >= 2,
+    staleTime: 5_000,
+  })
 
   return (
     <AppCommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder={t('sidebar.search')} />
+      <CommandInput value={query} onValueChange={setQuery} placeholder={t('sidebar.search')} />
       <CommandList>
         <CommandEmpty>{t('center.noFile')}</CommandEmpty>
+        {fullTextSearch.data && fullTextSearch.data.length > 0 && (
+          <>
+            <CommandGroup heading={t('search.fullText')}>
+              {fullTextSearch.data.map((result) => (
+                <CommandItem
+                  key={`${result.path}:${result.line}:${result.column}`}
+                  value={`${result.title} ${result.path} ${result.snippet}`}
+                  onSelect={() => onOpenSearchResult(result)}
+                >
+                  <Search className="h-4 w-4" />
+                  <span className="min-w-0">
+                    <span className="block truncate">{result.title}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {result.path}:{result.line}
+                    </span>
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
         {files.length > 0 && (
           <>
             <CommandGroup heading={t('command.files')}>

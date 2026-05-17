@@ -16,7 +16,7 @@ import { appApi, type AppPlatform } from '@/services/appApi'
 import AppMenuBar from '@/components/AppMenuBar'
 import SettingsDialog from '@/components/SettingsDialog'
 import { inferPlatformFromUserAgent, isTauriRuntime } from '@/utils/tauri'
-import type { FsWorkspaceIndex } from '@/services/fsApi'
+import type { FsSearchResult, FsWorkspaceIndex } from '@/services/fsApi'
 import { createFileLabel } from '@/logic/paths'
 import TitlebarCommandDialog from '@/components/TitlebarCommandDialog'
 import WindowControls from '@/components/WindowControls'
@@ -29,6 +29,7 @@ type TitlebarProps = {
   onSelectSingleFile: () => void
   onOpenFile: (path: string) => void
   onOpenHeading: (path: string, slug: string) => void
+  onOpenSearchResult: (result: FsSearchResult) => void
   onChangeView: (mode: ViewMode) => void
   files: FileEntry[]
   workspaceIndex: FsWorkspaceIndex | null
@@ -45,6 +46,7 @@ function Titlebar({
   onSelectSingleFile,
   onOpenFile,
   onOpenHeading,
+  onOpenSearchResult,
   onChangeView,
   files,
   workspaceIndex,
@@ -251,6 +253,14 @@ function Titlebar({
     [onOpenHeading],
   )
 
+  const onCommandOpenSearchResult = useCallback(
+    (result: FsSearchResult) => {
+      setCommandOpen(false)
+      onOpenSearchResult(result)
+    },
+    [onOpenSearchResult],
+  )
+
   const isMacTauri = platform === 'macos' && isTauriRuntime()
 
   const handleTitlebarMouseDown = useCallback(
@@ -402,6 +412,7 @@ function Titlebar({
         headings={commandHeadings}
         onOpenFile={onCommandOpenFile}
         onOpenHeading={onCommandOpenHeading}
+        onOpenSearchResult={onCommandOpenSearchResult}
         onAction={onCommandAction}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />

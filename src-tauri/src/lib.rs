@@ -4,8 +4,8 @@ use crate::commands::fs::{
   fs_analyze_markdown_buffer, fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers,
   fs_get_background_tasks, fs_get_buffer_status, fs_get_outline_graph, fs_get_path_metadata,
   fs_get_root_info, fs_get_snapshot, fs_get_workspace_graph, fs_get_workspace_index,
-  fs_list_entries, fs_open_file, fs_read_file, fs_rename_path, fs_set_root, fs_set_single_file,
-  fs_update_buffer, fs_write_file,
+  fs_list_entries, fs_open_file, fs_read_file, fs_rebuild_search_index, fs_rename_path,
+  fs_search_workspace, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
 };
 use crate::commands::git::{git_discover_repo, git_get_file_diff, git_get_status, git_init_repo};
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
@@ -75,6 +75,27 @@ fn run_impl() {
         commands::fs::start_fs_watcher(&app_handle, &state, &watcher_state)?;
       }
       commands::fs::start_buffer_flush_worker(&app_handle);
+      let search_app_handle = app_handle.clone();
+      tauri::async_runtime::spawn(async move {
+        if let (Some(state), Some(buffer_state), Some(services)) = (
+          search_app_handle.try_state::<FsState>(),
+          search_app_handle.try_state::<FsBufferState>(),
+          search_app_handle.try_state::<services::AppServices>(),
+        ) {
+          match search_app_handle.path().app_data_dir() {
+            Ok(index_parent) => {
+              if let Err(err) = services
+                .workspace
+                .rebuild_search_index(index_parent, &state, &buffer_state)
+                .await
+              {
+                log::warn!("initial search index build failed: {err}");
+              }
+            }
+            Err(err) => log::warn!("resolve search index dir failed: {err}"),
+          }
+        }
+      });
 
       if let (Some(splash), Some(main)) = (
         app_handle.get_webview_window("splashscreen"),
@@ -182,6 +203,8 @@ fn run_impl() {
       fs_get_workspace_graph,
       fs_get_outline_graph,
       fs_analyze_markdown_buffer,
+      fs_search_workspace,
+      fs_rebuild_search_index,
       fs_open_file,
       fs_update_buffer,
       fs_flush_buffers,

@@ -6,12 +6,15 @@ use fluxdi::Shared;
 use pathdiff::diff_paths;
 
 use crate::models::{
-  FsBufferStatus, FsEntry, FsGraph, FsMarkdownDiagnostic, FsPathMetadata, FsRootInfo, FsSnapshot,
-  FsWorkspaceIndex,
+  FsBufferStatus, FsEntry, FsGraph, FsMarkdownDiagnostic, FsPathMetadata, FsRootInfo,
+  FsSearchResult, FsSnapshot, FsWorkspaceIndex,
 };
 use crate::services::{
-  fs_buffer::BufferService, markdown_graph::MarkdownGraphService,
-  markdown_index::MarkdownIndexService, path_resolver::PathResolver,
+  fs_buffer::BufferService,
+  markdown_graph::MarkdownGraphService,
+  markdown_index::MarkdownIndexService,
+  path_resolver::PathResolver,
+  search::{SearchDocument, SearchService},
 };
 use crate::state::{FsBufferState, FsState, FsStateData};
 
@@ -21,6 +24,7 @@ pub struct WorkspaceService {
   buffer: Shared<BufferService>,
   markdown_index: Shared<MarkdownIndexService>,
   markdown_graph: Shared<MarkdownGraphService>,
+  search: Shared<SearchService>,
 }
 
 impl WorkspaceService {
@@ -29,12 +33,14 @@ impl WorkspaceService {
     buffer: Shared<BufferService>,
     markdown_index: Shared<MarkdownIndexService>,
     markdown_graph: Shared<MarkdownGraphService>,
+    search: Shared<SearchService>,
   ) -> Self {
     Self {
       path_resolver,
       buffer,
       markdown_index,
       markdown_graph,
+      search,
     }
   }
 
@@ -244,6 +250,39 @@ impl WorkspaceService {
     tokio::task::spawn_blocking(move || markdown_graph.build_workspace_graph(&index))
       .await
       .map_err(|err| format!("Workspace graph task failed: {err}"))
+  }
+
+  pub async fn rebuild_search_index(
+    &self,
+    index_parent: PathBuf,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<(), String> {
+    let (workspace_key, documents) = self.search_documents(state, buffer_state).await?;
+    let search = self.search.clone();
+    tokio::task::spawn_blocking(move || {
+      search.rebuild_index(&index_parent, &workspace_key, &documents)
+    })
+    .await
+    .map_err(|err| format!("Search index task failed: {err}"))?
+  }
+
+  pub async fn search_workspace(
+    &self,
+    index_parent: PathBuf,
+    query: String,
+    limit: usize,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<Vec<FsSearchResult>, String> {
+    let (workspace_key, documents) = self.search_documents(state, buffer_state).await?;
+    let search = self.search.clone();
+    tokio::task::spawn_blocking(move || {
+      search.rebuild_index(&index_parent, &workspace_key, &documents)?;
+      search.search(&index_parent, &workspace_key, &query, limit)
+    })
+    .await
+    .map_err(|err| format!("Search task failed: {err}"))?
   }
 
   pub async fn open_file(
@@ -462,6 +501,38 @@ impl WorkspaceService {
       .await
       .map_err(|err| format!("Failed to read file: {err}"))
   }
+
+  async fn search_documents(
+    &self,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<(String, Vec<SearchDocument>), String> {
+    let data = state
+      .0
+      .read()
+      .map_err(|_| "Failed to lock fs state")?
+      .clone();
+    let workspace_key = workspace_search_key(&data);
+    let entries = list_entries_async(data.clone()).await?;
+    let files = entries
+      .into_iter()
+      .filter(|entry| entry.kind == "file")
+      .collect::<Vec<_>>();
+    let mut documents = Vec::with_capacity(files.len());
+    for file in files {
+      let body = if let Some(content) = self.buffer.read(&file.path, buffer_state)? {
+        content
+      } else {
+        self.read_from_disk_data(&file.path, &data).await?
+      };
+      documents.push(SearchDocument {
+        title: file_label(&file.path),
+        path: file.path,
+        body,
+      });
+    }
+    Ok((workspace_key, documents))
+  }
 }
 
 impl Default for WorkspaceService {
@@ -473,8 +544,22 @@ impl Default for WorkspaceService {
       buffer,
       Shared::new(MarkdownIndexService),
       Shared::new(MarkdownGraphService),
+      Shared::new(SearchService::new()),
     )
   }
+}
+
+fn workspace_search_key(data: &FsStateData) -> String {
+  format!("{}:{}", data.root_kind, data.root_path.to_string_lossy())
+}
+
+fn file_label(path: &str) -> String {
+  let file_name = path.rsplit('/').next().unwrap_or(path);
+  file_name
+    .strip_suffix(".markdown")
+    .or_else(|| file_name.strip_suffix(".md"))
+    .unwrap_or(file_name)
+    .to_string()
 }
 
 pub fn ensure_default_file(root: &Path) -> Result<(), String> {

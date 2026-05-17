@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import FullTextSearchPanel from '@/components/FullTextSearchPanel'
 import {
   SidebarContent as SidebarContentContainer,
   SidebarGroup,
@@ -21,6 +22,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import SidebarFileTree, { filterTree, flattenTree } from '@/components/SidebarFileTree'
+import type { FsSearchResult } from '@/services/fsApi'
 
 type SidebarProps = {
   collapsed: boolean
@@ -39,6 +41,7 @@ type SidebarProps = {
   rootPath: string
   onOpenGitDiff: (request: GitDiffRequest) => void
   onInspectPath: (path: string) => void
+  onOpenSearchResult: (result: FsSearchResult) => void
 }
 
 const SidebarComponent = ({
@@ -58,6 +61,7 @@ const SidebarComponent = ({
   rootPath,
   onOpenGitDiff,
   onInspectPath,
+  onOpenSearchResult,
 }: SidebarProps) => {
   const { t } = useI18n()
   const [filter, setFilter] = useState('')
@@ -243,6 +247,14 @@ const SidebarComponent = ({
                   className="h-7 rounded-md border-sidebar-border bg-background/70 text-xs shadow-sm"
                 />
                 <Separator className="bg-sidebar-border/70" />
+                {filter.trim().length >= 2 && (
+                  <>
+                    <div className="min-h-[10rem]">
+                      <FullTextSearchPanel query={filter} onOpenResult={onOpenSearchResult} />
+                    </div>
+                    <Separator className="bg-sidebar-border/70" />
+                  </>
+                )}
                 <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full pr-1">
                   {flattened.length === 0 ? (
                     <div className="px-1 text-xs text-muted-foreground">

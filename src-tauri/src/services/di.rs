@@ -2,8 +2,8 @@ use fluxdi::{Application, Error, Injector, Module, Provider, Shared};
 
 use super::{
   fs_buffer::BufferService, git::GitService, markdown_graph::MarkdownGraphService,
-  markdown_index::MarkdownIndexService, path_resolver::PathResolver, workspace::WorkspaceService,
-  AppServices, ExportService,
+  markdown_index::MarkdownIndexService, path_resolver::PathResolver, search::SearchService,
+  workspace::WorkspaceService, AppServices, ExportService,
 };
 
 struct AppModule;
@@ -24,6 +24,7 @@ impl Module for AppModule {
       .try_provide::<MarkdownIndexService>(Provider::root(|_| Shared::new(MarkdownIndexService)))?;
     injector
       .try_provide::<MarkdownGraphService>(Provider::root(|_| Shared::new(MarkdownGraphService)))?;
+    injector.try_provide::<SearchService>(Provider::root(|_| Shared::new(SearchService::new())))?;
     injector.try_provide::<WorkspaceService>(Provider::root(|injector| {
       let path_resolver = injector
         .try_resolve::<PathResolver>()
@@ -37,12 +38,16 @@ impl Module for AppModule {
       let markdown_graph = injector
         .try_resolve::<MarkdownGraphService>()
         .expect("MarkdownGraphService should be registered before WorkspaceService");
+      let search = injector
+        .try_resolve::<SearchService>()
+        .expect("SearchService should be registered before WorkspaceService");
 
       Shared::new(WorkspaceService::new(
         path_resolver,
         buffer,
         markdown_index,
         markdown_graph,
+        search,
       ))
     }))?;
 

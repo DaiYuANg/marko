@@ -37,6 +37,7 @@ pathdiff = "0.2.3"
 similar = "2.7.0"
 percent-encoding = "2.3.2"
 notify-debouncer-mini = "0.7.0"
+tantivy = "0.22.1"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-window-state = "2.4.1"

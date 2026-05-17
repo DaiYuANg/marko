@@ -96,6 +96,16 @@ pub struct FsMarkdownDiagnostic {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FsSearchResult {
+  pub path: String,
+  pub title: String,
+  pub line: usize,
+  pub column: usize,
+  pub snippet: String,
+  pub score: f32,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct FsGraphNode {
   pub id: String,
   pub kind: String,

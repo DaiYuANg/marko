@@ -1,4 +1,6 @@
-use tauri::State;
+use std::path::PathBuf;
+
+use tauri::{Manager, State};
 
 use crate::commands::fs_runtime::{
   emit_buffer_status, emit_buffer_statuses, emit_fs_changed_async, set_background_task,
@@ -39,6 +41,7 @@ pub async fn fs_set_root(
     .set_root(path, &state, &buffer_state)
     .await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   emit_fs_changed_async(&app, &state, &services).await?;
   Ok(root_info)
 }
@@ -57,6 +60,7 @@ pub async fn fs_set_single_file(
     .set_single_file(path, &state, &buffer_state)
     .await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   emit_fs_changed_async(&app, &state, &services).await?;
   Ok(root_info)
 }
@@ -134,6 +138,38 @@ pub async fn fs_analyze_markdown_buffer(
 }
 
 #[tauri::command]
+pub async fn fs_search_workspace(
+  query: String,
+  limit: Option<usize>,
+  state: State<'_, FsState>,
+  buffer_state: State<'_, FsBufferState>,
+  services: State<'_, crate::services::AppServices>,
+  app: tauri::AppHandle,
+) -> Result<Vec<crate::models::FsSearchResult>, String> {
+  let index_parent = search_index_parent(&app)?;
+  services
+    .workspace
+    .search_workspace(
+      index_parent,
+      query,
+      limit.unwrap_or(20),
+      &state,
+      &buffer_state,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn fs_rebuild_search_index(
+  state: State<'_, FsState>,
+  buffer_state: State<'_, FsBufferState>,
+  services: State<'_, crate::services::AppServices>,
+  app: tauri::AppHandle,
+) -> Result<(), String> {
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await
+}
+
+#[tauri::command]
 pub async fn fs_open_file(
   path: String,
   state: State<'_, FsState>,
@@ -189,6 +225,7 @@ pub async fn fs_flush_buffers(
     }
   };
   emit_buffer_statuses(&app, &statuses)?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)?;
   Ok(statuses.len())
 }
@@ -248,6 +285,7 @@ pub async fn fs_create_file(
     .workspace
     .create_file(path, &state, &buffer_state)
     .await?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
@@ -256,10 +294,12 @@ pub async fn fs_create_file(
 pub async fn fs_create_dir(
   path: String,
   state: State<'_, FsState>,
+  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
   services.workspace.create_dir(path, &state).await?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
@@ -276,6 +316,7 @@ pub async fn fs_delete_path(
     .workspace
     .delete_path(path, &state, &buffer_state)
     .await?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
 }
@@ -293,8 +334,29 @@ pub async fn fs_rename_path(
     .workspace
     .rename_path(from, to, &state, &buffer_state)
     .await?;
+  rebuild_search_index_for_app(&app, &state, &buffer_state, &services).await?;
   emit_fs_changed_async(&app, &state, &services).await?;
   Ok(())
+}
+
+async fn rebuild_search_index_for_app(
+  app: &tauri::AppHandle,
+  state: &FsState,
+  buffer_state: &FsBufferState,
+  services: &crate::services::AppServices,
+) -> Result<(), String> {
+  let index_parent = search_index_parent(app)?;
+  services
+    .workspace
+    .rebuild_search_index(index_parent, state, buffer_state)
+    .await
+}
+
+fn search_index_parent(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+  app
+    .path()
+    .app_data_dir()
+    .map_err(|err| format!("Failed to resolve app data dir: {err}"))
 }
 
 pub fn flush_all_buffers(state: &FsState, buffer_state: &FsBufferState) -> Result<usize, String> {

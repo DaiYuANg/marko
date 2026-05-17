@@ -79,6 +79,15 @@ export const fsMarkdownDiagnosticSchema = z.object({
   severity: z.enum(['error', 'warning']),
 })
 
+export const fsSearchResultSchema = z.object({
+  path: z.string(),
+  title: z.string(),
+  line: z.number(),
+  column: z.number(),
+  snippet: z.string(),
+  score: z.number(),
+})
+
 export const fsGraphNodeSchema = z.object({
   id: z.string(),
   kind: z.enum(['file', 'heading', 'missing', 'external']),
@@ -114,6 +123,7 @@ export type FsMarkdownLink = z.infer<typeof fsMarkdownLinkSchema>
 export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
 export type FsWorkspaceIndex = z.infer<typeof fsWorkspaceIndexSchema>
 export type FsMarkdownDiagnostic = z.infer<typeof fsMarkdownDiagnosticSchema>
+export type FsSearchResult = z.infer<typeof fsSearchResultSchema>
 export type FsGraphNode = z.infer<typeof fsGraphNodeSchema>
 export type FsGraphEdge = z.infer<typeof fsGraphEdgeSchema>
 export type FsGraph = z.infer<typeof fsGraphSchema>
@@ -152,6 +162,13 @@ export const fsApi = {
   async analyzeMarkdownBuffer(path: string, content: string) {
     const result = await invoke<unknown>('fs_analyze_markdown_buffer', { path, content })
     return z.array(fsMarkdownDiagnosticSchema).parse(result)
+  },
+  async searchWorkspace(query: string, limit = 20) {
+    const result = await invoke<unknown>('fs_search_workspace', { query, limit })
+    return z.array(fsSearchResultSchema).parse(result)
+  },
+  rebuildSearchIndex() {
+    return invoke<void>('fs_rebuild_search_index')
   },
   async updateBuffer(path: string, content: string) {
     const result = await invoke<unknown>('fs_update_buffer', { path, content })
