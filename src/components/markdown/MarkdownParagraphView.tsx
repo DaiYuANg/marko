@@ -24,7 +24,10 @@ const MarkdownParagraphView = ({
 
   if (contentRef) {
     return (
-      <div className={`rounded-sm leading-6 ${selectedClass} ${sizeClass}`}>
+      <div
+        className={`marko-md-block rounded-sm leading-6 ${selectedClass} ${sizeClass}`}
+        data-selected={selected ? 'true' : 'false'}
+      >
         <div ref={contentRef} />
       </div>
     )

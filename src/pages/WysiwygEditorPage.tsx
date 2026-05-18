@@ -1,5 +1,6 @@
 import { lazy, memo, Suspense, useDeferredValue, useEffect, useMemo, useRef } from 'react'
-import type { MarkdownEditorHandle, SlashCommandLabels } from '@/components/MarkdownEditor'
+import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
+import type { SlashCommandLabels } from '@/components/milkdown/slashMenuConfig'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
 import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'

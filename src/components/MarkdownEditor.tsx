@@ -6,28 +6,34 @@ import {
   useRef,
   type PointerEvent,
 } from 'react'
-import { LanguageDescription, LanguageSupport, StreamLanguage } from '@codemirror/language'
 import { Crepe } from '@milkdown/crepe'
 import { codeBlockConfig } from '@milkdown/kit/component/code-block'
-import { editorViewCtx, parserCtx } from '@milkdown/kit/core'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
-import { Slice, type Node as ProseMirrorNode } from '@milkdown/kit/prose/model'
-import { Selection } from '@milkdown/kit/prose/state'
 import {
   ProsemirrorAdapterProvider,
   useMarkViewFactory,
   useNodeViewFactory,
 } from '@prosemirror-adapter/react'
 import { eclipse } from '@uiw/codemirror-theme-eclipse'
-import clamp from 'lodash-es/clamp'
-import escape from 'lodash-es/escape'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { FOCUS_HEADING_EVENT, type FocusHeadingRequest } from '@/utils/editorNavigation'
-import { slugify } from '@/logic/paths'
 import { createMarkdownBlockNodeViews } from '@/components/milkdown/blockNodeViews'
+import {
+  focusCrepeEditor,
+  focusHeadingInCrepe,
+  readCrepeMarkdown,
+  replaceCrepeMarkdown,
+  type PendingExternalValue,
+} from '@/components/milkdown/editorActions'
 import { createMarkdownHeadingNodeView } from '@/components/milkdown/headingNodeView'
 import { createMarkdownMarkViews } from '@/components/milkdown/markViews'
+import { configureMermaidPreview } from '@/components/milkdown/mermaidPreview'
+import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
+import {
+  createSlashMenuConfig,
+  type SlashCommandLabels,
+} from '@/components/milkdown/slashMenuConfig'
 
 type MarkdownEditorProps = {
   activePath: string | null
@@ -40,147 +46,6 @@ type MarkdownEditorProps = {
 export type MarkdownEditorHandle = {
   focus: () => void
   getMarkdown: () => string
-}
-
-export type SlashCommandLabels = {
-  textGroup: string
-  listGroup: string
-  advancedGroup: string
-  text: string
-  heading1: string
-  heading2: string
-  heading3: string
-  heading4: string
-  heading5: string
-  heading6: string
-  quote: string
-  divider: string
-  bulletList: string
-  orderedList: string
-  taskList: string
-  codeBlock: string
-  table: string
-}
-
-const MERMAID_ALIASES = new Set(['mermaid', 'mmd'])
-let mermaidRenderSequence = 0
-let mermaidLoader: Promise<(typeof import('mermaid'))['default']> | null = null
-
-const mermaidSupport = new LanguageSupport(
-  StreamLanguage.define({
-    token: (stream) => {
-      stream.skipToEnd()
-      return null
-    },
-  }),
-)
-
-const mermaidLanguage = LanguageDescription.of({
-  name: 'Mermaid',
-  alias: ['mermaid', 'mmd'],
-  extensions: ['mmd', 'mermaid'],
-  support: mermaidSupport,
-})
-
-const hasMermaidLanguage = (language: LanguageDescription) => {
-  if (language.name.toLowerCase() === 'mermaid') return true
-  return language.alias.some((alias) => MERMAID_ALIASES.has(alias.toLowerCase()))
-}
-
-const ensureMermaidLanguage = (languages: LanguageDescription[]) => {
-  if (languages.some(hasMermaidLanguage)) return languages
-  return [...languages, mermaidLanguage]
-}
-
-const isMermaidLanguage = (language: string) => {
-  return MERMAID_ALIASES.has(language.trim().toLowerCase())
-}
-
-const loadMermaid = () => {
-  mermaidLoader ??= import('mermaid').then((module) => module.default)
-  return mermaidLoader
-}
-
-const resolveMermaidTheme = () => {
-  const theme = document.documentElement.dataset.theme?.toLowerCase() ?? ''
-  if (theme.includes('dark')) return 'dark'
-  if (theme.includes('light')) return 'default'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'
-}
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error) return error.message
-  return String(error)
-}
-
-const findHeadingPosition = (doc: ProseMirrorNode, targetSlug: string) => {
-  const usedSlugs = new Map<string, number>()
-  let headingIndex = 0
-  let foundPosition: number | null = null
-
-  doc.descendants((node, pos) => {
-    if (foundPosition !== null) return false
-    if (node.type.name !== 'heading') return true
-
-    const text = node.textContent.trim()
-    const baseSlug = slugify(text) || `heading-${headingIndex + 1}`
-    const usedCount = usedSlugs.get(baseSlug) ?? 0
-    usedSlugs.set(baseSlug, usedCount + 1)
-    const slug = usedCount === 0 ? baseSlug : `${baseSlug}-${usedCount}`
-    headingIndex += 1
-
-    if (slug === targetSlug) {
-      foundPosition = pos
-      return false
-    }
-
-    return true
-  })
-
-  return foundPosition
-}
-
-const readCrepeMarkdown = (crepe: Crepe | null, fallback: string) => {
-  if (!crepe) return fallback
-  try {
-    return crepe.getMarkdown() ?? fallback
-  } catch {
-    return fallback
-  }
-}
-
-const createSlashMenuConfig = (labels: SlashCommandLabels) => ({
-  textGroup: {
-    label: labels.textGroup,
-    text: { label: labels.text },
-    h1: { label: labels.heading1 },
-    h2: { label: labels.heading2 },
-    h3: { label: labels.heading3 },
-    h4: { label: labels.heading4 },
-    h5: { label: labels.heading5 },
-    h6: { label: labels.heading6 },
-    quote: { label: labels.quote },
-    divider: { label: labels.divider },
-  },
-  listGroup: {
-    label: labels.listGroup,
-    bulletList: { label: labels.bulletList },
-    orderedList: { label: labels.orderedList },
-    taskList: { label: labels.taskList },
-  },
-  advancedGroup: {
-    label: labels.advancedGroup,
-    image: null,
-    codeBlock: { label: labels.codeBlock },
-    table: { label: labels.table },
-    math: null,
-  },
-})
-
-type PendingExternalValue = {
-  path: string | null
-  value: string
-  baseValue: string
 }
 
 const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
@@ -200,12 +65,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     const markViewFactory = useMarkViewFactory()
 
     const focusEditor = () => {
-      const crepe = crepeRef.current
-      if (!crepe) return
-      crepe.editor.action((ctx) => {
-        const view = ctx.get(editorViewCtx)
-        view.focus()
-      })
+      focusCrepeEditor(crepeRef.current)
     }
 
     useImperativeHandle(ref, () => ({
@@ -222,26 +82,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     }, [activePath])
 
     const applyExternalValue = (crepe: Crepe, nextValue: string) => {
-      crepe.editor.action((ctx) => {
-        applyingExternalValueRef.current = true
-        try {
-          const view = ctx.get(editorViewCtx)
-          const parser = ctx.get(parserCtx)
-          const doc = parser(nextValue)
-          if (!doc) return
-          const state = view.state
-          const selection = state.selection
-          const { from } = selection
-          let tr = state.tr
-          tr = tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
-          const safeFrom = clamp(from, 0, Math.max(0, doc.content.size - 2))
-          tr = tr.setSelection(Selection.near(tr.doc.resolve(safeFrom)))
-          view.dispatch(tr)
-          latestValue.current = nextValue
-        } finally {
-          applyingExternalValueRef.current = false
-        }
-      })
+      replaceCrepeMarkdown(crepe, nextValue, applyingExternalValueRef, latestValue)
     }
 
     const hasEditorFocus = () => {
@@ -276,18 +117,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
         const crepe = crepeRef.current
         if (!crepe) return
 
-        crepe.editor.action((ctx) => {
-          const view = ctx.get(editorViewCtx)
-          const position = findHeadingPosition(view.state.doc, slug)
-          if (position === null) return
-
-          const selectionPosition = Math.min(position + 1, view.state.doc.content.size)
-          const tr = view.state.tr
-            .setSelection(Selection.near(view.state.doc.resolve(selectionPosition)))
-            .scrollIntoView()
-          view.dispatch(tr)
-          view.focus()
-        })
+        focusHeadingInCrepe(crepe, slug)
       }
 
       window.addEventListener(FOCUS_HEADING_EVENT, handler)
@@ -336,43 +166,10 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
             onChangeRef.current(markdown)
           })
 
-          ctx.update(codeBlockConfig.key, (prev) => ({
-            ...prev,
-            languages: ensureMermaidLanguage(prev.languages),
-            renderPreview: (language, content, applyPreview) => {
-              if (!isMermaidLanguage(language)) {
-                return prev.renderPreview(language, content, applyPreview)
-              }
-
-              const source = content.trim()
-              if (!source) return null
-
-              const currentRender = ++mermaidRenderSequence
-              void loadMermaid()
-                .then((mermaid) => {
-                  mermaid.initialize({
-                    startOnLoad: false,
-                    securityLevel: 'strict',
-                    theme: resolveMermaidTheme(),
-                  })
-                  return mermaid.render(`marko-mermaid-${currentRender}`, source)
-                })
-                .then((result) => {
-                  if (currentRender !== mermaidRenderSequence) return
-                  const preview = document.createElement('div')
-                  preview.className = 'milkdown-mermaid-preview'
-                  preview.innerHTML = result.svg
-                  applyPreview(preview)
-                })
-                .catch((error) => {
-                  if (currentRender !== mermaidRenderSequence) return
-                  const message = escape(getErrorMessage(error))
-                  applyPreview(`<pre class="milkdown-mermaid-error">${message}</pre>`)
-                })
-            },
-          }))
+          ctx.update(codeBlockConfig.key, configureMermaidPreview)
         })
         .use(listener)
+        .use(createMarkdownParagraphNodeView(nodeViewFactory))
         .use(createMarkdownHeadingNodeView(nodeViewFactory))
         .use(createMarkdownBlockNodeViews(nodeViewFactory))
         .use(createMarkdownMarkViews(markViewFactory))
