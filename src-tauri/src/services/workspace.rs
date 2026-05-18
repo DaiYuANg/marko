@@ -38,6 +38,33 @@ struct WorkspaceIndexCache {
   index: FsWorkspaceIndex,
 }
 
+#[derive(Debug, Clone)]
+struct WorkspaceDocuments {
+  workspace_key: String,
+  files: Vec<FsEntry>,
+  documents: Vec<DocumentSnapshot>,
+}
+
+impl WorkspaceDocuments {
+  fn signature(&self) -> u64 {
+    workspace_documents_signature(&self.workspace_key, &self.files, &self.documents)
+  }
+
+  fn into_search_documents(self) -> (String, u64, Vec<SearchDocument>) {
+    let signature = self.signature();
+    let documents = self
+      .documents
+      .into_iter()
+      .map(|document| SearchDocument {
+        title: file_label(&document.path),
+        path: document.path,
+        body: document.content,
+      })
+      .collect();
+    (self.workspace_key, signature, documents)
+  }
+}
+
 impl WorkspaceService {
   pub fn new(
     path_resolver: Shared<PathResolver>,
@@ -188,26 +215,8 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<FsWorkspaceIndex, String> {
-    let data = state
-      .0
-      .read()
-      .map_err(|_| "Failed to lock fs state")?
-      .clone();
-    let entries = list_entries_async(data.clone()).await?;
-    let files = entries
-      .into_iter()
-      .filter(|entry| entry.kind == "file")
-      .collect::<Vec<_>>();
-
-    let workspace_key = workspace_search_key(&data);
-    let documents = self
-      .documents
-      .document_snapshots_for_files(&data, buffer_state, &files)
-      .await?;
-
-    self
-      .workspace_index_from_documents(workspace_key, files, documents)
-      .await
+    let workspace = self.workspace_documents(state, buffer_state).await?;
+    self.workspace_index_from_documents(workspace).await
   }
 
   pub async fn analyze_markdown_buffer(
@@ -227,21 +236,9 @@ impl WorkspaceService {
       return Ok(self.markdown_index.diagnostics_for_file(&index, &path));
     }
 
-    let data = state
-      .0
-      .read()
-      .map_err(|_| "Failed to lock fs state")?
-      .clone();
-    let entries = list_entries_async(data.clone()).await?;
-    let files = entries
-      .into_iter()
-      .filter(|entry| entry.kind == "file")
-      .collect::<Vec<_>>();
-
-    let documents = self
-      .documents
-      .document_snapshots_for_files(&data, buffer_state, &files)
-      .await?;
+    let WorkspaceDocuments {
+      files, documents, ..
+    } = self.workspace_documents(state, buffer_state).await?;
     let contents = documents
       .into_iter()
       .map(|document| {
@@ -280,10 +277,10 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<(), String> {
-    let (workspace_key, documents) = self.search_documents(state, buffer_state).await?;
+    let (workspace_key, signature, documents) = self.search_documents(state, buffer_state).await?;
     let search = self.search.clone();
     tokio::task::spawn_blocking(move || {
-      search.rebuild_index(&index_parent, &workspace_key, &documents)
+      search.rebuild_index_with_signature(&index_parent, &workspace_key, &documents, signature)
     })
     .await
     .map_err(|err| format!("Search index task failed: {err}"))?
@@ -297,10 +294,10 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<Vec<FsSearchResult>, String> {
-    let (workspace_key, documents) = self.search_documents(state, buffer_state).await?;
+    let (workspace_key, signature, documents) = self.search_documents(state, buffer_state).await?;
     let search = self.search.clone();
     tokio::task::spawn_blocking(move || {
-      search.rebuild_index(&index_parent, &workspace_key, &documents)?;
+      search.rebuild_index_with_signature(&index_parent, &workspace_key, &documents, signature)?;
       search.search(&index_parent, &workspace_key, &query, limit)
     })
     .await
@@ -528,25 +525,25 @@ impl WorkspaceService {
 
   async fn workspace_index_from_documents(
     &self,
-    workspace_key: String,
-    files: Vec<FsEntry>,
-    documents: Vec<DocumentSnapshot>,
+    workspace: WorkspaceDocuments,
   ) -> Result<FsWorkspaceIndex, String> {
-    let signature = workspace_documents_signature(&workspace_key, &files, &documents);
-    if let Some(index) = self.cached_workspace_index(&workspace_key, signature)? {
+    let signature = workspace.signature();
+    if let Some(index) = self.cached_workspace_index(&workspace.workspace_key, signature)? {
       return Ok(index);
     }
 
-    let contents = documents
+    let contents = workspace
+      .documents
       .into_iter()
       .map(|document| (document.path, document.content))
       .collect::<Vec<_>>();
     let markdown_index = self.markdown_index.clone();
+    let files = workspace.files;
     let index =
       tokio::task::spawn_blocking(move || markdown_index.build_workspace_index(&files, &contents))
         .await
         .map_err(|err| format!("Workspace index task failed: {err}"))?;
-    self.store_workspace_index_cache(workspace_key, signature, index.clone())?;
+    self.store_workspace_index_cache(workspace.workspace_key, signature, index.clone())?;
     Ok(index)
   }
 
@@ -586,11 +583,11 @@ impl WorkspaceService {
     Ok(())
   }
 
-  async fn search_documents(
+  async fn workspace_documents(
     &self,
     state: &FsState,
     buffer_state: &FsBufferState,
-  ) -> Result<(String, Vec<SearchDocument>), String> {
+  ) -> Result<WorkspaceDocuments, String> {
     let data = state
       .0
       .read()
@@ -606,15 +603,21 @@ impl WorkspaceService {
       .documents
       .document_snapshots_for_files(&data, buffer_state, &files)
       .await?;
-    let documents = documents
-      .into_iter()
-      .map(|document| SearchDocument {
-        title: file_label(&document.path),
-        path: document.path,
-        body: document.content,
-      })
-      .collect();
-    Ok((workspace_key, documents))
+
+    Ok(WorkspaceDocuments {
+      workspace_key,
+      files,
+      documents,
+    })
+  }
+
+  async fn search_documents(
+    &self,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<(String, u64, Vec<SearchDocument>), String> {
+    let workspace = self.workspace_documents(state, buffer_state).await?;
+    Ok(workspace.into_search_documents())
   }
 }
 
@@ -660,9 +663,7 @@ fn workspace_documents_signature(
   }
   for document in documents {
     document.path.hash(&mut hash);
-    document.revision.hash(&mut hash);
-    document.dirty.hash(&mut hash);
-    document.content.hash(&mut hash);
+    document.content_hash.hash(&mut hash);
   }
   hash.finish()
 }

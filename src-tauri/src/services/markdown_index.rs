@@ -95,9 +95,7 @@ pub fn diagnostics_for_file(
         ));
       }
 
-      let Some(slug) = link.target_heading_slug.as_deref() else {
-        return None;
-      };
+      let slug = link.target_heading_slug.as_deref()?;
       let target_file = target?;
       if target_file
         .headings

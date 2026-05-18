@@ -194,6 +194,9 @@ pub fn fs_update_buffer(
     .workspace
     .update_buffer(&path, &content, &state, &buffer_state)?;
   emit_buffer_status(&app, &status)?;
+  if status.dirty {
+    publish_app_event(&services, AppEvent::DocumentChanged)?;
+  }
   Ok(status)
 }
 
@@ -351,5 +354,5 @@ fn flush_all_buffers_with_status(
   state: &FsState,
   buffer_state: &FsBufferState,
 ) -> Result<Vec<FsBufferStatus>, String> {
-  crate::services::fs_buffer::flush_all_buffers_with_status(state, buffer_state)
+  crate::services::document_store::flush_all_documents_with_status(state, buffer_state)
 }

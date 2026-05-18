@@ -78,7 +78,7 @@ fn run_impl() {
   builder
     .setup(|app| {
       let app_handle = app.handle();
-      commands::app::setup_native_menu(&app_handle)?;
+      commands::app::setup_native_menu(app_handle)?;
       let app_data_dir = app_handle
         .path()
         .app_data_dir()
@@ -97,11 +97,11 @@ fn run_impl() {
         app_handle.try_state::<FsState>(),
         app_handle.try_state::<FsWatcherState>(),
       ) {
-        commands::fs::start_fs_watcher(&app_handle, &state, &watcher_state)?;
+        commands::fs::start_fs_watcher(app_handle, &state, &watcher_state)?;
       }
-      commands::fs::start_buffer_flush_worker(&app_handle);
+      commands::fs::start_buffer_flush_worker(app_handle);
       if let Some(services) = app_handle.try_state::<services::AppServices>() {
-        services.runtime.start_event_worker(&app_handle);
+        services.runtime.start_event_worker(app_handle);
         if let Err(err) = services.runtime.publish_initial_workspace_event() {
           log::warn!("publish initial workspace event failed: {err}");
         }

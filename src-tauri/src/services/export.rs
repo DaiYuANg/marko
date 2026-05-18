@@ -369,9 +369,7 @@ fn code_docx_fonts() -> RunFonts {
 }
 
 fn docx_latin_font() -> &'static str {
-  if cfg!(target_os = "macos") {
-    "Aptos"
-  } else if cfg!(target_os = "windows") {
+  if cfg!(any(target_os = "macos", target_os = "windows")) {
     "Aptos"
   } else {
     "Noto Sans"

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use fluxdi::Shared;
@@ -26,19 +27,18 @@ impl Default for DocumentStoreService {
 }
 
 #[derive(Debug, Clone)]
-pub struct PendingDocumentWrite {
-  pub path: String,
-  pub absolute_path: PathBuf,
-  pub content: String,
-  pub revision: u64,
+struct PendingDocumentWrite {
+  path: String,
+  absolute_path: PathBuf,
+  content: String,
+  revision: u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct DocumentSnapshot {
   pub path: String,
   pub content: String,
-  pub revision: u64,
-  pub dirty: bool,
+  pub content_hash: u64,
 }
 
 impl DocumentStoreService {
@@ -82,7 +82,7 @@ impl DocumentStoreService {
       .await
   }
 
-  pub async fn read_document_from_data(
+  async fn read_document_from_data(
     &self,
     data: &FsStateData,
     document_state: &FsBufferState,
@@ -273,7 +273,7 @@ async fn flush_all_documents_with_status_async_for_resolver(
   mark_pending_writes_clean(document_state, pending)
 }
 
-pub fn clear_documents(document_state: &FsBufferState) -> Result<(), String> {
+fn clear_documents(document_state: &FsBufferState) -> Result<(), String> {
   let mut documents = document_state
     .0
     .lock()
@@ -282,7 +282,7 @@ pub fn clear_documents(document_state: &FsBufferState) -> Result<(), String> {
   Ok(())
 }
 
-pub fn collect_dirty_writes(
+fn collect_dirty_writes(
   path_resolver: &PathResolver,
   state_data: &FsStateData,
   documents: &HashMap<String, FsBufferEntry>,
@@ -303,7 +303,7 @@ pub fn collect_dirty_writes(
   Ok(pending)
 }
 
-pub fn read_from_document_store(
+fn read_from_document_store(
   path: &str,
   document_state: &FsBufferState,
 ) -> Result<Option<String>, String> {
@@ -314,7 +314,7 @@ pub fn read_from_document_store(
   Ok(documents.get(path).map(|entry| entry.content.clone()))
 }
 
-pub fn snapshot_from_document_store(
+fn snapshot_from_document_store(
   path: &str,
   document_state: &FsBufferState,
 ) -> Result<Option<DocumentSnapshot>, String> {
@@ -329,7 +329,7 @@ pub fn snapshot_from_document_store(
   )
 }
 
-pub fn upsert_document(
+fn upsert_document(
   document_state: &FsBufferState,
   path: &str,
   content: &str,
@@ -354,7 +354,7 @@ pub fn upsert_document(
   Ok(status_from_document(path, entry))
 }
 
-pub fn insert_clean_document(
+fn insert_clean_document(
   document_state: &FsBufferState,
   path: &str,
   content: &str,
@@ -428,7 +428,7 @@ fn cache_clean_document_snapshot(
   Ok(snapshot_from_document(path, entry))
 }
 
-pub fn status_from_document(path: &str, entry: &FsBufferEntry) -> FsBufferStatus {
+fn status_from_document(path: &str, entry: &FsBufferEntry) -> FsBufferStatus {
   FsBufferStatus {
     path: path.to_string(),
     revision: entry.revision,
@@ -436,16 +436,15 @@ pub fn status_from_document(path: &str, entry: &FsBufferEntry) -> FsBufferStatus
   }
 }
 
-pub fn snapshot_from_document(path: &str, entry: &FsBufferEntry) -> DocumentSnapshot {
+fn snapshot_from_document(path: &str, entry: &FsBufferEntry) -> DocumentSnapshot {
   DocumentSnapshot {
     path: path.to_string(),
     content: entry.content.clone(),
-    revision: entry.revision,
-    dirty: entry.dirty,
+    content_hash: stable_hash(&entry.content),
   }
 }
 
-pub fn remove_document_path(document_state: &FsBufferState, path: &str) -> Result<(), String> {
+fn remove_document_path(document_state: &FsBufferState, path: &str) -> Result<(), String> {
   let mut documents = document_state
     .0
     .lock()
@@ -454,7 +453,7 @@ pub fn remove_document_path(document_state: &FsBufferState, path: &str) -> Resul
   Ok(())
 }
 
-pub fn clear_clean_documents(document_state: &FsBufferState) -> Result<(), String> {
+fn clear_clean_documents(document_state: &FsBufferState) -> Result<(), String> {
   let mut documents = document_state
     .0
     .lock()
@@ -463,7 +462,7 @@ pub fn clear_clean_documents(document_state: &FsBufferState) -> Result<(), Strin
   Ok(())
 }
 
-pub fn rename_document_path(
+fn rename_document_path(
   document_state: &FsBufferState,
   from: &str,
   to: &str,
@@ -487,7 +486,7 @@ pub fn rename_document_path(
   Ok(())
 }
 
-pub fn write_to_disk(path: &Path, content: &str) -> Result<(), String> {
+fn write_to_disk(path: &Path, content: &str) -> Result<(), String> {
   if let Ok(existing) = fs::read_to_string(path) {
     if existing == content {
       return Ok(());
@@ -502,7 +501,7 @@ pub fn write_to_disk(path: &Path, content: &str) -> Result<(), String> {
   Ok(())
 }
 
-pub async fn write_to_disk_async(path: &Path, content: &str) -> Result<(), String> {
+async fn write_to_disk_async(path: &Path, content: &str) -> Result<(), String> {
   if let Ok(existing) = tokio::fs::read_to_string(path).await {
     if existing == content {
       return Ok(());
@@ -546,6 +545,34 @@ fn mark_pending_writes_clean(
 
 fn is_same_or_child(path: &str, base: &str) -> bool {
   path == base || path.starts_with(&format!("{base}/"))
+}
+
+fn stable_hash(value: &str) -> u64 {
+  let mut hash = StableHasher::default();
+  value.hash(&mut hash);
+  hash.finish()
+}
+
+#[derive(Default)]
+struct StableHasher(u64);
+
+impl Hasher for StableHasher {
+  fn finish(&self) -> u64 {
+    self.0
+  }
+
+  fn write(&mut self, bytes: &[u8]) {
+    let mut hash = if self.0 == 0 {
+      0xcbf29ce484222325
+    } else {
+      self.0
+    };
+    for byte in bytes {
+      hash ^= u64::from(*byte);
+      hash = hash.wrapping_mul(0x100000001b3);
+    }
+    self.0 = hash;
+  }
 }
 
 #[cfg(test)]
@@ -631,7 +658,7 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn snapshots_include_revision_and_dirty_state() {
+  async fn snapshots_include_content_hash() {
     let root = temp_root();
     fs::create_dir_all(&root).expect("test root should be created");
     fs::write(root.join("note.md"), "hello").expect("test file should be written");
@@ -650,8 +677,8 @@ mod tests {
       .document_snapshots_for_files(&data, &document_state, &files)
       .await
       .expect("snapshots should load");
-    assert_eq!(snapshots[0].revision, 0);
-    assert!(!snapshots[0].dirty);
+    assert_eq!(snapshots[0].content, "hello");
+    let initial_hash = snapshots[0].content_hash;
 
     store
       .update_document(&state, &document_state, "note.md", "updated")
@@ -660,9 +687,8 @@ mod tests {
       .document_snapshots_for_files(&data, &document_state, &files)
       .await
       .expect("snapshots should load");
-    assert_eq!(snapshots[0].revision, 1);
-    assert!(snapshots[0].dirty);
     assert_eq!(snapshots[0].content, "updated");
+    assert_ne!(snapshots[0].content_hash, initial_hash);
   }
 
   #[test]

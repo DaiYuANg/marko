@@ -42,14 +42,14 @@ impl SearchService {
     }
   }
 
-  pub fn rebuild_index(
+  pub fn rebuild_index_with_signature(
     &self,
     index_parent: &Path,
     workspace_key: &str,
     documents: &[SearchDocument],
+    signature: u64,
   ) -> Result<(), String> {
     let index_dir = workspace_index_dir(index_parent, workspace_key);
-    let signature = documents_signature(workspace_key, documents);
     let cache_key = index_dir.to_string_lossy().to_string();
     if self.signature_matches(&cache_key, signature)? && index_dir.join("meta.json").exists() {
       return Ok(());
@@ -110,7 +110,7 @@ impl SearchService {
         .map_err(|err| format!("Failed to create search snippet generator: {err}"))?;
     snippet_generator.set_max_num_chars(180);
     let top_docs = searcher
-      .search(&parsed_query, &TopDocs::with_limit(limit.max(1).min(100)))
+      .search(&parsed_query, &TopDocs::with_limit(limit.clamp(1, 100)))
       .map_err(|err| format!("Failed to search index: {err}"))?;
 
     let mut results = Vec::with_capacity(top_docs.len());
@@ -201,17 +201,6 @@ fn workspace_index_dir(index_parent: &Path, workspace_key: &str) -> PathBuf {
     .join("search-indexes")
     .join(SEARCH_INDEX_VERSION)
     .join(format!("{:016x}", stable_hash(workspace_key)))
-}
-
-fn documents_signature(workspace_key: &str, documents: &[SearchDocument]) -> u64 {
-  let mut hash = StableHasher::default();
-  workspace_key.hash(&mut hash);
-  for document in documents {
-    document.path.hash(&mut hash);
-    document.title.hash(&mut hash);
-    document.body.hash(&mut hash);
-  }
-  hash.finish()
 }
 
 fn stable_hash(value: &str) -> u64 {
@@ -348,7 +337,8 @@ mod tests {
 
   #[test]
   fn normalizes_snippet_highlight_ranges_after_trimming() {
-    let ranges = snippet_highlights("  hello world", &[2..7]);
+    let highlight = 2..7;
+    let ranges = snippet_highlights("  hello world", std::slice::from_ref(&highlight));
 
     assert_eq!(ranges.len(), 1);
     assert_eq!(ranges[0].start, 0);

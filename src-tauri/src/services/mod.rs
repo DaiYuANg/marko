@@ -2,7 +2,6 @@ pub mod di;
 pub mod document_store;
 pub mod events;
 pub mod export;
-pub mod fs_buffer;
 pub mod git;
 pub mod markdown_graph;
 pub mod markdown_index;

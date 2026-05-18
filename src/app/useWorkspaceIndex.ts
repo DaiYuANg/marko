@@ -26,7 +26,7 @@ export function useWorkspaceIndex(entries: FileEntry[], enabled: boolean) {
     void import('@tauri-apps/api/event').then(({ listen }) =>
       listen<unknown>('fs-buffer-status', (event) => {
         const parsed = fsBufferStatusSchema.safeParse(event.payload)
-        if (!parsed.success || parsed.data.dirty) return
+        if (!parsed.success) return
         void queryClient.invalidateQueries({ queryKey: ['workspace-index'] }).catch((error) => {
           console.error('refresh workspace index failed', error)
         })

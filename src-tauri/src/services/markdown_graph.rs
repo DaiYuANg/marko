@@ -414,10 +414,8 @@ fn parse_markdown_blocks(base_id: &str, markdown: &str) -> Vec<FsMarkdownBlock> 
 
   for event in Parser::new_ext(markdown, markdown_options()) {
     match event {
-      Event::Start(Tag::Paragraph) => {
-        if list.is_none() && blockquote.is_none() {
-          paragraph = Some(TextDraft::default());
-        }
+      Event::Start(Tag::Paragraph) if list.is_none() && blockquote.is_none() => {
+        paragraph = Some(TextDraft::default());
       }
       Event::End(TagEnd::Paragraph) => {
         if let Some(draft) = paragraph.take() {
@@ -454,14 +452,12 @@ fn parse_markdown_blocks(base_id: &str, markdown: &str) -> Vec<FsMarkdownBlock> 
           }
         }
       }
-      Event::Start(Tag::List(start)) => {
-        if list.is_none() {
-          list = Some(ListDraft {
-            ordered: start.is_some(),
-            items: Vec::new(),
-            current_item: None,
-          });
-        }
+      Event::Start(Tag::List(start)) if list.is_none() => {
+        list = Some(ListDraft {
+          ordered: start.is_some(),
+          items: Vec::new(),
+          current_item: None,
+        });
       }
       Event::End(TagEnd::List(_)) => {
         if let Some(draft) = list.take() {

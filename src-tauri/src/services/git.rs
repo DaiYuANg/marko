@@ -471,10 +471,6 @@ fn worktree_status_kind(detail: &str) -> &'static str {
     "conflicted"
   } else if detail.contains("Removed") {
     "deleted"
-  } else if detail.contains("Type") {
-    "modified"
-  } else if detail.contains("Modification") || detail.contains("SubmoduleModification") {
-    "modified"
   } else {
     "modified"
   }

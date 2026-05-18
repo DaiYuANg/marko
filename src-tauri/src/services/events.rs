@@ -27,9 +27,16 @@ pub struct ExportTaskEvent {
 pub enum AppEvent {
   WorkspaceChanged,
   FileSystemChanged,
+  DocumentChanged,
   BuffersFlushed,
   ExportTask(ExportTaskEvent),
   RuntimeStopping,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct CoalescedWorkspaceEvents {
+  should_stop: bool,
+  refresh_documents: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -133,15 +140,23 @@ fn start_event_worker(
       match event {
         AppEvent::RuntimeStopping => break,
         AppEvent::ExportTask(payload) => emit_export_task(&app_handle, payload),
-        AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged | AppEvent::BuffersFlushed => {
+        AppEvent::WorkspaceChanged
+        | AppEvent::FileSystemChanged
+        | AppEvent::DocumentChanged
+        | AppEvent::BuffersFlushed => {
           let refresh_documents = matches!(
             event,
             AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged
           );
-          if coalesce_workspace_events(&app_handle, &mut receiver).await {
+          let coalesced = coalesce_workspace_events(&app_handle, &mut receiver).await;
+          if coalesced.should_stop {
             break;
           }
-          handle_workspace_event(&app_handle, refresh_documents).await;
+          handle_workspace_event(
+            &app_handle,
+            refresh_documents || coalesced.refresh_documents,
+          )
+          .await;
         }
       }
     }
@@ -152,20 +167,30 @@ fn start_event_worker(
 async fn coalesce_workspace_events(
   app: &tauri::AppHandle,
   receiver: &mut broadcast::Receiver<AppEvent>,
-) -> bool {
+) -> CoalescedWorkspaceEvents {
   tokio::time::sleep(Duration::from_millis(80)).await;
 
+  let mut coalesced = CoalescedWorkspaceEvents::default();
   loop {
     match receiver.try_recv() {
-      Ok(AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged | AppEvent::BuffersFlushed) => {}
+      Ok(AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged) => {
+        coalesced.refresh_documents = true;
+      }
+      Ok(AppEvent::DocumentChanged | AppEvent::BuffersFlushed) => {}
       Ok(AppEvent::ExportTask(payload)) => emit_export_task(app, payload),
-      Ok(AppEvent::RuntimeStopping) => return true,
-      Err(broadcast::error::TryRecvError::Empty) => return false,
+      Ok(AppEvent::RuntimeStopping) => {
+        coalesced.should_stop = true;
+        return coalesced;
+      }
+      Err(broadcast::error::TryRecvError::Empty) => return coalesced,
       Err(broadcast::error::TryRecvError::Lagged(skipped)) => {
         log::warn!("app event worker coalescing lagged by {skipped} events");
-        return false;
+        return coalesced;
       }
-      Err(broadcast::error::TryRecvError::Closed) => return true,
+      Err(broadcast::error::TryRecvError::Closed) => {
+        coalesced.should_stop = true;
+        return coalesced;
+      }
     }
   }
 }
