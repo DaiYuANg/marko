@@ -1,5 +1,6 @@
 import { FileText, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import AppLogo from '@/components/AppLogo'
 import { useI18n } from '@/i18n/useI18n'
 import type { FileEntry } from '@/store/useAppStore'
 
@@ -16,9 +17,7 @@ export default function EditorEmptyState({ files, onOpenFile }: EditorEmptyState
     <div className="editor-stage flex h-full items-center justify-center p-6">
       <div className="editor-paper w-full max-w-xl rounded-md p-6 text-left">
         <div className="mb-4 flex items-start gap-3">
-          <div className="rounded-md border border-border bg-muted p-2 shadow-sm">
-            <FileText className="h-5 w-5 text-primary" />
-          </div>
+          <AppLogo className="h-10 w-10 rounded-md shadow-sm" />
           <div className="min-w-0">
             <div className="text-base font-semibold">{t('editor.emptyTitle')}</div>
             <div className="mt-1 text-sm leading-6 text-muted-foreground">

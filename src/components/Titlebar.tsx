@@ -14,6 +14,7 @@ import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
 import { useI18n } from '@/i18n/useI18n'
 import { appApi, type AppPlatform } from '@/services/appApi'
 import AppMenuBar from '@/components/AppMenuBar'
+import AppLogo from '@/components/AppLogo'
 import SettingsDialog from '@/components/SettingsDialog'
 import { inferPlatformFromUserAgent, isTauriRuntime } from '@/utils/tauri'
 import type { FsSearchResult, FsWorkspaceIndex } from '@/services/fsApi'
@@ -302,9 +303,7 @@ function Titlebar({
             <TooltipContent>{t('actions.toggleSidebar')}</TooltipContent>
           </Tooltip>
           <div className="flex min-w-0 items-center gap-2 px-1 leading-none">
-            <div className="grid h-6 w-6 place-items-center rounded-md border border-border bg-primary text-[11px] font-semibold text-primary-foreground shadow-sm">
-              M
-            </div>
+            <AppLogo className="h-6 w-6 rounded-md shadow-sm" />
             <div className="truncate text-sm font-semibold tracking-[0.01em]">{t('app.name')}</div>
           </div>
           {showInlineMenu && <AppMenuBar groups={menuGroups} onAction={onMenuAction} />}

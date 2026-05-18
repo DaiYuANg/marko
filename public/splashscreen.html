@@ -19,91 +19,93 @@
         padding: 0;
         width: 100%;
         height: 100%;
-        background: radial-gradient(120% 120% at 20% 20%, #f1efe8 0%, #e5e9f0 55%, #d8dee9 100%);
-        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        color: #2e3440;
+        overflow: hidden;
+        background: #0b1c1a;
+        font-family:
+          Inter,
+          'Segoe UI',
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        color: #f7faf8;
       }
 
       .splash {
         height: 100%;
-        display: grid;
-        place-items: center;
-        padding: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px;
       }
 
-      .card {
-        width: 100%;
-        height: 100%;
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 1px solid rgba(46, 52, 64, 0.08);
-        box-shadow: 0 12px 40px rgba(46, 52, 64, 0.18);
-        display: grid;
-        place-items: center;
+      .brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         text-align: center;
-        gap: 12px;
-        padding: 32px;
+        gap: 14px;
       }
 
       .logo {
-        width: 60px;
-        height: 60px;
-        border-radius: 16px;
-        background: linear-gradient(135deg, #88c0d0, #5e81ac);
-        display: grid;
-        place-items: center;
-        color: white;
-        font-weight: 700;
-        font-size: 22px;
-        letter-spacing: 0.5px;
-        box-shadow: 0 8px 20px rgba(94, 129, 172, 0.4);
+        width: 88px;
+        height: 88px;
+        border-radius: 22px;
+        filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.28));
       }
 
       h1 {
         margin: 0;
-        font-size: 22px;
-        letter-spacing: 0.4px;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0;
       }
 
       p {
-        margin: 0;
-        font-size: 13px;
-        color: #4c566a;
+        margin: -4px 0 0;
+        font-size: 12px;
+        color: rgba(247, 250, 248, 0.64);
       }
 
       .bar {
-        width: 120px;
-        height: 4px;
-        background: rgba(94, 129, 172, 0.2);
+        width: 144px;
+        height: 3px;
+        margin-top: 2px;
+        background: rgba(139, 231, 208, 0.16);
         border-radius: 999px;
         overflow: hidden;
         position: relative;
       }
 
       .bar::after {
-        content: "";
+        content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, #5e81ac, #88c0d0);
-        animation: loading 1.2s ease-in-out infinite;
+        width: 42%;
+        background: #8be7d0;
+        border-radius: inherit;
+        animation: loading 1.15s ease-in-out infinite;
       }
 
       @keyframes loading {
         0% {
           transform: translateX(-100%);
         }
+        50% {
+          transform: translateX(120%);
+        }
         100% {
-          transform: translateX(100%);
+          transform: translateX(260%);
         }
       }
     </style>
   </head>
   <body>
     <div class="splash">
-      <div class="card">
-        <div class="logo">MK</div>
+      <div class="brand">
+        <img class="logo" src="./marko.svg" alt="marko" />
         <h1>marko</h1>
-        <p>Loading your workspace...</p>
+        <p>Opening workspace...</p>
         <div class="bar" aria-hidden="true"></div>
       </div>
     </div>
