@@ -1,3 +1,4 @@
+import uniqBy from 'lodash-es/uniqBy'
 import type { FileViewKind, GitDiffSection, WorkspaceTab } from '@/store/useAppStore'
 
 const GIT_DIFF_SECTIONS = new Set<string>(['staged', 'unstaged', 'untracked', 'conflicts'])
@@ -69,11 +70,7 @@ export const normalizeWorkspaceTabs = (value: unknown): WorkspaceTab[] => {
     return []
   })
 
-  const deduped = new Map<string, WorkspaceTab>()
-  for (const tab of tabs) {
-    deduped.set(getWorkspaceTabId(tab), tab)
-  }
-  return Array.from(deduped.values())
+  return uniqBy(tabs, getWorkspaceTabId)
 }
 
 export const normalizeWorkspaceTabId = (value: unknown, tabs: WorkspaceTab[]) => {

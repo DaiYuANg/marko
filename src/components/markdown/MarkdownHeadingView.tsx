@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import clamp from 'lodash-es/clamp'
 
 type MarkdownHeadingViewProps = {
   level: number
@@ -29,7 +30,7 @@ const compactHeadingClasses: Record<number, string> = {
 }
 
 const getHeadingClass = (level: number, compact: boolean) => {
-  const normalizedLevel = Math.min(Math.max(Math.trunc(level), 1), 6)
+  const normalizedLevel = clamp(Math.trunc(level), 1, 6)
   return compact ? compactHeadingClasses[normalizedLevel] : fullHeadingClasses[normalizedLevel]
 }
 

@@ -1,5 +1,6 @@
 import { useDeferredValue, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import keyBy from 'lodash-es/keyBy'
 import { useWorkspaceMarkdownContents } from '@/app/useWorkspaceMarkdownContents'
 import { getMarkdownSourceDiagnostics } from '@/logic/markdownDiagnostics'
 import {
@@ -61,10 +62,10 @@ export function useRightSidebarData({
   }, [metadataQuery.data, targetPath, tauriAvailable])
   const indexedFilesByPath = useMemo(() => {
     if (!workspaceIndex) return null
-    return new Map(workspaceIndex.files.map((file) => [file.path, file]))
+    return keyBy(workspaceIndex.files, 'path')
   }, [workspaceIndex])
   const indexedTargetFile = deferredTargetPath
-    ? indexedFilesByPath?.get(deferredTargetPath)
+    ? indexedFilesByPath?.[deferredTargetPath]
     : undefined
   const workspaceContents = useWorkspaceMarkdownContents(
     files,

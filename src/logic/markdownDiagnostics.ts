@@ -1,3 +1,4 @@
+import keyBy from 'lodash-es/keyBy'
 import type { FileEntry } from '@/store/useAppStore'
 import type { FsIndexedMarkdownFile, FsWorkspaceIndex } from '@/services/fsApi'
 import {
@@ -43,7 +44,10 @@ export function getMarkdownSourceDiagnostics({
 }: MarkdownDiagnosticsContext): MarkdownSourceDiagnostic[] {
   if (!activePath) return []
 
-  const indexedFilesByPath = new Map(workspaceIndex?.files.map((file) => [file.path, file]))
+  const indexedFilesByPath = keyBy(workspaceIndex?.files ?? [], 'path') as Record<
+    string,
+    FsIndexedMarkdownFile
+  >
   const markdownFiles = workspaceIndex
     ? workspaceIndex.files.map((file) => file.path)
     : files
@@ -166,10 +170,10 @@ function resolveWikiTarget(
 
 function getHeadingsFromSource(
   path: string,
-  indexedFilesByPath: Map<string, FsIndexedMarkdownFile>,
+  indexedFilesByPath: Record<string, FsIndexedMarkdownFile>,
   fileContents: Record<string, string>,
 ) {
-  const indexedFile = indexedFilesByPath.get(path)
+  const indexedFile = indexedFilesByPath[path]
   if (indexedFile) return indexedFile.headings
   const content = fileContents[path]
   if (content == null) return null

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { GitBranch, GitCommitHorizontal, Plus, RefreshCw } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import debounce from 'lodash-es/debounce'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -100,25 +101,28 @@ export default function ScmPanel({ rootPath, rootKind, collapsed, onOpenDiff }: 
     })
   }, [queryClient, queryKey])
 
+  const debouncedInvalidateStatus = useMemo(
+    () => debounce(invalidateStatus, 250),
+    [invalidateStatus],
+  )
+
   useEffect(() => {
     if (!enabled) return
     let unlisten: (() => void) | undefined
-    let timer: number | undefined
 
     void import('@tauri-apps/api/event').then(({ listen }) => {
       void listen('fs-changed', () => {
-        window.clearTimeout(timer)
-        timer = window.setTimeout(invalidateStatus, 250)
+        debouncedInvalidateStatus()
       }).then((fn) => {
         unlisten = fn
       })
     })
 
     return () => {
-      window.clearTimeout(timer)
+      debouncedInvalidateStatus.cancel()
       if (unlisten) unlisten()
     }
-  }, [enabled, invalidateStatus])
+  }, [debouncedInvalidateStatus, enabled])
 
   const initMutation = useMutation({
     mutationFn: async () => {

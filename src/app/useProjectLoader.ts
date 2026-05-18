@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useLatest } from 'ahooks'
 import type { NavigateFunction } from 'react-router-dom'
+import isEqual from 'lodash-es/isEqual'
 import type { FileEntry, FileViewKind, WorkspaceTab } from '@/store/useAppStore'
 import { pathToFileViewRoute, pathToGitDiffRoute, pathToWorkspaceGraphRoute } from '@/logic/routing'
 import { useI18n } from '@/i18n/useI18n'
@@ -36,21 +37,14 @@ const isFile = (entry: FileEntry) => {
 }
 
 const areTabListsEqual = (left: WorkspaceTab[], right: WorkspaceTab[]) => {
-  if (left.length !== right.length) return false
-  for (let index = 0; index < left.length; index += 1) {
-    if (getWorkspaceTabId(left[index]) !== getWorkspaceTabId(right[index])) return false
-  }
-  return true
+  return isEqual(left.map(getWorkspaceTabId), right.map(getWorkspaceTabId))
 }
 
 const areEntriesEqual = (left: FileEntry[], right: FileEntry[]) => {
-  if (left.length !== right.length) return false
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index].path !== right[index].path) return false
-    if (left[index].kind !== right[index].kind) return false
-  }
-  return true
+  return isEqual(left.map(toEntryIdentity), right.map(toEntryIdentity))
 }
+
+const toEntryIdentity = (entry: FileEntry) => [entry.path, entry.kind]
 
 const fetchSnapshot = async () => {
   return fsApi.getSnapshot()

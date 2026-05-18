@@ -12,6 +12,7 @@ import {
   useNodeViewFactory,
 } from '@prosemirror-adapter/react'
 import { eclipse } from '@uiw/codemirror-theme-eclipse'
+import escape from 'lodash-es/escape'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { FOCUS_HEADING_EVENT, type FocusHeadingRequest } from '@/utils/editorNavigation'
@@ -79,15 +80,6 @@ const resolveMermaidTheme = () => {
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
   return String(error)
-}
-
-const escapeHtml = (value: string) => {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
 }
 
 const findHeadingPosition = (doc: ProseMirrorNode, targetSlug: string) => {
@@ -287,7 +279,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
                 })
                 .catch((error) => {
                   if (currentRender !== mermaidRenderSequence) return
-                  const message = escapeHtml(getErrorMessage(error))
+                  const message = escape(getErrorMessage(error))
                   applyPreview(`<pre class="milkdown-mermaid-error">${message}</pre>`)
                 })
             },
