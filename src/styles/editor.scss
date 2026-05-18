@@ -1,0 +1,155 @@
+.crepe,
+.crepe .milkdown {
+  min-height: 100%;
+}
+
+.crepe .milkdown {
+  --crepe-color-background: hsl(var(--background));
+  --crepe-color-on-background: hsl(var(--foreground));
+  --crepe-color-surface: hsl(var(--card));
+  --crepe-color-surface-low: color-mix(in srgb, hsl(var(--muted)) 80%, hsl(var(--background)));
+  --crepe-color-on-surface: hsl(var(--card-foreground));
+  --crepe-color-on-surface-variant: hsl(var(--muted-foreground));
+  --crepe-color-outline: hsl(var(--border));
+  --crepe-color-primary: hsl(var(--primary));
+  --crepe-color-secondary: hsl(var(--secondary));
+  --crepe-color-on-secondary: hsl(var(--secondary-foreground));
+  --crepe-color-inverse: hsl(var(--foreground));
+  --crepe-color-on-inverse: hsl(var(--background));
+  --crepe-color-inline-code: hsl(var(--destructive));
+  --crepe-color-error: hsl(var(--destructive));
+  --crepe-color-hover: color-mix(in srgb, hsl(var(--accent)) 78%, hsl(var(--background)));
+  --crepe-color-selected: color-mix(in srgb, hsl(var(--accent)) 92%, hsl(var(--background)));
+  --crepe-color-inline-area: hsl(var(--input));
+  --crepe-font-title: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-default: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --crepe-shadow-1: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 10%, transparent);
+  --crepe-shadow-2: 0 10px 24px color-mix(in srgb, hsl(var(--foreground)) 12%, transparent);
+  border: 0;
+  border-radius: 0;
+  background: hsl(var(--background));
+}
+
+.crepe .milkdown .ProseMirror {
+  color: hsl(var(--foreground));
+  margin: 0 auto;
+  max-width: 820px;
+  padding: 3rem 3.5rem 5rem;
+  line-height: 1.72;
+}
+
+.crepe .milkdown .ProseMirror:focus {
+  outline: none;
+}
+
+.crepe .milkdown .marko-md-block {
+  position: relative;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.crepe .milkdown .marko-md-block:hover {
+  background: color-mix(in srgb, hsl(var(--accent)) 34%, transparent);
+}
+
+.crepe .milkdown .marko-md-block[data-selected='true'] {
+  border-color: hsl(var(--ring));
+  background: color-mix(in srgb, hsl(var(--accent)) 54%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, hsl(var(--ring)) 52%, transparent);
+}
+
+.crepe .milkdown .marko-md-block:focus-within {
+  background: color-mix(in srgb, hsl(var(--accent)) 24%, transparent);
+}
+
+.crepe .milkdown .milkdown-toolbar,
+.crepe .milkdown .milkdown-link-preview > .link-preview,
+.crepe .milkdown .milkdown-link-edit > .link-edit,
+.crepe .milkdown .milkdown-slash-menu,
+.crepe .milkdown .milkdown-code-block .list-wrapper {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 10px 24px -18px rgba(2, 8, 23, 0.45);
+}
+
+.crepe .milkdown .milkdown-toolbar .toolbar-item,
+.crepe .milkdown .milkdown-block-handle .operation-item,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .button,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .link-icon,
+.crepe .milkdown .milkdown-link-edit > .link-edit > .button {
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.crepe .milkdown .milkdown-toolbar .toolbar-item:hover,
+.crepe .milkdown .milkdown-block-handle .operation-item:hover,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .button:hover,
+.crepe .milkdown .milkdown-link-preview > .link-preview > .link-icon:hover,
+.crepe .milkdown .milkdown-link-edit > .link-edit > .button:hover,
+.crepe .milkdown .milkdown-slash-menu .menu-groups .menu-group li.hover,
+.crepe .milkdown .milkdown-slash-menu .menu-groups .menu-group li.active {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.crepe .milkdown .milkdown-link-edit > .link-edit > .input-area {
+  color: hsl(var(--foreground));
+}
+
+.crepe .milkdown .milkdown-code-block {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+}
+
+.crepe .milkdown .milkdown-code-block .tools .language-button,
+.crepe .milkdown .milkdown-code-block .tools .tools-button-group button {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+.crepe .milkdown .milkdown-code-block .tools .language-button:hover,
+.crepe .milkdown .milkdown-code-block .tools .tools-button-group button:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.crepe .milkdown .milkdown-code-block .search-box {
+  border-radius: calc(var(--radius) - 4px);
+  outline: 1px solid hsl(var(--ring));
+}
+
+.crepe .milkdown .milkdown-code-block .search-box:has(input:focus) {
+  outline: 2px solid hsl(var(--ring));
+}
+
+.crepe .milkdown .milkdown-mermaid-preview {
+  border-top: 1px dashed hsl(var(--border));
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.crepe .milkdown .milkdown-mermaid-preview svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.crepe .milkdown .milkdown-mermaid-error {
+  margin: 0;
+  border-top: 1px dashed hsl(var(--border));
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--destructive));
+  background: color-mix(in srgb, hsl(var(--destructive)) 8%, hsl(var(--card)));
+}

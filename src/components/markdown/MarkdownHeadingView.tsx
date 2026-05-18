@@ -48,7 +48,10 @@ const MarkdownHeadingView = ({
 
   if (contentRef) {
     return (
-      <div className={`rounded-sm border px-1 ${selectedClass} ${headingClass}`}>
+      <div
+        className={`marko-md-block rounded-sm border px-1 ${selectedClass} ${headingClass}`}
+        data-selected={selected ? 'true' : 'false'}
+      >
         <div ref={contentRef} />
       </div>
     )
@@ -57,7 +60,8 @@ const MarkdownHeadingView = ({
   return (
     <div
       key={text}
-      className={`nodrag rounded-sm border border-transparent px-1 outline-none focus:border-ring focus:bg-background ${headingClass}`}
+      className={`marko-md-block nodrag rounded-sm border border-transparent px-1 outline-none focus:border-ring focus:bg-background ${headingClass}`}
+      data-selected={selected ? 'true' : 'false'}
       contentEditable={editable}
       suppressContentEditableWarning
       onBlur={(event) => {

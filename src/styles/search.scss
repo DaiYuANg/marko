@@ -1,0 +1,21 @@
+@use 'sass:map';
+
+$search-hit: (
+  background: color-mix(in srgb, hsl(var(--primary)) 24%, transparent),
+  border: color-mix(in srgb, hsl(var(--primary)) 34%, transparent),
+  outline: color-mix(in srgb, hsl(var(--primary)) 18%, transparent),
+);
+
+@mixin search-hit-surface($background-key: background) {
+  background: map.get($search-hit, $background-key);
+  box-shadow: 0 0 0 1px map.get($search-hit, border);
+}
+
+.marko-search-hit-inline {
+  @include search-hit-surface;
+  border-radius: 3px;
+}
+
+.marko-search-hit-line {
+  @include search-hit-surface(outline);
+}

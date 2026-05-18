@@ -12,6 +12,7 @@ import {
   useNodeViewFactory,
 } from '@prosemirror-adapter/react'
 import { eclipse } from '@uiw/codemirror-theme-eclipse'
+import clamp from 'lodash-es/clamp'
 import escape from 'lodash-es/escape'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDarkMode } from '@/hooks/useDarkMode'
@@ -118,6 +119,12 @@ const readCrepeMarkdown = (crepe: Crepe | null, fallback: string) => {
   }
 }
 
+type PendingExternalValue = {
+  path: string | null
+  value: string
+  baseValue: string
+}
+
 const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   ({ activePath, value, onChange }, ref) => {
     const rootRef = useRef<HTMLDivElement | null>(null)
@@ -129,7 +136,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     const applyingExternalValueRef = useRef(false)
     const isComposingRef = useRef(false)
     const lastSyncedPathRef = useRef(activePath)
-    const pendingExternalValueRef = useRef<{ path: string | null; value: string } | null>(null)
+    const pendingExternalValueRef = useRef<PendingExternalValue | null>(null)
     const darkMode = useDarkMode()
     const nodeViewFactory = useNodeViewFactory()
     const markViewFactory = useMarkViewFactory()
@@ -159,8 +166,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
           const { from } = selection
           let tr = state.tr
           tr = tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
-          const docSize = doc.content.size
-          const safeFrom = Math.max(0, Math.min(from, docSize - 2))
+          const safeFrom = clamp(from, 0, Math.max(0, doc.content.size - 2))
           tr = tr.setSelection(Selection.near(tr.doc.resolve(safeFrom)))
           view.dispatch(tr)
           latestValue.current = nextValue
@@ -181,11 +187,15 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       if (!pending || !crepe || pending.path !== activePathRef.current) return
 
       pendingExternalValueRef.current = null
-      if (readCrepeMarkdown(crepe, latestValue.current) === pending.value) {
+      const currentMarkdown = readCrepeMarkdown(crepe, latestValue.current)
+      if (currentMarkdown === pending.value) {
         latestValue.current = pending.value
         lastSyncedPathRef.current = pending.path
         return
       }
+
+      if (currentMarkdown !== pending.baseValue) return
+
       applyExternalValue(crepe, pending.value)
       lastSyncedPathRef.current = pending.path
     }
@@ -296,6 +306,10 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
         .then(() => {
           if (destroyed) return
           crepeRef.current = crepe
+          if (readCrepeMarkdown(crepe, latestValue.current) !== latestValue.current) {
+            applyExternalValue(crepe, latestValue.current)
+          }
+          lastSyncedPathRef.current = activePathRef.current
         })
         .catch((error) => {
           if (destroyed) return
@@ -341,7 +355,11 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
         if (localEcho?.path === activePath && localEcho.value !== value) {
           return
         }
-        pendingExternalValueRef.current = { path: activePath, value }
+        pendingExternalValueRef.current = {
+          path: activePath,
+          value,
+          baseValue: readCrepeMarkdown(crepe, latestValue.current),
+        }
         return
       }
 

@@ -1,0 +1,290 @@
+* {
+  scrollbar-color: color-mix(in srgb, hsl(var(--foreground)) 22%, transparent) transparent;
+}
+
+.app-shell {
+  background: hsl(var(--background));
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--card)) 52%, transparent),
+    transparent 42%
+  );
+}
+
+.panel-surface {
+  border-radius: 0;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+  transition:
+    background-color 170ms ease,
+    border-color 170ms ease,
+    box-shadow 170ms ease;
+}
+
+.panel-enter {
+  animation: panel-enter 220ms ease-out both;
+}
+
+.layout-rail {
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+}
+
+:root[data-theme='marko-light'] .panel-surface {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+}
+
+:root[data-theme='marko-dark'] .panel-surface {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+}
+
+.workspace-rail {
+  background: color-mix(in srgb, hsl(var(--sidebar)) 92%, hsl(var(--background)));
+}
+
+.workspace-main {
+  background: hsl(var(--card));
+}
+
+.editor-stage {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, hsl(var(--muted)) 34%, transparent),
+      transparent 8.5rem
+    ),
+    color-mix(in srgb, hsl(var(--background)) 84%, hsl(var(--card)) 16%);
+}
+
+.editor-paper {
+  background: color-mix(in srgb, hsl(var(--card)) 97%, hsl(var(--background)));
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 86%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 7%, transparent),
+    0 16px 42px -34px color-mix(in srgb, hsl(var(--foreground)) 38%, transparent);
+}
+
+.app-titlebar {
+  background: color-mix(in srgb, hsl(var(--card)) 92%, hsl(var(--background)));
+  -webkit-app-region: drag;
+}
+
+.chrome-button {
+  color: color-mix(in srgb, hsl(var(--foreground)) 78%, transparent);
+}
+
+.chrome-button:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.command-trigger {
+  background: color-mix(in srgb, hsl(var(--muted)) 72%, hsl(var(--card)));
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 88%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, hsl(var(--card)) 88%, transparent);
+}
+
+.command-trigger:hover {
+  background: color-mix(in srgb, hsl(var(--muted)) 90%, hsl(var(--card)));
+}
+
+.sidebar-section {
+  border: 1px solid color-mix(in srgb, hsl(var(--sidebar-border)) 78%, transparent);
+  background: color-mix(in srgb, hsl(var(--card)) 44%, hsl(var(--sidebar)));
+}
+
+.sidebar-section-header {
+  color: color-mix(in srgb, hsl(var(--sidebar-foreground)) 56%, transparent);
+}
+
+.side-stat {
+  border: 1px solid color-mix(in srgb, hsl(var(--sidebar-border)) 80%, transparent);
+  background: color-mix(in srgb, hsl(var(--card)) 40%, hsl(var(--sidebar-accent)));
+}
+
+.tab-strip {
+  background: color-mix(in srgb, hsl(var(--card)) 94%, hsl(var(--background)));
+}
+
+.settings-dialog-surface {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 20px 60px -32px color-mix(in srgb, hsl(var(--foreground)) 48%, transparent),
+    0 0 0 1px color-mix(in srgb, hsl(var(--card)) 72%, transparent);
+}
+
+.settings-dialog-body {
+  background: hsl(var(--card));
+}
+
+.settings-row-surface {
+  background: color-mix(in srgb, hsl(var(--card)) 92%, hsl(var(--background)));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 6%, transparent);
+}
+
+.command-dialog-surface {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 22px 64px -34px color-mix(in srgb, hsl(var(--foreground)) 52%, transparent),
+    0 0 0 1px color-mix(in srgb, hsl(var(--popover)) 74%, transparent);
+}
+
+.command-dialog-command {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+.command-dialog-command [cmdk-input-wrapper] {
+  background: color-mix(in srgb, hsl(var(--popover)) 94%, hsl(var(--background)));
+  border-color: hsl(var(--border));
+}
+
+.tab-item {
+  color: color-mix(in srgb, hsl(var(--foreground)) 70%, transparent);
+}
+
+.tab-item:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.tabs-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, hsl(var(--foreground)) 22%, transparent) transparent;
+}
+
+.tabs-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabs-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, hsl(var(--foreground)) 22%, transparent);
+}
+
+.tabs-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-choice {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+}
+
+.theme-choice[data-selected='true'] {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+
+.theme-swatch {
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 85%, transparent);
+  background: hsl(var(--background));
+}
+
+.theme-swatch-light {
+  --swatch-bg: hsl(0 0% 100%);
+  --swatch-rail: hsl(0 0% 98%);
+  --swatch-accent: hsl(240 5.9% 10%);
+}
+
+.theme-swatch-dark {
+  --swatch-bg: hsl(240 10% 3.9%);
+  --swatch-rail: hsl(240 5.9% 10%);
+  --swatch-accent: hsl(0 0% 98%);
+}
+
+.theme-swatch-marko-light {
+  --swatch-bg: hsl(210 24% 97%);
+  --swatch-rail: hsl(214 24% 94%);
+  --swatch-accent: hsl(174 63% 31%);
+}
+
+.theme-swatch-marko-dark {
+  --swatch-bg: hsl(150 6% 8%);
+  --swatch-rail: hsl(150 7% 10%);
+  --swatch-accent: hsl(174 54% 57%);
+}
+
+.theme-swatch-preview {
+  background: var(--swatch-bg);
+}
+
+.inspector-row {
+  border-left: 2px solid transparent;
+}
+
+.inspector-row:hover {
+  border-left-color: hsl(var(--primary) / 0.5);
+}
+
+.react-flow__controls {
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 10%, transparent);
+}
+
+.react-flow__controls-button {
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
+.react-flow__controls-button:hover {
+  background: hsl(var(--muted));
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.app-titlebar button,
+.app-titlebar input,
+.app-titlebar select {
+  -webkit-app-region: no-drag;
+}
+
+.window-controls .win-caption-btn.is-windows {
+  width: 46px;
+  height: 32px;
+  border-radius: 0;
+  color: inherit;
+}
+
+.window-controls .win-caption-btn.is-windows:hover {
+  background-color: color-mix(in srgb, hsl(var(--foreground)) 10%, transparent);
+}
+
+.window-controls .win-caption-btn.is-windows .win-caption-glyph {
+  font-family: 'Segoe MDL2 Assets', 'Segoe Fluent Icons', sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+.window-controls .win-caption-close.is-windows:hover {
+  background-color: #e81123;
+  color: #fff;
+}
+
+.playground-cm .cm-editor,
+.playground-cm .cm-scroller {
+  height: 100%;
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
