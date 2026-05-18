@@ -1,10 +1,9 @@
-import { lazy, memo, Suspense, useMemo, useState } from 'react'
+import { lazy, memo, Suspense } from 'react'
 import type { GraphData } from '@/logic/graph'
-import { patchGraphHeadingContent, patchGraphHeadingTitle } from '@/logic/graphOptimistic'
-import type { MarkdownBlock } from '@/logic/markdownBlocks'
 import type { GraphContentMode } from '@/store/useAppStore'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
+import { useGraphMarkdownEditing } from '@/pages/useGraphMarkdownEditing'
 
 const GraphPage = lazy(() => import('@/pages/GraphPage'))
 
@@ -19,11 +18,6 @@ type GraphViewPageProps = {
   showEmptyMessage: boolean
 }
 
-type OptimisticGraphState = {
-  baseGraph: GraphData
-  graph: GraphData
-}
-
 function GraphViewPage({
   graph,
   markdown,
@@ -35,46 +29,13 @@ function GraphViewPage({
   showEmptyMessage,
 }: GraphViewPageProps) {
   const { t } = useI18n()
-  const [optimisticGraph, setOptimisticGraph] = useState<OptimisticGraphState | null>(null)
-  const editorGraph = optimisticGraph?.baseGraph === graph ? optimisticGraph.graph : graph
+  const { editorGraph, updateHeadingContent, updateHeadingTitle } = useGraphMarkdownEditing({
+    graph,
+    markdown,
+    onChange,
+  })
   const canEdit = editable && editorGraph.nodes.some((node) => node.type === 'heading')
   const graphContentMode = canEdit ? 'full' : contentMode
-
-  const updateHeadingTitle = useMemo(
-    () => (nodeId: string, title: string) => {
-      const node = editorGraph.nodes.find((item) => item.id === nodeId)
-      const headingLine = node?.data.line
-      const level = node?.data.level
-      if (!headingLine || !level) return
-      onChange(replaceHeadingTitle(markdown, headingLine, level, title))
-      setOptimisticGraph((current) => {
-        const currentGraph = current?.baseGraph === graph ? current.graph : graph
-        return {
-          baseGraph: graph,
-          graph: patchGraphHeadingTitle(currentGraph, nodeId, title),
-        }
-      })
-    },
-    [editorGraph.nodes, graph, markdown, onChange],
-  )
-
-  const updateHeadingContent = useMemo(
-    () => (nodeId: string, content: string, contentBlocks?: MarkdownBlock[]) => {
-      const node = editorGraph.nodes.find((item) => item.id === nodeId)
-      const startLine = node?.data.contentStartLine
-      const endLine = node?.data.contentEndLine
-      if (!startLine || !endLine) return
-      onChange(replaceLineRange(markdown, startLine, endLine, content))
-      setOptimisticGraph((current) => {
-        const currentGraph = current?.baseGraph === graph ? current.graph : graph
-        return {
-          baseGraph: graph,
-          graph: patchGraphHeadingContent(currentGraph, nodeId, content, contentBlocks),
-        }
-      })
-    },
-    [editorGraph.nodes, graph, markdown, onChange],
-  )
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -105,29 +66,3 @@ function GraphViewPage({
 }
 
 export default memo(GraphViewPage)
-
-function replaceHeadingTitle(markdown: string, line: number, level: number, title: string) {
-  const lines = splitMarkdownLines(markdown)
-  const lineIndex = line - 1
-  if (!lines[lineIndex]) return markdown
-  lines[lineIndex] = `${'#'.repeat(level)} ${title}`
-  return joinMarkdownLines(lines, markdown)
-}
-
-function replaceLineRange(markdown: string, startLine: number, endLine: number, content: string) {
-  const lines = splitMarkdownLines(markdown)
-  const startIndex = Math.max(0, startLine - 1)
-  const endIndex = Math.max(startIndex, endLine - 1)
-  const nextLines = content.length === 0 ? [] : content.split(/\r\n|\r|\n/)
-  lines.splice(startIndex, endIndex - startIndex, ...nextLines)
-  return joinMarkdownLines(lines, markdown)
-}
-
-function splitMarkdownLines(markdown: string) {
-  return markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-}
-
-function joinMarkdownLines(lines: string[], original: string) {
-  const joined = lines.join('\n')
-  return original.endsWith('\n') && !joined.endsWith('\n') ? `${joined}\n` : joined
-}

@@ -3,11 +3,13 @@ import { paragraphSchema } from '@milkdown/kit/preset/commonmark'
 import type { NodeViewConstructor } from '@milkdown/kit/prose/view'
 import { $view } from '@milkdown/kit/utils'
 import { useNodeViewContext, type ReactNodeViewUserOptions } from '@prosemirror-adapter/react'
-import MarkdownParagraphView from '@/components/markdown/MarkdownParagraphView'
+import { markdownBlockComponentRegistry } from '@/components/markdown/markdownComponentRegistry'
+
+const ParagraphView = markdownBlockComponentRegistry.paragraph
 
 const MilkdownParagraphNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
-  return <MarkdownParagraphView contentRef={contentRef} selected={selected} />
+  return <ParagraphView contentRef={contentRef} selected={selected} />
 })
 
 export const createMarkdownParagraphNodeView = (

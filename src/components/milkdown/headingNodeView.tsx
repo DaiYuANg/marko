@@ -3,16 +3,18 @@ import { headingSchema } from '@milkdown/kit/preset/commonmark'
 import type { NodeViewConstructor } from '@milkdown/kit/prose/view'
 import { $view } from '@milkdown/kit/utils'
 import { useNodeViewContext, type ReactNodeViewUserOptions } from '@prosemirror-adapter/react'
-import MarkdownHeadingView from '@/components/markdown/MarkdownHeadingView'
+import { markdownBlockComponentRegistry } from '@/components/markdown/markdownComponentRegistry'
 
 const readHeadingLevel = (level: unknown) => {
   return typeof level === 'number' ? level : 1
 }
 
+const HeadingView = markdownBlockComponentRegistry.heading
+
 const MilkdownHeadingNodeView = memo(() => {
   const { contentRef, node, selected } = useNodeViewContext()
   return (
-    <MarkdownHeadingView
+    <HeadingView
       level={readHeadingLevel(node.attrs.level)}
       contentRef={contentRef}
       selected={selected}

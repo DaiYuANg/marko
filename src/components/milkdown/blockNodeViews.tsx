@@ -8,11 +8,15 @@ import {
 import type { NodeViewConstructor } from '@milkdown/kit/prose/view'
 import { $view } from '@milkdown/kit/utils'
 import { useNodeViewContext, type ReactNodeViewUserOptions } from '@prosemirror-adapter/react'
-import MarkdownBlockquoteView from '@/components/markdown/MarkdownBlockquoteView'
-import MarkdownDividerView from '@/components/markdown/MarkdownDividerView'
-import MarkdownListView from '@/components/markdown/MarkdownListView'
+import { markdownBlockComponentRegistry } from '@/components/markdown/markdownComponentRegistry'
 
 type NodeViewFactory = (options: ReactNodeViewUserOptions) => NodeViewConstructor
+
+const {
+  blockquote: BlockquoteView,
+  divider: DividerView,
+  list: ListView,
+} = markdownBlockComponentRegistry
 
 const createContentElement = (tagName: 'blockquote' | 'ol' | 'ul', className: string) => {
   const element = document.createElement(tagName)
@@ -22,22 +26,22 @@ const createContentElement = (tagName: 'blockquote' | 'ol' | 'ul', className: st
 
 const MilkdownBlockquoteNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
-  return <MarkdownBlockquoteView contentRef={contentRef} selected={selected} />
+  return <BlockquoteView contentRef={contentRef} selected={selected} />
 })
 
 const MilkdownBulletListNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
-  return <MarkdownListView contentRef={contentRef} selected={selected} />
+  return <ListView contentRef={contentRef} selected={selected} />
 })
 
 const MilkdownOrderedListNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
-  return <MarkdownListView contentRef={contentRef} selected={selected} ordered />
+  return <ListView contentRef={contentRef} selected={selected} ordered />
 })
 
 const MilkdownDividerNodeView = memo(() => {
   const { selected } = useNodeViewContext()
-  return <MarkdownDividerView selected={selected} />
+  return <DividerView selected={selected} />
 })
 
 export const createMarkdownBlockNodeViews = (nodeViewFactory: NodeViewFactory) => [

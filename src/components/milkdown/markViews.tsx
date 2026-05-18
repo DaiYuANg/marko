@@ -10,11 +10,15 @@ import type { Mark as ProseMirrorMark } from '@milkdown/kit/prose/model'
 import type { MarkViewConstructor } from '@milkdown/kit/prose/view'
 import { $view } from '@milkdown/kit/utils'
 import { useMarkViewContext, type ReactMarkViewUserOptions } from '@prosemirror-adapter/react'
-import MarkdownInlineCodeView from '@/components/markdown/MarkdownInlineCodeView'
-import MarkdownLinkView from '@/components/markdown/MarkdownLinkView'
-import MarkdownTextMarkView from '@/components/markdown/MarkdownTextMarkView'
+import { markdownInlineComponentRegistry } from '@/components/markdown/markdownComponentRegistry'
 
 type MarkViewFactory = (options: ReactMarkViewUserOptions) => MarkViewConstructor
+
+const {
+  inlineCode: InlineCodeView,
+  link: LinkView,
+  textMark: TextMarkView,
+} = markdownInlineComponentRegistry
 
 const createContentElement = (
   tagName: 'a' | 'code' | 'del' | 'em' | 'strong',
@@ -39,27 +43,27 @@ const createContentElement = (
 
 const MilkdownInlineCodeMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
-  return <MarkdownInlineCodeView contentRef={contentRef} />
+  return <InlineCodeView contentRef={contentRef} />
 })
 
 const MilkdownLinkMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
-  return <MarkdownLinkView contentRef={contentRef} />
+  return <LinkView contentRef={contentRef} />
 })
 
 const MilkdownStrongMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
-  return <MarkdownTextMarkView variant="strong" contentRef={contentRef} />
+  return <TextMarkView variant="strong" contentRef={contentRef} />
 })
 
 const MilkdownEmphasisMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
-  return <MarkdownTextMarkView variant="emphasis" contentRef={contentRef} />
+  return <TextMarkView variant="emphasis" contentRef={contentRef} />
 })
 
 const MilkdownStrikethroughMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
-  return <MarkdownTextMarkView variant="strikethrough" contentRef={contentRef} />
+  return <TextMarkView variant="strikethrough" contentRef={contentRef} />
 })
 
 export const createMarkdownMarkViews = (markViewFactory: MarkViewFactory) => [
