@@ -95,6 +95,16 @@ export const fsSearchResultSchema = z.object({
   score: z.number(),
 })
 
+export const fsMarkdownBlockSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['paragraph', 'blockquote', 'code', 'list', 'divider']),
+  text: z.string().nullable().optional(),
+  level: z.number().nullable().optional(),
+  language: z.string().nullable().optional(),
+  ordered: z.boolean().nullable().optional(),
+  items: z.array(z.string()).nullable().optional(),
+})
+
 export const fsGraphNodeSchema = z.object({
   id: z.string(),
   kind: z.enum(['file', 'heading', 'missing', 'external']),
@@ -104,6 +114,7 @@ export const fsGraphNodeSchema = z.object({
   level: z.number().nullable().optional(),
   slug: z.string().nullable().optional(),
   content: z.string().nullable().optional(),
+  content_blocks: z.array(fsMarkdownBlockSchema).nullable().optional(),
   content_start_line: z.number().nullable().optional(),
   content_end_line: z.number().nullable().optional(),
 })
@@ -134,6 +145,7 @@ export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
 export type FsWorkspaceIndex = z.infer<typeof fsWorkspaceIndexSchema>
 export type FsMarkdownDiagnostic = z.infer<typeof fsMarkdownDiagnosticSchema>
 export type FsSearchResult = z.infer<typeof fsSearchResultSchema>
+export type FsMarkdownBlock = z.infer<typeof fsMarkdownBlockSchema>
 export type FsGraphNode = z.infer<typeof fsGraphNodeSchema>
 export type FsGraphEdge = z.infer<typeof fsGraphEdgeSchema>
 export type FsGraph = z.infer<typeof fsGraphSchema>

@@ -2,6 +2,7 @@ import type { NodeProps } from 'reactflow'
 import { Handle, Position } from 'reactflow'
 import { memo } from 'react'
 import type { GraphNodeData } from '@/logic/graph'
+import { createHeadingSectionBlocks } from '@/logic/markdownBlocks'
 import MarkdownBlockSurface from '@/components/MarkdownBlockSurface'
 
 export function ExternalNode({
@@ -29,18 +30,31 @@ export function MissingNode({ data }: NodeProps<{ label: string; subtitle?: stri
 }
 
 export const HeadingNode = memo(function HeadingNode({ id, data }: NodeProps<GraphNodeData>) {
+  const blocks = createHeadingSectionBlocks({
+    headingId: id,
+    level: data.level ?? 2,
+    title: data.label,
+    content: data.content,
+    contentBlocks: data.contentBlocks,
+    contentMode: data.contentMode ?? 'none',
+    editable: Boolean(data.editable),
+  })
+
   return (
-    <div className="w-[240px] rounded-md border border-primary/30 bg-card px-3 py-2 shadow-sm">
+    <div className="w-[260px] rounded-md border border-primary/30 bg-card px-3 py-2 shadow-sm">
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       <MarkdownBlockSurface
-        level={data.level ?? 2}
-        title={data.label}
-        content={data.content}
-        contentMode={data.contentMode ?? 'none'}
-        editable={data.editable}
-        onCommitTitle={(title) => data.onUpdateTitle?.(id, title)}
-        onCommitContent={(content) => data.onUpdateContent?.(id, content)}
+        blocks={blocks}
+        onCommitBlock={(commit) => {
+          if (commit.id.endsWith(':heading')) {
+            data.onUpdateTitle?.(id, commit.text)
+            return
+          }
+          if (commit.id.endsWith(':content')) {
+            data.onUpdateContent?.(id, commit.text)
+          }
+        }}
       />
       <div className="mt-1 px-1 text-xs text-muted-foreground">{data.subtitle}</div>
     </div>

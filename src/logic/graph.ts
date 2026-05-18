@@ -3,6 +3,7 @@ import { graphlib, layout as dagreLayout } from '@dagrejs/dagre'
 import type { FsGraph, FsWorkspaceIndex } from '@/services/fsApi'
 import { createFileLabel } from '@/logic/paths'
 import type { GraphContentMode } from '@/store/useAppStore'
+import { normalizeMarkdownBlocks, type MarkdownBlock } from '@/logic/markdownBlocks'
 
 export type GraphNodeData = {
   label: string
@@ -13,6 +14,7 @@ export type GraphNodeData = {
   slug?: string
   url?: string
   content?: string
+  contentBlocks?: MarkdownBlock[]
   contentStartLine?: number
   contentEndLine?: number
   contentMode?: GraphContentMode
@@ -175,6 +177,7 @@ export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
       level: node.level ?? undefined,
       slug: node.slug ?? undefined,
       content: node.content ?? undefined,
+      contentBlocks: normalizeMarkdownBlocks(node.content_blocks ?? undefined),
       contentStartLine: node.content_start_line ?? undefined,
       contentEndLine: node.content_end_line ?? undefined,
       contentMode: 'none',
@@ -276,7 +279,7 @@ const getNodeSize = (node: Node<GraphNodeData>) => {
   }
   if (node.type === 'heading' || node.id.startsWith('heading:')) {
     if (node.data.contentMode === 'full') {
-      return { width: 240, height: 170 }
+      return { width: 260, height: estimateHeadingNodeHeight(node) }
     }
     if (node.data.contentMode === 'summary' && node.data.content) {
       return { width: 240, height: 124 }
@@ -284,4 +287,19 @@ const getNodeSize = (node: Node<GraphNodeData>) => {
     return { width: HEADING_NODE_WIDTH, height: HEADING_NODE_HEIGHT }
   }
   return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT }
+}
+
+const estimateHeadingNodeHeight = (node: Node<GraphNodeData>) => {
+  const blocks = node.data.contentBlocks
+  if (!blocks?.length) return 170
+
+  const blockHeight = blocks.reduce((height, block) => {
+    if (block.kind === 'code') return height + 90
+    if (block.kind === 'list') return height + Math.min(120, 28 + block.items.length * 22)
+    if (block.kind === 'divider') return height + 34
+    if (block.kind === 'blockquote') return height + 56
+    return height + 44
+  }, 52)
+
+  return Math.min(260, Math.max(130, blockHeight))
 }

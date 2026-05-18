@@ -1,52 +1,73 @@
-import { memo, useMemo } from 'react'
-import type { GraphContentMode } from '@/store/useAppStore'
+import { memo } from 'react'
+import type { MarkdownBlock, MarkdownBlockCommit } from '@/logic/markdownBlocks'
+import MarkdownBlockquoteView from '@/components/markdown/MarkdownBlockquoteView'
+import MarkdownCodeBlockView from '@/components/markdown/MarkdownCodeBlockView'
+import MarkdownDividerView from '@/components/markdown/MarkdownDividerView'
+import MarkdownHeadingView from '@/components/markdown/MarkdownHeadingView'
+import MarkdownListView from '@/components/markdown/MarkdownListView'
+import MarkdownParagraphView from '@/components/markdown/MarkdownParagraphView'
 
 type MarkdownBlockSurfaceProps = {
-  level: number
-  title: string
-  content?: string
-  editable?: boolean
-  contentMode: GraphContentMode
-  onCommitTitle?: (title: string) => void
-  onCommitContent?: (content: string) => void
+  blocks: MarkdownBlock[]
+  onCommitBlock?: (commit: MarkdownBlockCommit) => void
 }
 
-function MarkdownBlockSurface({
-  level,
-  title,
-  content,
-  editable = false,
-  contentMode,
-  onCommitTitle,
-  onCommitContent,
-}: MarkdownBlockSurfaceProps) {
-  const displayContent = useMemo(() => {
-    const raw = content?.trim() ?? ''
-    if (!raw || contentMode === 'none') return ''
-    if (contentMode === 'full') return raw
-    return raw.length > 140 ? `${raw.slice(0, 140).trimEnd()}...` : raw
-  }, [content, contentMode])
-
+function MarkdownBlockSurface({ blocks, onCommitBlock }: MarkdownBlockSurfaceProps) {
   return (
     <div className="space-y-1.5">
-      <MarkdownHeadingBlock
-        level={level}
-        value={title}
-        editable={editable}
-        onCommit={onCommitTitle}
-      />
-      {displayContent ? (
-        <MarkdownContentBlock
-          value={displayContent}
-          editable={editable && contentMode === 'full'}
-          onCommit={onCommitContent}
-        />
-      ) : null}
+      {blocks.map((block) => (
+        <MarkdownSurfaceBlock key={block.id} block={block} onCommitBlock={onCommitBlock} />
+      ))}
     </div>
   )
 }
 
 export default memo(MarkdownBlockSurface)
+
+function MarkdownSurfaceBlock({
+  block,
+  onCommitBlock,
+}: {
+  block: MarkdownBlock
+  onCommitBlock?: (commit: MarkdownBlockCommit) => void
+}) {
+  if (block.kind === 'heading') {
+    return (
+      <MarkdownHeadingBlock
+        level={block.level}
+        value={block.text}
+        editable={block.editable}
+        onCommit={(text) => onCommitBlock?.({ id: block.id, text })}
+      />
+    )
+  }
+  if (block.kind === 'blockquote') {
+    return (
+      <MarkdownBlockquoteView
+        text={block.text}
+        editable={block.editable}
+        onCommit={(text) => onCommitBlock?.({ id: block.id, text })}
+      />
+    )
+  }
+  if (block.kind === 'code') {
+    return <MarkdownCodeBlockView text={block.text} language={block.language} />
+  }
+  if (block.kind === 'list') {
+    return <MarkdownListItemsBlock ordered={block.ordered} items={block.items} />
+  }
+  if (block.kind === 'divider') {
+    return <MarkdownDividerView />
+  }
+
+  return (
+    <MarkdownContentBlock
+      value={block.text}
+      editable={block.editable}
+      onCommit={(text) => onCommitBlock?.({ id: block.id, text })}
+    />
+  )
+}
 
 function MarkdownHeadingBlock({
   level,
@@ -59,31 +80,7 @@ function MarkdownHeadingBlock({
   editable: boolean
   onCommit?: (value: string) => void
 }) {
-  const weightClass = level <= 2 ? 'text-sm font-semibold' : 'text-[13px] font-medium'
-
-  return (
-    <div
-      key={value}
-      className={`nodrag rounded-sm border border-transparent px-1 leading-5 outline-none focus:border-ring focus:bg-background ${weightClass}`}
-      contentEditable={editable}
-      suppressContentEditableWarning
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent?.trim() ?? ''
-        if (!next || next === value) return
-        onCommit?.(next)
-      }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          event.currentTarget.blur()
-        }
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      {value}
-    </div>
-  )
+  return <MarkdownHeadingView level={level} text={value} editable={editable} onCommit={onCommit} />
 }
 
 function MarkdownContentBlock({
@@ -95,21 +92,20 @@ function MarkdownContentBlock({
   editable: boolean
   onCommit?: (value: string) => void
 }) {
+  return <MarkdownParagraphView text={value} editable={editable} compact onCommit={onCommit} />
+}
+
+function MarkdownListItemsBlock({ ordered, items }: { ordered: boolean; items: string[] }) {
+  const ListTag = ordered ? 'ol' : 'ul'
   return (
-    <div
-      key={value}
-      className="nodrag max-h-28 overflow-hidden whitespace-pre-wrap rounded-sm bg-muted/55 px-2 py-1.5 text-xs leading-5 text-muted-foreground outline-none focus:bg-background focus:ring-1 focus:ring-ring"
-      contentEditable={editable}
-      suppressContentEditableWarning
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent ?? ''
-        if (next === value) return
-        onCommit?.(next)
-      }}
-      onKeyDown={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      {value}
-    </div>
+    <MarkdownListView ordered={ordered}>
+      <ListTag className={`m-0 space-y-1 pl-5 ${ordered ? 'list-decimal' : 'list-disc'}`}>
+        {items.map((item, index) => (
+          <li key={`${index}:${item}`} className="text-xs leading-5 text-muted-foreground">
+            {item}
+          </li>
+        ))}
+      </ListTag>
+    </MarkdownListView>
   )
 }

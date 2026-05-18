@@ -6,11 +6,20 @@ import { editorViewCtx, parserCtx } from '@milkdown/kit/core'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { Slice, type Node as ProseMirrorNode } from '@milkdown/kit/prose/model'
 import { Selection } from '@milkdown/kit/prose/state'
+import {
+  ProsemirrorAdapterProvider,
+  useMarkViewFactory,
+  useNodeViewFactory,
+} from '@prosemirror-adapter/react'
 import { eclipse } from '@uiw/codemirror-theme-eclipse'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { FOCUS_HEADING_EVENT, type FocusHeadingRequest } from '@/utils/editorNavigation'
 import { slugify } from '@/logic/paths'
+import { createMarkdownBlockNodeViews } from '@/components/milkdown/blockNodeViews'
+import { createMarkdownHeadingNodeView } from '@/components/milkdown/headingNodeView'
+import { createMarkdownMarkViews } from '@/components/milkdown/markViews'
+import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
 
 type MarkdownEditorProps = {
   activePath: string | null
@@ -118,8 +127,8 @@ const readCrepeMarkdown = (crepe: Crepe | null, fallback: string) => {
   }
 }
 
-const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-  function MarkdownEditor({ activePath, value, onChange }, ref) {
+const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
+  function MarkdownEditorInner({ activePath, value, onChange }, ref) {
     const rootRef = useRef<HTMLDivElement | null>(null)
     const crepeRef = useRef<Crepe | null>(null)
     const latestValue = useRef(value)
@@ -131,6 +140,8 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
     const lastSyncedPathRef = useRef(activePath)
     const pendingExternalValueRef = useRef<{ path: string | null; value: string } | null>(null)
     const darkMode = useDarkMode()
+    const nodeViewFactory = useNodeViewFactory()
+    const markViewFactory = useMarkViewFactory()
 
     useImperativeHandle(ref, () => ({
       getMarkdown: () => readCrepeMarkdown(crepeRef.current, latestValue.current),
@@ -284,6 +295,10 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
           }))
         })
         .use(listener)
+        .use(createMarkdownHeadingNodeView(nodeViewFactory))
+        .use(createMarkdownParagraphNodeView(nodeViewFactory))
+        .use(createMarkdownBlockNodeViews(nodeViewFactory))
+        .use(createMarkdownMarkViews(markViewFactory))
 
       let destroyed = false
       void crepe
@@ -309,7 +324,7 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
           // Crepe can be half-initialized during React dev teardown.
         }
       }
-    }, [darkMode])
+    }, [darkMode, markViewFactory, nodeViewFactory])
 
     useEffect(() => {
       const crepe = crepeRef.current
@@ -369,6 +384,16 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
           <div className="milkdown min-h-full" ref={rootRef} />
         </ScrollArea>
       </div>
+    )
+  },
+)
+
+const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
+  function MarkdownEditor(props, ref) {
+    return (
+      <ProsemirrorAdapterProvider>
+        <MarkdownEditorInner {...props} ref={ref} />
+      </ProsemirrorAdapterProvider>
     )
   },
 )

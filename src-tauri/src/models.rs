@@ -123,8 +123,20 @@ pub struct FsGraphNode {
   pub level: Option<u8>,
   pub slug: Option<String>,
   pub content: Option<String>,
+  pub content_blocks: Option<Vec<FsMarkdownBlock>>,
   pub content_start_line: Option<usize>,
   pub content_end_line: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct FsMarkdownBlock {
+  pub id: String,
+  pub kind: String,
+  pub text: Option<String>,
+  pub level: Option<u8>,
+  pub language: Option<String>,
+  pub ordered: Option<bool>,
+  pub items: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]

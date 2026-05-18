@@ -41,6 +41,9 @@ importers:
       '@monaco-editor/react':
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@prosemirror-adapter/react':
+        specifier: ^0.5.3
+        version: 0.5.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -1187,6 +1190,20 @@ packages:
     resolution: {integrity: sha512-TPMkStdT0QpSc8FpB63aOwXoSiZyIrPsP9Uj347KopdS6olZdAYeeird/5FZv/M1Yc1ge5qstub2o8VDbvkT4g==}
     peerDependencies:
       preact: 10.x
+
+  '@prosemirror-adapter/core@0.5.3':
+    resolution: {integrity: sha512-jGcI/eq3USFqf1fCaejgCmifmXYDyFco6/5KjyyNBnuEhLqyLjD+020CtcduEOsnN4xPZr5ikclgHIR6kEFkQg==}
+
+  '@prosemirror-adapter/react@0.5.3':
+    resolution: {integrity: sha512-k/dpqT6FrC8vH/OeX9yZswQ3Acap1In4PeKj9SAh6BfMXPWOWFclU7K1mWwpD9aC1Va1npz+FZTMmXSsiQTsnw==}
+    peerDependencies:
+      react: '*'
+      react-dom: '*'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   '@radix-ui/number@1.1.1':
     resolution: {integrity: sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g==}
@@ -6455,6 +6472,23 @@ snapshots:
     dependencies:
       '@preact/signals-core': 1.14.2
       preact: 10.29.2
+
+  '@prosemirror-adapter/core@0.5.3':
+    dependencies:
+      '@ocavue/utils': 1.6.0
+      prosemirror-model: 1.25.6
+      prosemirror-state: 1.4.4
+      prosemirror-view: 1.41.8
+
+  '@prosemirror-adapter/react@0.5.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      '@prosemirror-adapter/core': 0.5.3
+      prosemirror-model: 1.25.6
+      prosemirror-state: 1.4.4
+      prosemirror-view: 1.41.8
+    optionalDependencies:
+      react: 19.2.6
+      react-dom: 19.2.6(react@19.2.6)
 
   '@radix-ui/number@1.1.1': {}
 

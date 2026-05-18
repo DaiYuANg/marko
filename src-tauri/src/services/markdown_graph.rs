@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
-use crate::models::{FsGraph, FsGraphEdge, FsGraphNode, FsWorkspaceIndex};
+use crate::models::{FsGraph, FsGraphEdge, FsGraphNode, FsMarkdownBlock, FsWorkspaceIndex};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MarkdownGraphService;
@@ -35,6 +35,7 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
     level: None,
     slug: None,
     content: None,
+    content_blocks: None,
     content_start_line: None,
     content_end_line: None,
   }];
@@ -97,6 +98,7 @@ pub fn build_outline_graph(path: &str, markdown: &str) -> FsGraph {
           level: Some(heading.level),
           slug: Some(slug),
           content: None,
+          content_blocks: None,
           content_start_line: None,
           content_end_line: None,
         });
@@ -150,6 +152,7 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
       level: None,
       slug: None,
       content: None,
+      content_blocks: None,
       content_start_line: None,
       content_end_line: None,
     });
@@ -167,6 +170,7 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
           level: Some(heading.level),
           slug: Some(heading.slug.clone()),
           content: None,
+          content_blocks: None,
           content_start_line: None,
           content_end_line: None,
         },
@@ -194,6 +198,7 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
             level: None,
             slug: None,
             content: None,
+            content_blocks: None,
             content_start_line: None,
             content_end_line: None,
           });
@@ -251,6 +256,7 @@ pub fn build_workspace_graph(index: &FsWorkspaceIndex) -> FsGraph {
           level: None,
           slug: None,
           content: None,
+          content_blocks: None,
           content_start_line: None,
           content_end_line: None,
         });
@@ -361,18 +367,223 @@ fn apply_heading_content(markdown: &str, headings: &[ParsedHeading], nodes: &mut
         .to_string();
       (
         heading.node_id.as_str(),
-        (content, heading.content_start_line, content_end_line),
+        (
+          parse_markdown_blocks(&heading.node_id, &content),
+          content,
+          heading.content_start_line,
+          content_end_line,
+        ),
       )
     })
     .collect::<HashMap<_, _>>();
 
   nodes.iter_mut().for_each(|node| {
-    if let Some((content, start_line, end_line)) = content_by_id.get(node.id.as_str()) {
+    if let Some((blocks, content, start_line, end_line)) = content_by_id.get(node.id.as_str()) {
       node.content = Some(content.clone());
+      node.content_blocks = Some(blocks.clone());
       node.content_start_line = Some(*start_line);
       node.content_end_line = Some(*end_line);
     }
   });
+}
+
+#[derive(Debug, Default)]
+struct TextDraft {
+  text: String,
+}
+
+#[derive(Debug)]
+struct CodeDraft {
+  language: Option<String>,
+  text: String,
+}
+
+#[derive(Debug)]
+struct ListDraft {
+  ordered: bool,
+  items: Vec<String>,
+  current_item: Option<String>,
+}
+
+fn parse_markdown_blocks(base_id: &str, markdown: &str) -> Vec<FsMarkdownBlock> {
+  let mut blocks = Vec::new();
+  let mut paragraph: Option<TextDraft> = None;
+  let mut blockquote: Option<TextDraft> = None;
+  let mut code: Option<CodeDraft> = None;
+  let mut list: Option<ListDraft> = None;
+
+  for event in Parser::new_ext(markdown, markdown_options()) {
+    match event {
+      Event::Start(Tag::Paragraph) => {
+        if list.is_none() && blockquote.is_none() {
+          paragraph = Some(TextDraft::default());
+        }
+      }
+      Event::End(TagEnd::Paragraph) => {
+        if let Some(draft) = paragraph.take() {
+          push_text_block(base_id, &mut blocks, "paragraph", draft.text);
+        }
+      }
+      Event::Start(Tag::BlockQuote(_)) => {
+        blockquote = Some(TextDraft::default());
+      }
+      Event::End(TagEnd::BlockQuote(_)) => {
+        if let Some(draft) = blockquote.take() {
+          push_text_block(base_id, &mut blocks, "blockquote", draft.text);
+        }
+      }
+      Event::Start(Tag::CodeBlock(kind)) => {
+        code = Some(CodeDraft {
+          language: code_block_language(kind),
+          text: String::new(),
+        });
+      }
+      Event::End(TagEnd::CodeBlock) => {
+        if let Some(draft) = code.take() {
+          let text = draft.text.trim_matches('\n').to_string();
+          if !text.is_empty() {
+            blocks.push(FsMarkdownBlock {
+              id: markdown_block_id(base_id, blocks.len()),
+              kind: "code".to_string(),
+              text: Some(text),
+              level: None,
+              language: draft.language,
+              ordered: None,
+              items: None,
+            });
+          }
+        }
+      }
+      Event::Start(Tag::List(start)) => {
+        if list.is_none() {
+          list = Some(ListDraft {
+            ordered: start.is_some(),
+            items: Vec::new(),
+            current_item: None,
+          });
+        }
+      }
+      Event::End(TagEnd::List(_)) => {
+        if let Some(draft) = list.take() {
+          let items = draft
+            .items
+            .into_iter()
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect::<Vec<_>>();
+          if !items.is_empty() {
+            blocks.push(FsMarkdownBlock {
+              id: markdown_block_id(base_id, blocks.len()),
+              kind: "list".to_string(),
+              text: None,
+              level: None,
+              language: None,
+              ordered: Some(draft.ordered),
+              items: Some(items),
+            });
+          }
+        }
+      }
+      Event::Start(Tag::Item) => {
+        if let Some(draft) = list.as_mut() {
+          draft.current_item = Some(String::new());
+        }
+      }
+      Event::End(TagEnd::Item) => {
+        if let Some(draft) = list.as_mut() {
+          if let Some(item) = draft.current_item.take() {
+            draft.items.push(item);
+          }
+        }
+      }
+      Event::Rule => {
+        blocks.push(FsMarkdownBlock {
+          id: markdown_block_id(base_id, blocks.len()),
+          kind: "divider".to_string(),
+          text: None,
+          level: None,
+          language: None,
+          ordered: None,
+          items: None,
+        });
+      }
+      Event::Text(text) | Event::Code(text) => {
+        append_markdown_text(
+          text.as_ref(),
+          &mut code,
+          &mut list,
+          &mut blockquote,
+          &mut paragraph,
+        );
+      }
+      Event::SoftBreak | Event::HardBreak => {
+        append_markdown_text("\n", &mut code, &mut list, &mut blockquote, &mut paragraph);
+      }
+      _ => {}
+    }
+  }
+
+  blocks
+}
+
+fn push_text_block(base_id: &str, blocks: &mut Vec<FsMarkdownBlock>, kind: &str, text: String) {
+  let text = text.trim().to_string();
+  if text.is_empty() {
+    return;
+  }
+  blocks.push(FsMarkdownBlock {
+    id: markdown_block_id(base_id, blocks.len()),
+    kind: kind.to_string(),
+    text: Some(text),
+    level: None,
+    language: None,
+    ordered: None,
+    items: None,
+  });
+}
+
+fn append_markdown_text(
+  text: &str,
+  code: &mut Option<CodeDraft>,
+  list: &mut Option<ListDraft>,
+  blockquote: &mut Option<TextDraft>,
+  paragraph: &mut Option<TextDraft>,
+) {
+  if let Some(draft) = code.as_mut() {
+    draft.text.push_str(text);
+    return;
+  }
+  if let Some(draft) = list.as_mut() {
+    if let Some(item) = draft.current_item.as_mut() {
+      item.push_str(text);
+    }
+    return;
+  }
+  if let Some(draft) = blockquote.as_mut() {
+    draft.text.push_str(text);
+    return;
+  }
+  if let Some(draft) = paragraph.as_mut() {
+    draft.text.push_str(text);
+  }
+}
+
+fn code_block_language(kind: CodeBlockKind<'_>) -> Option<String> {
+  match kind {
+    CodeBlockKind::Fenced(language) => {
+      let language = language.trim();
+      if language.is_empty() {
+        None
+      } else {
+        Some(language.to_string())
+      }
+    }
+    CodeBlockKind::Indented => None,
+  }
+}
+
+fn markdown_block_id(base_id: &str, index: usize) -> String {
+  format!("{base_id}:block:{index}")
 }
 
 fn unique_slug(text: &str, used: &mut HashMap<String, usize>) -> String {
@@ -439,6 +650,29 @@ mod tests {
     assert_eq!(
       intro.content.as_deref(),
       Some("Lead paragraph\n\n```md\n# Ignored\n```")
+    );
+    assert_eq!(
+      intro.content_blocks.as_ref(),
+      Some(&vec![
+        FsMarkdownBlock {
+          id: "heading:notes/current.md:intro-now:block:0".to_string(),
+          kind: "paragraph".to_string(),
+          text: Some("Lead paragraph".to_string()),
+          level: None,
+          language: None,
+          ordered: None,
+          items: None,
+        },
+        FsMarkdownBlock {
+          id: "heading:notes/current.md:intro-now:block:1".to_string(),
+          kind: "code".to_string(),
+          text: Some("# Ignored".to_string()),
+          level: None,
+          language: Some("md".to_string()),
+          ordered: None,
+          items: None,
+        },
+      ])
     );
     assert_eq!(intro.content_start_line, Some(2));
   }
