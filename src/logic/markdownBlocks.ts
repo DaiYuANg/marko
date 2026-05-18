@@ -78,7 +78,7 @@ export const createHeadingSectionBlocks = ({
     blocks.push(
       ...contentBlocks.map((block) => ({
         ...block,
-        editable: false,
+        editable: editable && isEditableContentBlock(block),
       })),
     )
     return blocks
@@ -105,6 +105,39 @@ export const formatContentForMode = (
   if (!raw || mode === 'none') return ''
   if (mode === 'full') return raw
   return raw.length > 140 ? `${raw.slice(0, 140).trimEnd()}...` : raw
+}
+
+export const serializeMarkdownBlocks = (blocks: MarkdownBlock[]) => {
+  return blocks.map(serializeMarkdownBlock).join('\n\n')
+}
+
+export const updateMarkdownBlockText = (blocks: MarkdownBlock[], commit: MarkdownBlockCommit) => {
+  if (!blocks.some((block) => block.id === commit.id)) return null
+  return blocks.map((block) => (block.id === commit.id ? { ...block, text: commit.text } : block))
+}
+
+const isEditableContentBlock = (block: MarkdownBlock) => {
+  return block.kind === 'paragraph' || block.kind === 'blockquote'
+}
+
+const serializeMarkdownBlock = (block: MarkdownBlock) => {
+  if (block.kind === 'heading') return `${'#'.repeat(block.level)} ${block.text}`
+  if (block.kind === 'blockquote') {
+    return block.text
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n')
+  }
+  if (block.kind === 'code') {
+    return `\`\`\`${block.language ?? ''}\n${block.text}\n\`\`\``
+  }
+  if (block.kind === 'list') {
+    return block.items
+      .map((item, index) => (block.ordered ? `${index + 1}. ${item}` : `- ${item}`))
+      .join('\n')
+  }
+  if (block.kind === 'divider') return '---'
+  return block.text
 }
 
 type MarkdownBlockInput = {

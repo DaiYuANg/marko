@@ -13,8 +13,24 @@ type MarkdownBlockSurfaceProps = {
 }
 
 const MarkdownBlockSurface = ({ blocks, onCommitBlock }: MarkdownBlockSurfaceProps) => {
+  const interactive = blocks.some((block) => block.editable)
+
   return (
-    <div className="space-y-1.5">
+    <div
+      className={interactive ? 'nodrag nopan space-y-1.5' : 'space-y-1.5'}
+      onClick={(event) => {
+        if (!interactive) return
+        event.stopPropagation()
+      }}
+      onDoubleClick={(event) => {
+        if (!interactive) return
+        event.stopPropagation()
+      }}
+      onPointerDown={(event) => {
+        if (!interactive) return
+        event.stopPropagation()
+      }}
+    >
       {blocks.map((block) => (
         <MarkdownSurfaceBlock key={block.id} block={block} onCommitBlock={onCommitBlock} />
       ))}

@@ -1,8 +1,13 @@
 import type { NodeProps } from 'reactflow'
 import { Handle, Position } from 'reactflow'
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import type { GraphNodeData } from '@/logic/graph'
-import { createHeadingSectionBlocks } from '@/logic/markdownBlocks'
+import {
+  createHeadingSectionBlocks,
+  serializeMarkdownBlocks,
+  updateMarkdownBlockText,
+  type MarkdownBlockCommit,
+} from '@/logic/markdownBlocks'
 import MarkdownBlockSurface from '@/components/MarkdownBlockSurface'
 
 export const ExternalNode = ({
@@ -40,22 +45,30 @@ export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
     editable: Boolean(data.editable),
   })
 
+  const commitBlock = useCallback(
+    (commit: MarkdownBlockCommit) => {
+      if (commit.id.endsWith(':heading')) {
+        data.onUpdateTitle?.(id, commit.text)
+        return
+      }
+      if (commit.id.endsWith(':content')) {
+        data.onUpdateContent?.(id, commit.text)
+        return
+      }
+
+      const contentBlocks = blocks.filter((block) => block.kind !== 'heading')
+      const nextBlocks = updateMarkdownBlockText(contentBlocks, commit)
+      if (!nextBlocks) return
+      data.onUpdateContent?.(id, serializeMarkdownBlocks(nextBlocks))
+    },
+    [blocks, data, id],
+  )
+
   return (
     <div className="w-[260px] rounded-md border border-primary/30 bg-card px-3 py-2 shadow-sm">
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
-      <MarkdownBlockSurface
-        blocks={blocks}
-        onCommitBlock={(commit) => {
-          if (commit.id.endsWith(':heading')) {
-            data.onUpdateTitle?.(id, commit.text)
-            return
-          }
-          if (commit.id.endsWith(':content')) {
-            data.onUpdateContent?.(id, commit.text)
-          }
-        }}
-      />
+      <MarkdownBlockSurface blocks={blocks} onCommitBlock={commitBlock} />
       <div className="mt-1 px-1 text-xs text-muted-foreground">{data.subtitle}</div>
     </div>
   )
