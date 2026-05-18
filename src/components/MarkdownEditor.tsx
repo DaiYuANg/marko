@@ -1,4 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  type PointerEvent,
+} from 'react'
 import { LanguageDescription, LanguageSupport, StreamLanguage } from '@codemirror/language'
 import { Crepe } from '@milkdown/crepe'
 import { codeBlockConfig } from '@milkdown/kit/component/code-block'
@@ -26,10 +33,33 @@ type MarkdownEditorProps = {
   activePath: string | null
   value: string
   onChange: (value: string) => void
+  placeholder: string
+  slashLabels: SlashCommandLabels
 }
 
 export type MarkdownEditorHandle = {
+  focus: () => void
   getMarkdown: () => string
+}
+
+export type SlashCommandLabels = {
+  textGroup: string
+  listGroup: string
+  advancedGroup: string
+  text: string
+  heading1: string
+  heading2: string
+  heading3: string
+  heading4: string
+  heading5: string
+  heading6: string
+  quote: string
+  divider: string
+  bulletList: string
+  orderedList: string
+  taskList: string
+  codeBlock: string
+  table: string
 }
 
 const MERMAID_ALIASES = new Set(['mermaid', 'mmd'])
@@ -119,6 +149,34 @@ const readCrepeMarkdown = (crepe: Crepe | null, fallback: string) => {
   }
 }
 
+const createSlashMenuConfig = (labels: SlashCommandLabels) => ({
+  textGroup: {
+    label: labels.textGroup,
+    text: { label: labels.text },
+    h1: { label: labels.heading1 },
+    h2: { label: labels.heading2 },
+    h3: { label: labels.heading3 },
+    h4: { label: labels.heading4 },
+    h5: { label: labels.heading5 },
+    h6: { label: labels.heading6 },
+    quote: { label: labels.quote },
+    divider: { label: labels.divider },
+  },
+  listGroup: {
+    label: labels.listGroup,
+    bulletList: { label: labels.bulletList },
+    orderedList: { label: labels.orderedList },
+    taskList: { label: labels.taskList },
+  },
+  advancedGroup: {
+    label: labels.advancedGroup,
+    image: null,
+    codeBlock: { label: labels.codeBlock },
+    table: { label: labels.table },
+    math: null,
+  },
+})
+
 type PendingExternalValue = {
   path: string | null
   value: string
@@ -126,7 +184,7 @@ type PendingExternalValue = {
 }
 
 const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-  ({ activePath, value, onChange }, ref) => {
+  ({ activePath, value, onChange, placeholder, slashLabels }, ref) => {
     const rootRef = useRef<HTMLDivElement | null>(null)
     const crepeRef = useRef<Crepe | null>(null)
     const latestValue = useRef(value)
@@ -141,7 +199,17 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     const nodeViewFactory = useNodeViewFactory()
     const markViewFactory = useMarkViewFactory()
 
+    const focusEditor = () => {
+      const crepe = crepeRef.current
+      if (!crepe) return
+      crepe.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx)
+        view.focus()
+      })
+    }
+
     useImperativeHandle(ref, () => ({
+      focus: focusEditor,
       getMarkdown: () => readCrepeMarkdown(crepeRef.current, latestValue.current),
     }))
 
@@ -233,6 +301,10 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       const crepe = new Crepe({
         root,
         defaultValue: latestValue.current,
+        features: {
+          [Crepe.Feature.BlockEdit]: true,
+          [Crepe.Feature.Placeholder]: true,
+        },
         featureConfigs: {
           [Crepe.Feature.CodeMirror]: {
             theme: darkMode ? undefined : eclipse,
@@ -240,6 +312,11 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
           [Crepe.Feature.LinkTooltip]: {
             onCopyLink: () => {},
           },
+          [Crepe.Feature.Placeholder]: {
+            text: placeholder,
+            mode: 'block',
+          },
+          [Crepe.Feature.BlockEdit]: createSlashMenuConfig(slashLabels),
         },
       })
 
@@ -328,7 +405,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
           // Crepe can be half-initialized during React dev teardown.
         }
       }
-    }, [darkMode, markViewFactory, nodeViewFactory])
+    }, [darkMode, markViewFactory, nodeViewFactory, placeholder, slashLabels])
 
     useEffect(() => {
       const crepe = crepeRef.current
@@ -381,12 +458,21 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       applyPendingExternalValue()
     }
 
+    const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (target.closest('.ProseMirror')) return
+      if (target.closest('.milkdown-toolbar, .milkdown-link-preview, .milkdown-link-edit')) return
+      focusEditor()
+    }
+
     return (
       <div
         className="crepe flex h-full flex-1 flex-col"
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
         onBlur={handleBlur}
+        onPointerDown={handlePointerDown}
       >
         <ScrollArea className="h-full flex-1">
           <div className="milkdown min-h-full" ref={rootRef} />

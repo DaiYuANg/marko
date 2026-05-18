@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useDeferredValue, useEffect, useMemo, useRef } from 'react'
-import type { MarkdownEditorHandle } from '@/components/MarkdownEditor'
+import type { MarkdownEditorHandle, SlashCommandLabels } from '@/components/MarkdownEditor'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
 import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
@@ -29,6 +29,28 @@ function WysiwygEditorPage({ activePath, value, onChange, showStatusBar }: Wysiw
   const valueRef = useRef(value)
   const deferredValue = useDeferredValue(value)
   const stats = useMemo(() => getDocumentStats(deferredValue), [deferredValue])
+  const slashLabels = useMemo<SlashCommandLabels>(
+    () => ({
+      textGroup: t('slash.textGroup'),
+      listGroup: t('slash.listGroup'),
+      advancedGroup: t('slash.advancedGroup'),
+      text: t('slash.text'),
+      heading1: t('slash.heading1'),
+      heading2: t('slash.heading2'),
+      heading3: t('slash.heading3'),
+      heading4: t('slash.heading4'),
+      heading5: t('slash.heading5'),
+      heading6: t('slash.heading6'),
+      quote: t('slash.quote'),
+      divider: t('slash.divider'),
+      bulletList: t('slash.bulletList'),
+      orderedList: t('slash.orderedList'),
+      taskList: t('slash.taskList'),
+      codeBlock: t('slash.codeBlock'),
+      table: t('slash.table'),
+    }),
+    [t],
+  )
 
   useEffect(() => {
     activePathRef.current = activePath
@@ -58,6 +80,8 @@ function WysiwygEditorPage({ activePath, value, onChange, showStatusBar }: Wysiw
                 activePath={activePath}
                 value={value}
                 onChange={onChange}
+                placeholder={t('editor.placeholder')}
+                slashLabels={slashLabels}
               />
             </Suspense>
           </div>
