@@ -7,7 +7,7 @@ import {
   type PointerEvent,
 } from 'react'
 
-type UseEditableCommitOptions<T extends HTMLElement> = {
+export type UseEditableCommitOptions<T extends HTMLElement> = {
   value: string
   onCommit?: (value: string) => void
   readValue?: (element: T) => string

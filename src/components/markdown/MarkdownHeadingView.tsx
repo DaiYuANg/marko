@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import clamp from 'lodash-es/clamp'
-import { useEditableCommit } from '@/components/markdown/useEditableCommit'
+import MarkdownEditableText from '@/components/markdown/MarkdownEditableText'
 
 type MarkdownHeadingViewProps = {
   level: number
@@ -35,6 +35,8 @@ const getHeadingClass = (level: number, compact: boolean) => {
   return compact ? compactHeadingClasses[normalizedLevel] : fullHeadingClasses[normalizedLevel]
 }
 
+const normalizeHeadingText = (value: string) => value.trim()
+
 const MarkdownHeadingView = ({
   level,
   text = '',
@@ -46,13 +48,6 @@ const MarkdownHeadingView = ({
 }: MarkdownHeadingViewProps) => {
   const headingClass = getHeadingClass(level, compact)
   const selectedClass = selected ? 'border-ring bg-accent/50' : 'border-transparent'
-  const editableHandlers = useEditableCommit<HTMLDivElement>({
-    value: text,
-    onCommit,
-    normalizeValue: (next) => next.trim(),
-    commitOnEnter: true,
-    rejectEmpty: true,
-  })
 
   if (contentRef) {
     return (
@@ -66,16 +61,16 @@ const MarkdownHeadingView = ({
   }
 
   return (
-    <div
-      key={text}
+    <MarkdownEditableText
       className={`marko-md-block nodrag rounded-sm border border-transparent px-1 outline-none focus:border-ring focus:bg-background ${headingClass}`}
       data-selected={selected ? 'true' : 'false'}
-      contentEditable={editable}
-      suppressContentEditableWarning
-      {...editableHandlers}
-    >
-      {text}
-    </div>
+      editable={editable}
+      value={text}
+      normalizeValue={normalizeHeadingText}
+      commitOnEnter
+      rejectEmpty
+      onCommit={onCommit}
+    />
   )
 }
 

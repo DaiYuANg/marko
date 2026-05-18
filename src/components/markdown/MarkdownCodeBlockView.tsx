@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { useEditableCommit } from '@/components/markdown/useEditableCommit'
+import MarkdownEditableText from '@/components/markdown/MarkdownEditableText'
 
 type MarkdownCodeBlockViewProps = {
   text: string
@@ -14,11 +14,6 @@ const MarkdownCodeBlockView = ({
   editable = false,
   onCommit,
 }: MarkdownCodeBlockViewProps) => {
-  const editableHandlers = useEditableCommit<HTMLElement>({
-    value: text,
-    onCommit,
-  })
-
   return (
     <div className="nodrag overflow-hidden rounded-sm border border-border bg-muted/55 text-xs">
       {language ? (
@@ -27,15 +22,13 @@ const MarkdownCodeBlockView = ({
         </div>
       ) : null}
       <pre className="max-h-32 overflow-auto px-2 py-1.5 font-mono leading-5">
-        <code
-          key={text}
+        <MarkdownEditableText
+          as="code"
           className="block min-h-5 whitespace-pre-wrap rounded-sm outline-none focus:bg-background focus:ring-1 focus:ring-ring"
-          contentEditable={editable}
-          suppressContentEditableWarning
-          {...editableHandlers}
-        >
-          {text}
-        </code>
+          editable={editable}
+          value={text}
+          onCommit={onCommit}
+        />
       </pre>
     </div>
   )
