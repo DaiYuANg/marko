@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { GitGraph } from 'lucide-react'
 import { Background, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState } from 'reactflow'
 import type { Node } from 'reactflow'
 import type { GraphContentMode } from '@/store/useAppStore'
 import type { GraphData, GraphNodeData } from '@/logic/graph'
+import { mergeGraphNodePositions } from '@/logic/graphViewState'
 import { ExternalNode, HeadingNode, MissingNode } from '@/components/GraphNodes'
 import { useI18n } from '@/i18n/useI18n'
 
@@ -16,7 +17,7 @@ type GraphPageProps = {
   contentMode: GraphContentMode
   editable: boolean
   onUpdateHeadingTitle: (nodeId: string, title: string) => void
-  onUpdateHeadingContent: (nodeId: string, content: string) => void
+  onUpdateHeadingContent: NonNullable<GraphNodeData['onUpdateContent']>
 }
 
 const GraphPageComponent = ({
@@ -31,25 +32,28 @@ const GraphPageComponent = ({
   const { t } = useI18n()
   const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges)
+  const layoutKeyRef = useRef(graph.layoutKey)
 
   useEffect(() => {
-    setNodes(
-      graph.nodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          contentMode,
-          editable: editable && node.type === 'heading',
-          onUpdateTitle: onUpdateHeadingTitle,
-          onUpdateContent: onUpdateHeadingContent,
-        },
-      })),
-    )
+    const preservePositions = layoutKeyRef.current === graph.layoutKey
+    const nextNodes = graph.nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        contentMode,
+        editable: editable && node.type === 'heading',
+        onUpdateTitle: onUpdateHeadingTitle,
+        onUpdateContent: onUpdateHeadingContent,
+      },
+    }))
+    setNodes((currentNodes) => mergeGraphNodePositions(nextNodes, currentNodes, preservePositions))
     setEdges(graph.edges)
+    layoutKeyRef.current = graph.layoutKey
   }, [
     contentMode,
     editable,
     graph.edges,
+    graph.layoutKey,
     graph.nodes,
     onUpdateHeadingContent,
     onUpdateHeadingTitle,

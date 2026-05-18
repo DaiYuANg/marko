@@ -70,7 +70,7 @@ export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
       const contentBlocks = blocks.filter(isContentBlock)
       const nextBlocks = updateMarkdownBlockText(contentBlocks, commit)
       if (!nextBlocks) return
-      onUpdateContent?.(id, serializeMarkdownBlocks(nextBlocks))
+      onUpdateContent?.(id, serializeMarkdownBlocks(nextBlocks), nextBlocks)
     },
     [blocks, id, onUpdateContent, onUpdateTitle],
   )

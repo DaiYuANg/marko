@@ -20,7 +20,7 @@ export type GraphNodeData = {
   contentMode?: GraphContentMode
   editable?: boolean
   onUpdateTitle?: (nodeId: string, title: string) => void
-  onUpdateContent?: (nodeId: string, content: string) => void
+  onUpdateContent?: (nodeId: string, content: string, contentBlocks?: MarkdownBlock[]) => void
 }
 
 export type GraphData = {

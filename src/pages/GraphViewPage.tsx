@@ -1,5 +1,7 @@
-import { lazy, memo, Suspense, useMemo } from 'react'
+import { lazy, memo, Suspense, useMemo, useState } from 'react'
 import type { GraphData } from '@/logic/graph'
+import { patchGraphHeadingContent, patchGraphHeadingTitle } from '@/logic/graphOptimistic'
+import type { MarkdownBlock } from '@/logic/markdownBlocks'
 import type { GraphContentMode } from '@/store/useAppStore'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
@@ -17,6 +19,11 @@ type GraphViewPageProps = {
   showEmptyMessage: boolean
 }
 
+type OptimisticGraphState = {
+  baseGraph: GraphData
+  graph: GraphData
+}
+
 function GraphViewPage({
   graph,
   markdown,
@@ -28,29 +35,45 @@ function GraphViewPage({
   showEmptyMessage,
 }: GraphViewPageProps) {
   const { t } = useI18n()
-  const canEdit = editable && graph.nodes.some((node) => node.type === 'heading')
+  const [optimisticGraph, setOptimisticGraph] = useState<OptimisticGraphState | null>(null)
+  const editorGraph = optimisticGraph?.baseGraph === graph ? optimisticGraph.graph : graph
+  const canEdit = editable && editorGraph.nodes.some((node) => node.type === 'heading')
   const graphContentMode = canEdit ? 'full' : contentMode
 
   const updateHeadingTitle = useMemo(
     () => (nodeId: string, title: string) => {
-      const node = graph.nodes.find((item) => item.id === nodeId)
+      const node = editorGraph.nodes.find((item) => item.id === nodeId)
       const headingLine = node?.data.line
       const level = node?.data.level
       if (!headingLine || !level) return
       onChange(replaceHeadingTitle(markdown, headingLine, level, title))
+      setOptimisticGraph((current) => {
+        const currentGraph = current?.baseGraph === graph ? current.graph : graph
+        return {
+          baseGraph: graph,
+          graph: patchGraphHeadingTitle(currentGraph, nodeId, title),
+        }
+      })
     },
-    [graph.nodes, markdown, onChange],
+    [editorGraph.nodes, graph, markdown, onChange],
   )
 
   const updateHeadingContent = useMemo(
-    () => (nodeId: string, content: string) => {
-      const node = graph.nodes.find((item) => item.id === nodeId)
+    () => (nodeId: string, content: string, contentBlocks?: MarkdownBlock[]) => {
+      const node = editorGraph.nodes.find((item) => item.id === nodeId)
       const startLine = node?.data.contentStartLine
       const endLine = node?.data.contentEndLine
       if (!startLine || !endLine) return
       onChange(replaceLineRange(markdown, startLine, endLine, content))
+      setOptimisticGraph((current) => {
+        const currentGraph = current?.baseGraph === graph ? current.graph : graph
+        return {
+          baseGraph: graph,
+          graph: patchGraphHeadingContent(currentGraph, nodeId, content, contentBlocks),
+        }
+      })
     },
-    [graph.nodes, markdown, onChange],
+    [editorGraph.nodes, graph, markdown, onChange],
   )
 
   return (
@@ -60,7 +83,7 @@ function GraphViewPage({
           <div className="h-full animate-[view-fade_160ms_ease-out]">
             <Suspense fallback={<EditorPaneFallback />}>
               <GraphPage
-                graph={graph}
+                graph={editorGraph}
                 onOpenFile={onOpenFile}
                 showMiniMap={showMiniMap}
                 contentMode={graphContentMode}
