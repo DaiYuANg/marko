@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use tauri::{Manager, State};
 
 use crate::commands::fs_runtime::{emit_buffer_status, emit_buffer_statuses, set_background_task};
@@ -259,6 +260,58 @@ pub async fn fs_get_path_metadata(
   services: State<'_, crate::services::AppServices>,
 ) -> Result<crate::models::FsPathMetadata, String> {
   services.workspace.path_metadata(path, &state).await
+}
+
+#[tauri::command]
+pub async fn fs_import_markdown_asset(
+  source_path: String,
+  document_path: String,
+  strategy: String,
+  title: Option<String>,
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<crate::models::FsMarkdownAssetImportResult, String> {
+  let result = services
+    .markdown_assets
+    .import_asset(source_path, document_path, strategy, title, &state)
+    .await?;
+  if result.copied {
+    publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  }
+  Ok(result)
+}
+
+#[tauri::command]
+pub async fn fs_import_markdown_asset_base64(
+  file_name: String,
+  base64_data: String,
+  document_path: String,
+  title: Option<String>,
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<crate::models::FsMarkdownAssetImportResult, String> {
+  let bytes = general_purpose::STANDARD
+    .decode(base64_data)
+    .map_err(|err| format!("Failed to decode asset content: {err}"))?;
+  let result = services
+    .markdown_assets
+    .import_asset_bytes(file_name, bytes, document_path, title, &state)
+    .await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  Ok(result)
+}
+
+#[tauri::command]
+pub async fn fs_resolve_markdown_asset(
+  document_path: String,
+  target: String,
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<crate::models::FsMarkdownAssetResolveResult, String> {
+  services
+    .markdown_assets
+    .resolve_asset(document_path, target, &state)
+    .await
 }
 
 // Kept for backward compatibility with old frontend calls.

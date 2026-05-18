@@ -714,6 +714,7 @@ mod tests {
               column: 1,
             },
           ],
+          assets: vec![],
         },
         crate::models::FsIndexedMarkdownFile {
           path: "notes/target.md".to_string(),
@@ -725,6 +726,7 @@ mod tests {
             line: 4,
           }],
           links: vec![],
+          assets: vec![],
         },
       ],
     });

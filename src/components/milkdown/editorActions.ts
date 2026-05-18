@@ -1,5 +1,6 @@
 import type { Crepe } from '@milkdown/crepe'
-import { editorViewCtx, parserCtx } from '@milkdown/kit/core'
+import { commandsCtx, editorViewCtx, parserCtx } from '@milkdown/kit/core'
+import { insertImageCommand } from '@milkdown/kit/preset/commonmark'
 import { Slice, type Node as ProseMirrorNode } from '@milkdown/kit/prose/model'
 import { Selection } from '@milkdown/kit/prose/state'
 import clamp from 'lodash-es/clamp'
@@ -109,4 +110,43 @@ export const focusHeadingInCrepe = (crepe: Crepe, slug: string) => {
     view.dispatch(tr)
     view.focus()
   })
+}
+
+export const placeCrepeSelectionAtClientPoint = (
+  crepe: Crepe | null,
+  clientX: number,
+  clientY: number,
+) => {
+  if (!crepe) return false
+  let placed = false
+
+  crepe.editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx)
+    const result = view.posAtCoords({ left: clientX, top: clientY })
+    if (!result) return
+
+    const selection = Selection.near(view.state.doc.resolve(result.pos))
+    view.dispatch(view.state.tr.setSelection(selection))
+    view.focus()
+    placed = true
+  })
+
+  return placed
+}
+
+export const insertImageIntoCrepe = (crepe: Crepe | null, src: string, alt = '') => {
+  if (!crepe || !src) return false
+  let inserted = false
+  crepe.editor.action((ctx) => {
+    const commands = ctx.get(commandsCtx)
+    inserted = commands.call(insertImageCommand.key, {
+      src,
+      alt,
+      title: '',
+    })
+    if (inserted) {
+      ctx.get(editorViewCtx).focus()
+    }
+  })
+  return inserted
 }

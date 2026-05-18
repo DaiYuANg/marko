@@ -6,6 +6,7 @@ use super::{
   document_store::DocumentStoreService,
   events::{EventBus, RuntimeService},
   git::GitService,
+  markdown_assets::MarkdownAssetService,
   markdown_graph::MarkdownGraphService,
   markdown_index::MarkdownIndexService,
   path_resolver::PathResolver,
@@ -29,6 +30,13 @@ impl Module for AppModule {
     }))?;
     injector.try_provide::<GitService>(Provider::root(|_| Shared::new(GitService)))?;
     injector.try_provide::<PathResolver>(Provider::root(|_| Shared::new(PathResolver)))?;
+    injector.try_provide::<MarkdownAssetService>(Provider::root(|injector| {
+      Shared::new(MarkdownAssetService::new(
+        *injector
+          .try_resolve::<PathResolver>()
+          .expect("PathResolver should be registered before MarkdownAssetService"),
+      ))
+    }))?;
     injector.try_provide::<DocumentStoreService>(Provider::root(|injector| {
       Shared::new(DocumentStoreService::new(
         injector
@@ -124,6 +132,7 @@ pub async fn build_app_container() -> Result<AppContainer, Error> {
     documents: injector.try_resolve::<DocumentStoreService>()?,
     events: injector.try_resolve::<EventBus>()?,
     git: injector.try_resolve::<GitService>()?,
+    markdown_assets: injector.try_resolve::<MarkdownAssetService>()?,
     runtime: injector.try_resolve::<RuntimeService>()?,
     workspace: injector.try_resolve::<WorkspaceService>()?,
   };

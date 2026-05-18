@@ -5,7 +5,6 @@ import {
   bulletListSchema,
   codeBlockSchema,
   headingSchema,
-  insertImageCommand,
   orderedListSchema,
   paragraphSchema,
   setBlockTypeCommand,
@@ -27,7 +26,15 @@ const headingShortcutLevels: Partial<Record<ShortcutActionId, number>> = {
   'editor.heading6': 6,
 }
 
-export const runMarkdownEditorShortcut = (crepe: Crepe | null, action: ShortcutActionId) => {
+type MarkdownEditorShortcutOptions = {
+  onImageImport?: () => Promise<boolean>
+}
+
+export const runMarkdownEditorShortcut = (
+  crepe: Crepe | null,
+  action: ShortcutActionId,
+  options: MarkdownEditorShortcutOptions = {},
+) => {
   if (!crepe) return false
   let handled = false
 
@@ -104,14 +111,8 @@ export const runMarkdownEditorShortcut = (crepe: Crepe | null, action: ShortcutA
         break
       }
       case 'editor.image': {
-        const src = window.prompt('Image URL')
-        handled = src
-          ? commands.call(insertImageCommand.key, {
-              src,
-              alt: '',
-              title: '',
-            })
-          : true
+        handled = true
+        void options.onImageImport?.()
         break
       }
       case 'editor.codeBlock':

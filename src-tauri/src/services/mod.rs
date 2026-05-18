@@ -3,6 +3,7 @@ pub mod document_store;
 pub mod events;
 pub mod export;
 pub mod git;
+pub mod markdown_assets;
 pub mod markdown_graph;
 pub mod markdown_index;
 pub mod path_resolver;
@@ -15,6 +16,7 @@ use document_store::DocumentStoreService;
 use events::{EventBus, RuntimeService};
 pub use export::ExportService;
 use git::GitService;
+use markdown_assets::MarkdownAssetService;
 use workspace::WorkspaceService;
 
 #[derive(Debug, Clone)]
@@ -23,6 +25,7 @@ pub struct AppServices {
   pub documents: Shared<DocumentStoreService>,
   pub events: Shared<EventBus>,
   pub git: Shared<GitService>,
+  pub markdown_assets: Shared<MarkdownAssetService>,
   pub runtime: Shared<RuntimeService>,
   pub workspace: Shared<WorkspaceService>,
 }

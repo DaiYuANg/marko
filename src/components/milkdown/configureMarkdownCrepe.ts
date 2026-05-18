@@ -5,6 +5,7 @@ import type { MarkViewConstructor, NodeViewConstructor } from '@milkdown/kit/pro
 import type { ReactMarkViewUserOptions, ReactNodeViewUserOptions } from '@prosemirror-adapter/react'
 import { createMarkdownBlockNodeViews } from '@/components/milkdown/blockNodeViews'
 import { createMarkdownHeadingNodeView } from '@/components/milkdown/headingNodeView'
+import { createMarkdownImageNodeView } from '@/components/milkdown/imageNodeView'
 import { createMarkdownMarkViews } from '@/components/milkdown/markViews'
 import { configureMermaidPreview } from '@/components/milkdown/mermaidPreview'
 import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
@@ -14,14 +15,24 @@ export type NodeViewFactory = (options: ReactNodeViewUserOptions) => NodeViewCon
 export type MarkViewFactory = (options: ReactMarkViewUserOptions) => MarkViewConstructor
 
 type ConfigureMarkdownCrepeOptions = {
+  getImageDocumentPath: () => string | null
   markViewFactory: MarkViewFactory
   nodeViewFactory: NodeViewFactory
   onMarkdownUpdated: (markdown: string) => void
+  resolveImageSrc: (documentPath: string | null, src: string) => Promise<string>
+  subscribeImageDocumentPath: (listener: () => void) => () => void
 }
 
 export const configureMarkdownCrepe = (
   crepe: Crepe,
-  { markViewFactory, nodeViewFactory, onMarkdownUpdated }: ConfigureMarkdownCrepeOptions,
+  {
+    getImageDocumentPath,
+    markViewFactory,
+    nodeViewFactory,
+    onMarkdownUpdated,
+    resolveImageSrc,
+    subscribeImageDocumentPath,
+  }: ConfigureMarkdownCrepeOptions,
 ) => {
   crepe.editor
     .config((ctx) => {
@@ -34,6 +45,13 @@ export const configureMarkdownCrepe = (
     .use(listener)
     .use(createMarkdownParagraphNodeView(nodeViewFactory))
     .use(createMarkdownHeadingNodeView(nodeViewFactory))
+    .use(
+      createMarkdownImageNodeView(nodeViewFactory, {
+        getDocumentPath: getImageDocumentPath,
+        resolveImageSrc,
+        subscribeDocumentPath: subscribeImageDocumentPath,
+      }),
+    )
     .use(createMarkdownBlockNodeViews(nodeViewFactory))
     .use(createMarkdownMarkViews(markViewFactory))
     .use(pasteLinkOnSelection)

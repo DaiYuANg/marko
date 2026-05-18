@@ -21,6 +21,7 @@ export type FileViewKind = 'edit' | 'source' | 'graph'
 export type ThemeMode = 'light' | 'dark' | 'marko-light' | 'marko-dark'
 export type GitDiffSection = 'staged' | 'unstaged' | 'untracked' | 'conflicts'
 export type GraphContentMode = 'none' | 'summary' | 'full'
+export type MarkdownAssetImportStrategy = 'copy-to-document-assets' | 'preserve-path'
 
 export type WorkspaceTab =
   | {
@@ -59,6 +60,7 @@ type AppState = {
   defaultFileView: FileViewKind
   graphMiniMapEnabled: boolean
   graphContentMode: GraphContentMode
+  markdownAssetImportStrategy: MarkdownAssetImportStrategy
   shortcutOverrides: ShortcutBindings
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external' | 'single') => void
@@ -73,6 +75,7 @@ type AppState = {
   setDefaultFileView: (view: FileViewKind) => void
   setGraphMiniMapEnabled: (enabled: boolean) => void
   setGraphContentMode: (mode: GraphContentMode) => void
+  setMarkdownAssetImportStrategy: (strategy: MarkdownAssetImportStrategy) => void
   setShortcutOverride: (action: ShortcutActionId, bindings: string[] | null) => void
   resetShortcutOverrides: () => void
   toggleSidebar: () => void
@@ -99,6 +102,7 @@ export const useAppStore = create<AppState>()(
       defaultFileView: 'edit',
       graphMiniMapEnabled: true,
       graphContentMode: 'summary',
+      markdownAssetImportStrategy: 'copy-to-document-assets',
       shortcutOverrides: {},
       setRootPath: (path) => set((state) => (state.rootPath === path ? state : { rootPath: path })),
       setRootKind: (kind) => set((state) => (state.rootKind === kind ? state : { rootKind: kind })),
@@ -133,6 +137,12 @@ export const useAppStore = create<AppState>()(
         set((state) =>
           state.graphContentMode === graphContentMode ? state : { graphContentMode },
         ),
+      setMarkdownAssetImportStrategy: (markdownAssetImportStrategy) =>
+        set((state) =>
+          state.markdownAssetImportStrategy === markdownAssetImportStrategy
+            ? state
+            : { markdownAssetImportStrategy },
+        ),
       setShortcutOverride: (action, bindings) =>
         set((state) => {
           const next = { ...state.shortcutOverrides }
@@ -161,7 +171,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'marko.app',
       storage: createIdleJsonStorage('marko.app'),
-      version: 10,
+      version: 11,
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
         const legacyTheme =
@@ -209,6 +219,10 @@ export const useAppStore = create<AppState>()(
             state.graphContentMode === 'none' || state.graphContentMode === 'full'
               ? state.graphContentMode
               : 'summary',
+          markdownAssetImportStrategy:
+            state.markdownAssetImportStrategy === 'preserve-path'
+              ? 'preserve-path'
+              : 'copy-to-document-assets',
           shortcutOverrides: sanitizeShortcutOverrides(
             version < 10
               ? (state as { shortcutOverrides?: unknown }).shortcutOverrides
@@ -232,6 +246,7 @@ export const useAppStore = create<AppState>()(
         defaultFileView: state.defaultFileView,
         graphMiniMapEnabled: state.graphMiniMapEnabled,
         graphContentMode: state.graphContentMode,
+        markdownAssetImportStrategy: state.markdownAssetImportStrategy,
         shortcutOverrides: state.shortcutOverrides,
       }),
     },

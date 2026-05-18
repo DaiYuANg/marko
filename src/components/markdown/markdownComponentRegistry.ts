@@ -3,6 +3,7 @@ import MarkdownCodeBlockView from '@/components/markdown/MarkdownCodeBlockView'
 import MarkdownDividerView from '@/components/markdown/MarkdownDividerView'
 import MarkdownEditableList from '@/components/markdown/MarkdownEditableList'
 import MarkdownHeadingView from '@/components/markdown/MarkdownHeadingView'
+import MarkdownImageView from '@/components/markdown/MarkdownImageView'
 import MarkdownInlineCodeView from '@/components/markdown/MarkdownInlineCodeView'
 import MarkdownLinkView from '@/components/markdown/MarkdownLinkView'
 import MarkdownListView from '@/components/markdown/MarkdownListView'
@@ -15,6 +16,7 @@ export const markdownBlockComponentRegistry = {
   divider: MarkdownDividerView,
   editableList: MarkdownEditableList,
   heading: MarkdownHeadingView,
+  image: MarkdownImageView,
   list: MarkdownListView,
   paragraph: MarkdownParagraphView,
 } as const

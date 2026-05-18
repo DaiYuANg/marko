@@ -6,8 +6,8 @@ use percent_encoding::percent_decode_str;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::models::{
-  FsEntry, FsIndexedMarkdownFile, FsMarkdownDiagnostic, FsMarkdownHeading, FsMarkdownLink,
-  FsWorkspaceIndex,
+  FsEntry, FsIndexedMarkdownFile, FsMarkdownAsset, FsMarkdownDiagnostic, FsMarkdownHeading,
+  FsMarkdownLink, FsWorkspaceIndex,
 };
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -56,10 +56,15 @@ pub fn build_workspace_index(files: &[FsEntry], contents: &[(String, String)]) -
         .into_iter()
         .map(|link| normalize_link(path, link, &name_index, &existing_paths))
         .collect();
+      let assets = extract_assets(content)
+        .into_iter()
+        .map(|asset| normalize_asset(path, asset))
+        .collect();
       FsIndexedMarkdownFile {
         path: path.clone(),
         headings,
         links,
+        assets,
       }
     })
     .collect();
@@ -137,6 +142,15 @@ struct RawMarkdownLink {
   text: String,
   target: String,
   link_type: String,
+  context: String,
+  line: usize,
+  column: usize,
+}
+
+#[derive(Debug, Clone)]
+struct RawMarkdownAsset {
+  target: String,
+  text: String,
   context: String,
   line: usize,
   column: usize,
@@ -259,6 +273,50 @@ fn extract_links(content: &str) -> Vec<RawMarkdownLink> {
   links
 }
 
+fn extract_assets(content: &str) -> Vec<RawMarkdownAsset> {
+  let mut assets = Vec::new();
+  let mut current_asset: Option<(String, usize, String)> = None;
+  let parser = Parser::new_ext(content, markdown_options()).into_offset_iter();
+
+  for (event, range) in parser {
+    match event {
+      Event::Start(Tag::Image { dest_url, .. }) => {
+        current_asset = Some((dest_url.to_string(), range.start, String::new()));
+      }
+      Event::End(TagEnd::Image) => {
+        let Some((target, byte_index, raw_text)) = current_asset.take() else {
+          continue;
+        };
+        let target = target.trim().to_string();
+        if target.is_empty() {
+          continue;
+        }
+        let (line, column) = source_location(content, byte_index);
+        assets.push(RawMarkdownAsset {
+          target,
+          text: raw_text.trim().to_string(),
+          context: line_context(content, byte_index),
+          line,
+          column,
+        });
+      }
+      Event::Text(text) | Event::Code(text) => {
+        if let Some((_, _, asset_text)) = current_asset.as_mut() {
+          asset_text.push_str(&text);
+        }
+      }
+      Event::SoftBreak | Event::HardBreak => {
+        if let Some((_, _, asset_text)) = current_asset.as_mut() {
+          asset_text.push(' ');
+        }
+      }
+      _ => {}
+    }
+  }
+
+  assets
+}
+
 fn markdown_options() -> Options {
   Options::ENABLE_GFM | Options::ENABLE_WIKILINKS
 }
@@ -335,6 +393,45 @@ fn normalize_link(
   }
 }
 
+fn normalize_asset(source_path: &str, asset: RawMarkdownAsset) -> FsMarkdownAsset {
+  if is_external_target(&asset.target) {
+    return FsMarkdownAsset {
+      source_path: source_path.to_string(),
+      target: asset.target,
+      target_path: None,
+      is_external: true,
+      media_type: None,
+      context: asset.context,
+      line: asset.line,
+      column: asset.column,
+    };
+  }
+
+  let (target_path_part, _) = split_link_target(&asset.target);
+  let target_path = if target_path_part.trim().is_empty() {
+    None
+  } else {
+    Some(resolve_relative_link_path(source_path, &target_path_part))
+  };
+
+  FsMarkdownAsset {
+    source_path: source_path.to_string(),
+    media_type: target_path.as_deref().and_then(guess_media_type),
+    target: asset.target,
+    target_path,
+    is_external: false,
+    context: if asset.text.is_empty() {
+      asset.context
+    } else {
+      format!("{} {}", asset.text, asset.context)
+        .trim()
+        .to_string()
+    },
+    line: asset.line,
+    column: asset.column,
+  }
+}
+
 fn split_link_target(target: &str) -> (String, Option<String>) {
   match target.find('#') {
     Some(index) => (
@@ -343,6 +440,26 @@ fn split_link_target(target: &str) -> (String, Option<String>) {
     ),
     None => (target.to_string(), None),
   }
+}
+
+fn guess_media_type(path: &str) -> Option<String> {
+  let extension = Path::new(path)
+    .extension()
+    .and_then(|value| value.to_str())?
+    .to_ascii_lowercase();
+  let media_type = match extension.as_str() {
+    "apng" => "image/apng",
+    "avif" => "image/avif",
+    "gif" => "image/gif",
+    "jpg" | "jpeg" => "image/jpeg",
+    "png" => "image/png",
+    "svg" => "image/svg+xml",
+    "webp" => "image/webp",
+    "bmp" => "image/bmp",
+    "pdf" => "application/pdf",
+    _ => return None,
+  };
+  Some(media_type.to_string())
 }
 
 fn resolve_relative_link_path(base: &str, target: &str) -> String {
@@ -497,7 +614,8 @@ mod tests {
     let contents = vec![
       (
         "notes/current.md".to_string(),
-        "# Current\nSee [Target](target.md#Details) and [[today]].\n".to_string(),
+        "# Current\nSee [Target](target.md#Details) and [[today]].\n![Logo](../assets/logo.png)\n"
+          .to_string(),
       ),
       (
         "notes/target.md".to_string(),
@@ -533,5 +651,11 @@ mod tests {
     );
     assert_eq!(current.links[1].link_type, "wiki");
     assert_eq!(current.links[1].line, 2);
+    assert_eq!(current.assets[0].target, "../assets/logo.png");
+    assert_eq!(
+      current.assets[0].target_path.as_deref(),
+      Some("assets/logo.png")
+    );
+    assert_eq!(current.assets[0].media_type.as_deref(), Some("image/png"));
   }
 }

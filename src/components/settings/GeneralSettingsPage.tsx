@@ -3,13 +3,22 @@ import { Code2, GitGraph, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/i18n/useI18n'
-import { useAppStore, type FileViewKind } from '@/store/useAppStore'
+import {
+  useAppStore,
+  type FileViewKind,
+  type MarkdownAssetImportStrategy,
+} from '@/store/useAppStore'
 import SettingsRow from '@/components/settings/SettingsRow'
 
 const fileViews: Array<{ value: FileViewKind; labelKey: string; icon: ElementType }> = [
   { value: 'edit', labelKey: 'editor.modeWysiwyg', icon: PenLine },
   { value: 'source', labelKey: 'editor.modeSource', icon: Code2 },
   { value: 'graph', labelKey: 'tabs.graph', icon: GitGraph },
+]
+
+const assetImportStrategies: Array<{ value: MarkdownAssetImportStrategy; labelKey: string }> = [
+  { value: 'copy-to-document-assets', labelKey: 'settings.assetStrategyCopy' },
+  { value: 'preserve-path', labelKey: 'settings.assetStrategyPreserve' },
 ]
 
 export default function GeneralSettingsPage() {
@@ -20,6 +29,10 @@ export default function GeneralSettingsPage() {
   const setShowEditorStatusBar = useAppStore((state) => state.setShowEditorStatusBar)
   const defaultFileView = useAppStore((state) => state.defaultFileView)
   const setDefaultFileView = useAppStore((state) => state.setDefaultFileView)
+  const markdownAssetImportStrategy = useAppStore((state) => state.markdownAssetImportStrategy)
+  const setMarkdownAssetImportStrategy = useAppStore(
+    (state) => state.setMarkdownAssetImportStrategy,
+  )
 
   return (
     <div className="space-y-4">
@@ -60,6 +73,24 @@ export default function GeneralSettingsPage() {
               </Button>
             )
           })}
+        </div>
+      </section>
+      <section className="settings-row-surface rounded-md p-3">
+        <div className="mb-1 text-sm font-medium">{t('settings.assetStrategy')}</div>
+        <div className="mb-3 text-xs leading-5 text-muted-foreground">
+          {t('settings.assetStrategyDescription')}
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {assetImportStrategies.map((item) => (
+            <Button
+              key={item.value}
+              variant={markdownAssetImportStrategy === item.value ? 'secondary' : 'outline'}
+              className="h-9 justify-start rounded-md"
+              onClick={() => setMarkdownAssetImportStrategy(item.value)}
+            >
+              <span className="truncate">{t(item.labelKey)}</span>
+            </Button>
+          ))}
         </div>
       </section>
     </div>

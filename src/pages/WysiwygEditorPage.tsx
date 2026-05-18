@@ -47,6 +47,7 @@ function WysiwygEditorPage({ activePath, value, onChange, showStatusBar }: Wysiw
       bulletList: t('slash.bulletList'),
       orderedList: t('slash.orderedList'),
       taskList: t('slash.taskList'),
+      image: t('slash.image'),
       codeBlock: t('slash.codeBlock'),
       table: t('slash.table'),
     }),

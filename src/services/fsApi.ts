@@ -61,10 +61,22 @@ export const fsMarkdownLinkSchema = z.object({
   column: z.number(),
 })
 
+export const fsMarkdownAssetSchema = z.object({
+  source_path: z.string(),
+  target: z.string(),
+  target_path: z.string().nullable().optional(),
+  is_external: z.boolean(),
+  media_type: z.string().nullable().optional(),
+  context: z.string(),
+  line: z.number(),
+  column: z.number(),
+})
+
 export const fsIndexedMarkdownFileSchema = z.object({
   path: z.string(),
   headings: z.array(fsMarkdownHeadingSchema),
   links: z.array(fsMarkdownLinkSchema),
+  assets: z.array(fsMarkdownAssetSchema).default([]),
 })
 
 export const fsWorkspaceIndexSchema = z.object({
@@ -132,6 +144,29 @@ export const fsGraphSchema = z.object({
   edges: z.array(fsGraphEdgeSchema),
 })
 
+export const markdownAssetImportStrategySchema = z.enum([
+  'copy-to-document-assets',
+  'preserve-path',
+])
+
+export const fsMarkdownAssetImportResultSchema = z.object({
+  markdown_target: z.string(),
+  relative_path: z.string(),
+  absolute_path: z.string(),
+  asset_dir: z.string().nullable().optional(),
+  copied: z.boolean(),
+})
+
+export const fsMarkdownAssetResolveResultSchema = z.object({
+  source_path: z.string(),
+  target: z.string(),
+  absolute_path: z.string().nullable().optional(),
+  relative_path: z.string().nullable().optional(),
+  is_external: z.boolean(),
+  media_type: z.string().nullable().optional(),
+  exists: z.boolean(),
+})
+
 export type FsRootKind = z.infer<typeof fsRootInfoSchema>['kind']
 export type FsEntry = z.infer<typeof fsEntrySchema>
 export type FsRootInfo = z.infer<typeof fsRootInfoSchema>
@@ -141,14 +176,25 @@ export type FsBufferStatus = z.infer<typeof fsBufferStatusSchema>
 export type BackgroundTaskStatus = z.infer<typeof backgroundTaskStatusSchema>
 export type FsMarkdownHeading = z.infer<typeof fsMarkdownHeadingSchema>
 export type FsMarkdownLink = z.infer<typeof fsMarkdownLinkSchema>
-export type FsIndexedMarkdownFile = z.infer<typeof fsIndexedMarkdownFileSchema>
-export type FsWorkspaceIndex = z.infer<typeof fsWorkspaceIndexSchema>
+export type FsMarkdownAsset = z.infer<typeof fsMarkdownAssetSchema>
+export type FsIndexedMarkdownFile = {
+  path: string
+  headings: FsMarkdownHeading[]
+  links: FsMarkdownLink[]
+  assets?: FsMarkdownAsset[]
+}
+export type FsWorkspaceIndex = {
+  files: FsIndexedMarkdownFile[]
+}
 export type FsMarkdownDiagnostic = z.infer<typeof fsMarkdownDiagnosticSchema>
 export type FsSearchResult = z.infer<typeof fsSearchResultSchema>
 export type FsMarkdownBlock = z.infer<typeof fsMarkdownBlockSchema>
 export type FsGraphNode = z.infer<typeof fsGraphNodeSchema>
 export type FsGraphEdge = z.infer<typeof fsGraphEdgeSchema>
 export type FsGraph = z.infer<typeof fsGraphSchema>
+export type MarkdownAssetImportStrategy = z.infer<typeof markdownAssetImportStrategySchema>
+export type FsMarkdownAssetImportResult = z.infer<typeof fsMarkdownAssetImportResultSchema>
+export type FsMarkdownAssetResolveResult = z.infer<typeof fsMarkdownAssetResolveResultSchema>
 
 export const fsApi = {
   async getSnapshot() {
@@ -222,5 +268,50 @@ export const fsApi = {
   async getPathMetadata(path: string) {
     const result = await invoke<unknown>('fs_get_path_metadata', { path })
     return fsPathMetadataSchema.parse(result)
+  },
+  async importMarkdownAsset({
+    sourcePath,
+    documentPath,
+    strategy,
+    title,
+  }: {
+    sourcePath: string
+    documentPath: string
+    strategy: MarkdownAssetImportStrategy
+    title?: string | null
+  }) {
+    const result = await invoke<unknown>('fs_import_markdown_asset', {
+      sourcePath,
+      documentPath,
+      strategy,
+      title,
+    })
+    return fsMarkdownAssetImportResultSchema.parse(result)
+  },
+  async importMarkdownAssetBase64({
+    fileName,
+    base64Data,
+    documentPath,
+    title,
+  }: {
+    fileName: string
+    base64Data: string
+    documentPath: string
+    title?: string | null
+  }) {
+    const result = await invoke<unknown>('fs_import_markdown_asset_base64', {
+      fileName,
+      base64Data,
+      documentPath,
+      title,
+    })
+    return fsMarkdownAssetImportResultSchema.parse(result)
+  },
+  async resolveMarkdownAsset({ documentPath, target }: { documentPath: string; target: string }) {
+    const result = await invoke<unknown>('fs_resolve_markdown_asset', {
+      documentPath,
+      target,
+    })
+    return fsMarkdownAssetResolveResultSchema.parse(result)
   },
 }

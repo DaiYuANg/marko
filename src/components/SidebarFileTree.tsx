@@ -21,6 +21,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { createFileTreeDragPayload, MARKO_FILE_TREE_ITEM_MIME } from '@/logic/fileDragPayload'
 import type { FileTreeNode } from '@/logic/fileTree'
 
 export type ContextLabels = {
@@ -124,7 +125,27 @@ const TreeRowComponent = ({
   const isFolder = node.type === 'folder'
   const isOpen = isFolder && openDirs.has(node.path)
   const isActive = node.type === 'file' && node.path === activePath
+  const isImageFile =
+    node.type === 'file' && /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(node.name)
   const paddingLeft = 10 + depth * 13
+
+  const handleDragStart = (event: React.DragEvent<HTMLButtonElement>) => {
+    if (!isImageFile) {
+      event.preventDefault()
+      return
+    }
+
+    event.dataTransfer.effectAllowed = 'copy'
+    event.dataTransfer.setData(
+      MARKO_FILE_TREE_ITEM_MIME,
+      createFileTreeDragPayload({
+        kind: 'file',
+        name: node.name,
+        path: node.path,
+      }),
+    )
+    event.dataTransfer.setData('text/plain', node.path)
+  }
 
   const handleCreateFile = () => {
     if (!isFolder || readonlyTree) return
@@ -171,6 +192,7 @@ const TreeRowComponent = ({
                 ? 'bg-accent text-accent-foreground before:absolute before:left-0 before:top-1 before:h-5 before:w-0.5 before:rounded-full before:bg-primary'
                 : 'text-sidebar-foreground/85 hover:bg-sidebar-accent'
             }`}
+            draggable={isImageFile}
             style={{ paddingLeft }}
             onClick={() => {
               if (isFolder) {
@@ -179,6 +201,7 @@ const TreeRowComponent = ({
               }
               onOpenFile(node.path)
             }}
+            onDragStart={handleDragStart}
           >
             {isFolder ? (
               <>

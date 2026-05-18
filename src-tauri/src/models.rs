@@ -75,10 +75,23 @@ pub struct FsMarkdownLink {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FsMarkdownAsset {
+  pub source_path: String,
+  pub target: String,
+  pub target_path: Option<String>,
+  pub is_external: bool,
+  pub media_type: Option<String>,
+  pub context: String,
+  pub line: usize,
+  pub column: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct FsIndexedMarkdownFile {
   pub path: String,
   pub headings: Vec<FsMarkdownHeading>,
   pub links: Vec<FsMarkdownLink>,
+  pub assets: Vec<FsMarkdownAsset>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -152,6 +165,26 @@ pub struct FsGraph {
   pub mode: String,
   pub nodes: Vec<FsGraphNode>,
   pub edges: Vec<FsGraphEdge>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsMarkdownAssetImportResult {
+  pub markdown_target: String,
+  pub relative_path: String,
+  pub absolute_path: String,
+  pub asset_dir: Option<String>,
+  pub copied: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FsMarkdownAssetResolveResult {
+  pub source_path: String,
+  pub target: String,
+  pub absolute_path: Option<String>,
+  pub relative_path: Option<String>,
+  pub is_external: bool,
+  pub media_type: Option<String>,
+  pub exists: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

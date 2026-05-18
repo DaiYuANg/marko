@@ -4,7 +4,8 @@ use crate::commands::fs::{
   fs_analyze_markdown_buffer, fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers,
   fs_get_background_tasks, fs_get_buffer_status, fs_get_outline_graph, fs_get_path_metadata,
   fs_get_root_info, fs_get_snapshot, fs_get_workspace_graph, fs_get_workspace_index,
-  fs_list_entries, fs_open_file, fs_read_file, fs_rebuild_search_index, fs_rename_path,
+  fs_import_markdown_asset, fs_import_markdown_asset_base64, fs_list_entries, fs_open_file,
+  fs_read_file, fs_rebuild_search_index, fs_rename_path, fs_resolve_markdown_asset,
   fs_search_workspace, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
 };
 use crate::commands::git::{
@@ -227,6 +228,9 @@ fn run_impl() {
       fs_get_buffer_status,
       fs_get_background_tasks,
       fs_get_path_metadata,
+      fs_import_markdown_asset,
+      fs_import_markdown_asset_base64,
+      fs_resolve_markdown_asset,
       fs_write_file,
       fs_create_file,
       fs_create_dir,

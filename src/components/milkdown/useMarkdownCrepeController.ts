@@ -13,22 +13,32 @@ import {
 import {
   focusCrepeEditor,
   focusCrepeEditorAtEnd,
+  insertImageIntoCrepe,
+  placeCrepeSelectionAtClientPoint,
   readCrepeMarkdown,
   replaceCrepeMarkdown,
   type PendingExternalValue,
   type ReplaceMarkdownOptions,
 } from '@/components/milkdown/editorActions'
 import {
+  importMarkdownImageSources,
+  pickMarkdownImageSource,
+  type MarkdownImageImportSource,
+} from '@/components/milkdown/assetEvents'
+import {
   resolveExternalMarkdownSync,
   resolvePendingMarkdownSync,
 } from '@/components/milkdown/editorSync'
 import { runMarkdownEditorShortcut } from '@/components/milkdown/editorShortcuts'
+import { resolveMarkdownImageSource } from '@/components/milkdown/markdownImageSource'
 import { useFocusHeadingEvent } from '@/components/milkdown/useFocusHeadingEvent'
 import type { MarkdownEditorProps } from '@/components/milkdown/markdownEditorTypes'
 import type { ShortcutActionId } from '@/logic/shortcuts'
+import type { MarkdownAssetImportStrategy } from '@/store/useAppStore'
 
 type UseMarkdownCrepeControllerOptions = MarkdownEditorProps & {
   darkMode: boolean
+  markdownAssetImportStrategy: MarkdownAssetImportStrategy
   markViewFactory: MarkViewFactory
   nodeViewFactory: NodeViewFactory
 }
@@ -36,6 +46,7 @@ type UseMarkdownCrepeControllerOptions = MarkdownEditorProps & {
 export const useMarkdownCrepeController = ({
   activePath,
   darkMode,
+  markdownAssetImportStrategy,
   markViewFactory,
   nodeViewFactory,
   onChange,
@@ -49,6 +60,8 @@ export const useMarkdownCrepeController = ({
   const latestValue = useRef(value)
   const onChangeRef = useRef(onChange)
   const activePathRef = useRef(activePath)
+  const markdownAssetImportStrategyRef = useRef(markdownAssetImportStrategy)
+  const activePathListenersRef = useRef(new Set<() => void>())
   const localEchoRef = useRef<{ path: string | null; value: string } | null>(null)
   const applyingExternalValueRef = useRef(false)
   const isComposingRef = useRef(false)
@@ -64,8 +77,54 @@ export const useMarkdownCrepeController = ({
     return readCrepeMarkdown(crepeRef.current, latestValue.current)
   }, [])
 
-  const runShortcutAction = useCallback((action: ShortcutActionId) => {
-    return runMarkdownEditorShortcut(crepeRef.current, action)
+  const insertImage = useCallback((src: string, alt?: string) => {
+    return insertImageIntoCrepe(crepeRef.current, src, alt)
+  }, [])
+
+  const placeSelectionAtClientPoint = useCallback((clientX: number, clientY: number) => {
+    return placeCrepeSelectionAtClientPoint(crepeRef.current, clientX, clientY)
+  }, [])
+
+  const importImageSources = useCallback(
+    async (sources: MarkdownImageImportSource[]) => {
+      return importMarkdownImageSources(sources, {
+        activePath: activePathRef.current,
+        insertImage,
+        markdown: readCrepeMarkdown(crepeRef.current, latestValue.current),
+        strategy: markdownAssetImportStrategyRef.current,
+      })
+    },
+    [insertImage],
+  )
+
+  const pickAndImportImage = useCallback(async () => {
+    const source = await pickMarkdownImageSource()
+    if (!source) return false
+    return importImageSources([source])
+  }, [importImageSources])
+
+  const runShortcutAction = useCallback(
+    (action: ShortcutActionId) => {
+      return runMarkdownEditorShortcut(crepeRef.current, action, {
+        onImageImport: pickAndImportImage,
+      })
+    },
+    [pickAndImportImage],
+  )
+
+  const getImageDocumentPath = useCallback(() => {
+    return activePathRef.current
+  }, [])
+
+  const subscribeImageDocumentPath = useCallback((listener: () => void) => {
+    activePathListenersRef.current.add(listener)
+    return () => {
+      activePathListenersRef.current.delete(listener)
+    }
+  }, [])
+
+  const resolveImageSrc = useCallback((documentPath: string | null, src: string) => {
+    return resolveMarkdownImageSource(documentPath, src)
   }, [])
 
   const scrollEditorToTop = useCallback(() => {
@@ -120,7 +179,12 @@ export const useMarkdownCrepeController = ({
   }, [onChange])
 
   useEffect(() => {
+    markdownAssetImportStrategyRef.current = markdownAssetImportStrategy
+  }, [markdownAssetImportStrategy])
+
+  useEffect(() => {
     activePathRef.current = activePath
+    activePathListenersRef.current.forEach((listener) => listener())
   }, [activePath])
 
   useFocusHeadingEvent(activePath, crepeRef)
@@ -133,11 +197,13 @@ export const useMarkdownCrepeController = ({
       root,
       initialValue: latestValue.current,
       darkMode,
+      onSlashImageImport: pickAndImportImage,
       placeholder,
       slashLabels,
     })
 
     configureMarkdownCrepe(crepe, {
+      getImageDocumentPath,
       markViewFactory,
       nodeViewFactory,
       onMarkdownUpdated: (markdown) => {
@@ -153,6 +219,8 @@ export const useMarkdownCrepeController = ({
         }
         onChangeRef.current(markdown)
       },
+      resolveImageSrc,
+      subscribeImageDocumentPath,
     })
 
     let destroyed = false
@@ -194,11 +262,15 @@ export const useMarkdownCrepeController = ({
     applyExternalValue,
     darkMode,
     focusEditor,
+    getImageDocumentPath,
     markViewFactory,
     nodeViewFactory,
+    pickAndImportImage,
     placeholder,
+    resolveImageSrc,
     scrollEditorToTop,
     slashLabels,
+    subscribeImageDocumentPath,
   ])
 
   useEffect(() => {
@@ -294,6 +366,9 @@ export const useMarkdownCrepeController = ({
       onPointerDown: handlePointerDown,
     },
     focusEditor,
+    insertImage,
+    importImageSources,
+    placeSelectionAtClientPoint,
     rootRef,
     runShortcutAction,
     scrollAreaRef,
