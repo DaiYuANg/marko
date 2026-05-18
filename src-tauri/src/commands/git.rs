@@ -36,3 +36,12 @@ pub async fn git_get_file_diff(
 ) -> Result<GitFileDiff, String> {
   services.git.file_diff(root_path, path, section).await
 }
+
+#[tauri::command]
+pub async fn git_commit_all(
+  root_path: String,
+  message: String,
+  services: State<'_, AppServices>,
+) -> Result<GitStatusSnapshot, String> {
+  services.git.commit_all(root_path, message).await
+}

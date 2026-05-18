@@ -71,7 +71,6 @@ const createProps = (overrides: Partial<RightSidebarProps> = {}): RightSidebarPr
   onOpenFileView: vi.fn(),
   workspaceIndex: null,
   viewMode: 'wysiwyg',
-  onChangeView: vi.fn(),
   ...overrides,
 })
 
@@ -119,8 +118,7 @@ describe('RightSidebar', () => {
 
   it('shows backlinks with context and opens the source location', async () => {
     const onOpenFileView = vi.fn()
-    const onChangeView = vi.fn()
-    const props = createProps({ onOpenFileView, onChangeView })
+    const props = createProps({ onOpenFileView })
     const events: FocusSourcePositionRequest[] = []
     const listener = (event: Event) => {
       events.push((event as CustomEvent<FocusSourcePositionRequest>).detail)
@@ -140,7 +138,6 @@ describe('RightSidebar', () => {
       fireEvent.click(backlinkButton!)
 
       expect(onOpenFileView).toHaveBeenCalledWith('source.md', 'source')
-      expect(onChangeView).not.toHaveBeenCalled()
 
       rerender(
         <RightSidebar
@@ -180,7 +177,6 @@ describe('RightSidebar', () => {
 
   it('lists markdown link problems and switches to source on click', async () => {
     const onOpenFileView = vi.fn()
-    const onChangeView = vi.fn()
     renderRightSidebar(
       createProps({
         activePath: 'target.md',
@@ -188,7 +184,6 @@ describe('RightSidebar', () => {
         editorValue:
           '# Target\n\n[missing](missing.md)\n[missing-heading](#missing-anchor)\n[[Unknown]]\n',
         onOpenFileView,
-        onChangeView,
         viewMode: 'wysiwyg',
       }),
     )
@@ -205,6 +200,5 @@ describe('RightSidebar', () => {
     fireEvent.click(errorButton!)
 
     expect(onOpenFileView).toHaveBeenCalledWith('target.md', 'source')
-    expect(onChangeView).not.toHaveBeenCalled()
   })
 })

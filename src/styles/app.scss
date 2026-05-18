@@ -121,6 +121,11 @@
   background: color-mix(in srgb, hsl(var(--card)) 94%, hsl(var(--background)));
 }
 
+.app-status-bar {
+  background: color-mix(in srgb, hsl(var(--card)) 96%, hsl(var(--background)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, hsl(var(--card)) 64%, transparent);
+}
+
 .settings-dialog-surface {
   background: hsl(var(--card));
   color: hsl(var(--card-foreground));

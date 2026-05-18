@@ -1,4 +1,5 @@
 pub mod di;
+pub mod document_store;
 pub mod events;
 pub mod export;
 pub mod fs_buffer;
@@ -11,17 +12,17 @@ pub mod workspace;
 
 use fluxdi::Shared;
 
+use document_store::DocumentStoreService;
 use events::{EventBus, RuntimeService};
 pub use export::ExportService;
-use fs_buffer::BufferService;
 use git::GitService;
 use workspace::WorkspaceService;
 
 #[derive(Debug, Clone)]
 pub struct AppServices {
   pub export: Shared<ExportService>,
+  pub documents: Shared<DocumentStoreService>,
   pub events: Shared<EventBus>,
-  pub fs_buffer: Shared<BufferService>,
   pub git: Shared<GitService>,
   pub runtime: Shared<RuntimeService>,
   pub workspace: Shared<WorkspaceService>,

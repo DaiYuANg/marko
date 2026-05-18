@@ -1,12 +1,8 @@
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { InspectorMetric } from '@/components/RightSidebarPrimitives'
 import { useI18n } from '@/i18n/useI18n'
 import type { ViewMode } from '@/store/useAppStore'
-import { CircleAlert, Code2, FileText, GitGraph, Hash, Link2, PenLine } from 'lucide-react'
-import { useMemo } from 'react'
+import { CircleAlert, FileText, Hash, Link2 } from 'lucide-react'
 
 type RightSidebarSummaryProps = {
   activePath: string | null
@@ -17,7 +13,6 @@ type RightSidebarSummaryProps = {
   backlinksCount: number
   problemsCount: number
   lineCount: number
-  onChangeView: (mode: ViewMode) => void
 }
 
 export function RightSidebarSummary({
@@ -29,30 +24,8 @@ export function RightSidebarSummary({
   backlinksCount,
   problemsCount,
   lineCount,
-  onChangeView,
 }: RightSidebarSummaryProps) {
   const { t } = useI18n()
-  const quickActions = useMemo(() => {
-    return [
-      {
-        label: t('editor.modeWysiwyg'),
-        icon: PenLine,
-        onClick: () => onChangeView('wysiwyg'),
-      },
-      {
-        label: t('editor.modeSource'),
-        icon: Code2,
-        onClick: () => onChangeView('source'),
-      },
-      {
-        label: t('tabs.workspaceGraph'),
-        icon: GitGraph,
-        onClick: () => {
-          onChangeView('graph')
-        },
-      },
-    ]
-  }, [onChangeView, t])
 
   return (
     <div className="sidebar-section rounded-md p-2">
@@ -99,33 +72,6 @@ export function RightSidebarSummary({
           label={t('status.lines')}
           value={lineCount}
         />
-      </div>
-      <Separator className="my-1 bg-sidebar-border/70" />
-      <div className="flex gap-1">
-        <TooltipProvider>
-          {quickActions.map((action) => (
-            <Tooltip key={action.label}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`chrome-button h-7 w-7 rounded-md ${
-                    (viewMode === 'graph' && action.icon === GitGraph) ||
-                    (viewMode === 'source' && action.icon === Code2) ||
-                    (viewMode === 'wysiwyg' && action.icon === PenLine)
-                      ? 'bg-accent/60 text-accent-foreground'
-                      : ''
-                  }`}
-                  onClick={action.onClick}
-                  aria-label={action.label}
-                >
-                  <action.icon className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{action.label}</TooltipContent>
-            </Tooltip>
-          ))}
-        </TooltipProvider>
       </div>
     </div>
   )

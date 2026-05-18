@@ -74,4 +74,8 @@ export const gitApi = {
     const result = await invoke<unknown>('git_get_file_diff', { rootPath, path, section })
     return gitFileDiffSchema.parse(result)
   },
+  async commitAll(rootPath: string, message: string) {
+    const result = await invoke<unknown>('git_commit_all', { rootPath, message })
+    return gitStatusSnapshotSchema.parse(result)
+  },
 }

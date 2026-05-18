@@ -7,7 +7,9 @@ use crate::commands::fs::{
   fs_list_entries, fs_open_file, fs_read_file, fs_rebuild_search_index, fs_rename_path,
   fs_search_workspace, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
 };
-use crate::commands::git::{git_discover_repo, git_get_file_diff, git_get_status, git_init_repo};
+use crate::commands::git::{
+  git_commit_all, git_discover_repo, git_get_file_diff, git_get_status, git_init_repo,
+};
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
 use std::collections::HashMap;
 use std::fs;
@@ -236,6 +238,7 @@ fn run_impl() {
       git_init_repo,
       git_get_status,
       git_get_file_diff,
+      git_commit_all,
       export_markdown
     ])
     .run(tauri::generate_context!())

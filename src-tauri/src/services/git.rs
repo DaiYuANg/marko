@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use gix::bstr::ByteSlice;
+use gix::objs::tree::EntryKind;
 use path_clean::PathClean;
 use similar::TextDiff;
 
@@ -41,6 +42,17 @@ impl GitService {
     tokio::task::spawn_blocking(move || file_diff(&root, &path, section.as_deref()))
       .await
       .map_err(|err| format!("Failed to join git diff task: {err}"))?
+  }
+
+  pub async fn commit_all(
+    &self,
+    root_path: String,
+    message: String,
+  ) -> Result<GitStatusSnapshot, String> {
+    let root = PathBuf::from(root_path);
+    tokio::task::spawn_blocking(move || commit_all(&root, &message))
+      .await
+      .map_err(|err| format!("Failed to join git commit task: {err}"))?
   }
 }
 
@@ -187,6 +199,112 @@ fn file_diff(
     modified_content,
     unified_diff,
   })
+}
+
+fn commit_all(root: &Path, message: &str) -> Result<GitStatusSnapshot, String> {
+  let message = message.trim();
+  if message.is_empty() {
+    return Err("Commit message cannot be empty".to_string());
+  }
+
+  let repo =
+    gix::discover(root).map_err(|err| format!("Failed to discover git repository: {err}"))?;
+  let workdir = repo
+    .workdir()
+    .ok_or_else(|| "Git commit requires a repository with a working tree".to_string())?;
+  let snapshot = status_snapshot(root)?;
+  if !snapshot.repo.is_repository {
+    return Err("Current directory is not a Git repository".to_string());
+  }
+  if !snapshot.conflicts.is_empty() {
+    return Err("Cannot commit while conflicts are present".to_string());
+  }
+
+  let changes = all_commit_changes(&snapshot);
+  if changes.is_empty() {
+    return Err("No changes to commit".to_string());
+  }
+
+  let base_tree = match repo.rev_parse_single("HEAD") {
+    Ok(head) => head
+      .object()
+      .map_err(|err| format!("Failed to read HEAD object: {err}"))?
+      .peel_to_tree()
+      .map_err(|err| format!("Failed to read HEAD tree: {err}"))?,
+    Err(_) => repo.empty_tree(),
+  };
+  let mut editor = base_tree
+    .edit()
+    .map_err(|err| format!("Failed to edit git tree: {err}"))?;
+
+  for change in changes {
+    let safe_path = normalize_repo_relative_path(&change.path)?;
+    let path_for_editor = safe_path.to_string_lossy().replace('\\', "/");
+    if let Some(old_path) = &change.old_path {
+      let safe_old_path = normalize_repo_relative_path(old_path)?;
+      editor
+        .remove(safe_old_path.to_string_lossy().replace('\\', "/"))
+        .map_err(|err| format!("Failed to remove renamed git path {old_path}: {err}"))?;
+    }
+
+    let worktree_path = workdir.join(&safe_path);
+    if worktree_path.exists() {
+      if !worktree_path.is_file() {
+        continue;
+      }
+      let bytes = std::fs::read(&worktree_path).map_err(|err| {
+        format!(
+          "Failed to read worktree file {}: {err}",
+          worktree_path.display()
+        )
+      })?;
+      let blob_id = repo
+        .write_blob(bytes)
+        .map_err(|err| format!("Failed to write git blob for {}: {err}", change.path))?
+        .detach();
+      editor
+        .upsert(path_for_editor, EntryKind::Blob, blob_id)
+        .map_err(|err| format!("Failed to update git tree for {}: {err}", change.path))?;
+    } else {
+      editor
+        .remove(path_for_editor)
+        .map_err(|err| format!("Failed to remove git path {}: {err}", change.path))?;
+    }
+  }
+
+  let tree_id = editor
+    .write()
+    .map_err(|err| format!("Failed to write git tree: {err}"))?
+    .detach();
+  let parents = repo
+    .head_id()
+    .ok()
+    .map(|id| id.detach())
+    .into_iter()
+    .collect::<Vec<_>>();
+  let author = git_signature(&repo, SignatureKind::Author)?;
+  let committer = git_signature(&repo, SignatureKind::Committer)?;
+  let mut author_time = gix::date::parse::TimeBuf::default();
+  let mut committer_time = gix::date::parse::TimeBuf::default();
+  repo
+    .commit_as(
+      committer.to_ref(&mut committer_time),
+      author.to_ref(&mut author_time),
+      "HEAD",
+      message,
+      tree_id,
+      parents,
+    )
+    .map_err(|err| format!("Failed to create git commit: {err}"))?;
+
+  let mut index = repo
+    .index_from_tree(&tree_id)
+    .map_err(|err| format!("Failed to update git index from committed tree: {err}"))?;
+  index
+    .write(Default::default())
+    .map_err(|err| format!("Failed to write git index: {err}"))?;
+
+  status_snapshot(root)
 }
 
 fn empty_repo_info() -> GitRepoInfo {
@@ -371,6 +489,43 @@ fn dir_status_kind(status: gix::dir::entry::Status) -> &'static str {
   }
 }
 
+fn all_commit_changes(snapshot: &GitStatusSnapshot) -> Vec<GitFileChange> {
+  let mut changes = Vec::new();
+  changes.extend(snapshot.staged.iter().cloned());
+  changes.extend(snapshot.unstaged.iter().cloned());
+  changes.extend(snapshot.untracked.iter().cloned());
+  changes.sort_by(|left, right| left.path.cmp(&right.path));
+  changes.dedup_by(|left, right| left.path == right.path);
+  changes
+}
+
+enum SignatureKind {
+  Author,
+  Committer,
+}
+
+fn git_signature(
+  repo: &gix::Repository,
+  kind: SignatureKind,
+) -> Result<gix::actor::Signature, String> {
+  let configured = match kind {
+    SignatureKind::Author => repo.author(),
+    SignatureKind::Committer => repo.committer(),
+  };
+  if let Some(signature) = configured {
+    return signature
+      .map_err(|err| format!("Failed to parse git signature time: {err}"))?
+      .to_owned()
+      .map_err(|err| format!("Failed to parse git signature: {err}"));
+  }
+
+  Ok(gix::actor::Signature {
+    name: "marko".into(),
+    email: "marko@local".into(),
+    time: gix::date::Time::now_local_or_utc(),
+  })
+}
+
 fn path_to_string(path: &Path) -> String {
   path.to_string_lossy().to_string()
 }
@@ -482,6 +637,33 @@ mod tests {
     assert_eq!(diff.original_label, "Empty");
     assert_eq!(diff.modified_label, "Working Tree");
     assert!(diff.unified_diff.contains("+# Note"));
+
+    let committed = service
+      .commit_all(root.to_string_lossy().to_string(), "Add note".to_string())
+      .await
+      .expect("commit all should create a commit");
+    assert!(committed.repo.is_repository);
+    assert!(committed.repo.head.is_some());
+    assert!(committed.staged.is_empty());
+    assert!(committed.unstaged.is_empty());
+    assert!(committed.untracked.is_empty());
+    assert!(committed.conflicts.is_empty());
+
+    std::fs::write(root.join("note.md"), "# Updated\n").expect("worktree file should be updated");
+    let modified = service
+      .status(root.to_string_lossy().to_string())
+      .await
+      .expect("status should detect modified file");
+    assert_eq!(modified.unstaged.len(), 1);
+
+    let committed_again = service
+      .commit_all(
+        root.to_string_lossy().to_string(),
+        "Update note".to_string(),
+      )
+      .await
+      .expect("commit all should commit modifications");
+    assert!(committed_again.unstaged.is_empty());
 
     let _ = std::fs::remove_dir_all(root);
   }

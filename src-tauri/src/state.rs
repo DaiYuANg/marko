@@ -22,6 +22,7 @@ pub struct FsBufferEntry {
   pub content: String,
   pub dirty: bool,
   pub revision: u64,
+  pub saved_revision: u64,
 }
 
 pub struct FsBufferState(pub Mutex<HashMap<String, FsBufferEntry>>);

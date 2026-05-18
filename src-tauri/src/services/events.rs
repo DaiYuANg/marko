@@ -134,10 +134,14 @@ fn start_event_worker(
         AppEvent::RuntimeStopping => break,
         AppEvent::ExportTask(payload) => emit_export_task(&app_handle, payload),
         AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged | AppEvent::BuffersFlushed => {
+          let refresh_documents = matches!(
+            event,
+            AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged
+          );
           if coalesce_workspace_events(&app_handle, &mut receiver).await {
             break;
           }
-          handle_workspace_event(&app_handle).await;
+          handle_workspace_event(&app_handle, refresh_documents).await;
         }
       }
     }
@@ -198,7 +202,7 @@ fn export_output_name(path: &str) -> String {
     .to_string()
 }
 
-async fn handle_workspace_event(app: &tauri::AppHandle) {
+async fn handle_workspace_event(app: &tauri::AppHandle, refresh_documents: bool) {
   let (Some(state), Some(buffer_state), Some(services)) = (
     app.try_state::<FsState>(),
     app.try_state::<FsBufferState>(),
@@ -206,6 +210,13 @@ async fn handle_workspace_event(app: &tauri::AppHandle) {
   ) else {
     return;
   };
+
+  if refresh_documents {
+    if let Err(err) = services.documents.clear_clean(&buffer_state) {
+      log::warn!("clear clean document cache failed: {err}");
+    }
+    services.workspace.clear_index_cache();
+  }
 
   match app.path().app_data_dir() {
     Ok(index_parent) => {

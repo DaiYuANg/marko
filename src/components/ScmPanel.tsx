@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GitBranch, GitCommitHorizontal, Plus, RefreshCw } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import debounce from 'lodash-es/debounce'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import {
   SidebarGroup,
@@ -13,15 +14,11 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  gitApi,
-  type GitDiffRequest,
-  type GitFileChange,
-  type GitStatusSnapshot,
-} from '@/services/gitApi'
+import { gitApi, type GitDiffRequest, type GitFileChange } from '@/services/gitApi'
 import { fsApi } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
 import { useI18n } from '@/i18n/useI18n'
+import { countChangedFiles, gitStatusQueryKey } from '@/logic/gitStatus'
 
 type ScmPanelProps = {
   rootPath: string
@@ -47,16 +44,6 @@ const statusLabels: Record<GitFileChange['status'], string> = {
   ignored: 'I',
   tracked: 'T',
   pruned: '-',
-}
-
-function countChanges(snapshot: GitStatusSnapshot | undefined) {
-  if (!snapshot?.repo.is_repository) return 0
-  return (
-    snapshot.staged.length +
-    snapshot.unstaged.length +
-    snapshot.untracked.length +
-    snapshot.conflicts.length
-  )
 }
 
 function ChangeRow({
@@ -85,8 +72,9 @@ function ChangeRow({
 export default function ScmPanel({ rootPath, rootKind, collapsed, onOpenDiff }: ScmPanelProps) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
+  const [commitMessage, setCommitMessage] = useState('')
   const enabled = isTauriRuntime() && rootKind !== 'single' && Boolean(rootPath)
-  const queryKey = useMemo(() => ['git-status', rootPath] as const, [rootPath])
+  const queryKey = useMemo(() => gitStatusQueryKey(rootPath), [rootPath])
 
   const statusQuery = useQuery({
     queryKey,
@@ -132,6 +120,18 @@ export default function ScmPanel({ rootPath, rootKind, collapsed, onOpenDiff }: 
     onSuccess: invalidateStatus,
   })
 
+  const commitMutation = useMutation({
+    mutationFn: async () => {
+      await fsApi.flushBuffers()
+      return gitApi.commitAll(rootPath, commitMessage.trim())
+    },
+    onSuccess: (snapshot) => {
+      setCommitMessage('')
+      queryClient.setQueryData(queryKey, snapshot)
+      invalidateStatus()
+    },
+  })
+
   const groups = useMemo<ChangeGroup[]>(() => {
     const snapshot = statusQuery.data
     if (!snapshot?.repo.is_repository) return []
@@ -145,8 +145,13 @@ export default function ScmPanel({ rootPath, rootKind, collapsed, onOpenDiff }: 
 
   if (!enabled) return null
 
-  const totalChanges = countChanges(statusQuery.data)
+  const totalChanges = countChangedFiles(statusQuery.data)
   const branch = statusQuery.data?.repo.branch ?? t('scm.noBranch')
+  const canCommit =
+    totalChanges > 0 &&
+    !statusQuery.data?.conflicts.length &&
+    commitMessage.trim().length > 0 &&
+    !commitMutation.isPending
 
   if (collapsed) {
     return (
@@ -179,7 +184,7 @@ export default function ScmPanel({ rootPath, rootKind, collapsed, onOpenDiff }: 
         <div className="flex items-center gap-1">
           {statusQuery.data?.repo.is_repository && (
             <Badge variant="secondary" className="rounded px-1.5 py-0">
-              {totalChanges}
+              {t('scm.changedFiles', { count: String(totalChanges) })}
             </Badge>
           )}
           <Button
@@ -221,8 +226,43 @@ export default function ScmPanel({ rootPath, rootKind, collapsed, onOpenDiff }: 
             <div className="flex min-w-0 items-center gap-2 px-2 text-xs text-muted-foreground">
               <GitCommitHorizontal className="h-4 w-4 shrink-0" />
               <span className="truncate">{branch}</span>
+              <span className="ml-auto shrink-0">
+                {t('scm.changedFiles', { count: String(totalChanges) })}
+              </span>
             </div>
             <Separator className="bg-sidebar-border/70" />
+            {totalChanges > 0 && (
+              <form
+                className="space-y-1.5 px-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!canCommit) return
+                  commitMutation.mutate()
+                }}
+              >
+                <Input
+                  value={commitMessage}
+                  onChange={(event) => setCommitMessage(event.target.value)}
+                  placeholder={t('scm.commitPlaceholder')}
+                  aria-label={t('scm.commitMessage')}
+                  className="h-7 rounded-md border-sidebar-border bg-background/70 text-xs shadow-sm"
+                />
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 w-full justify-start rounded-md px-2 text-xs"
+                  disabled={!canCommit}
+                  title={t('scm.commitAll')}
+                >
+                  <GitCommitHorizontal className="h-4 w-4" />
+                  {commitMutation.isPending ? t('scm.committing') : t('scm.commit')}
+                </Button>
+                {commitMutation.isError && (
+                  <div className="text-xs text-destructive">{String(commitMutation.error)}</div>
+                )}
+              </form>
+            )}
             {groups.length === 0 ? (
               <div className="px-2 pb-1 text-xs text-muted-foreground">{t('scm.clean')}</div>
             ) : (

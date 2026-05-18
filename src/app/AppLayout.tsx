@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar'
 import RightSidebar from '@/components/RightSidebar'
 import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
+import AppStatusBar from '@/components/AppStatusBar'
 import ExportStatusOverlay from '@/components/ExportStatusOverlay'
 import { Toaster } from '@/components/ui/sonner'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
@@ -311,7 +312,7 @@ export default function AppLayout() {
         theme={state.theme}
         setTheme={state.setTheme}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
           collapsed={state.sidebarCollapsed}
           recentProjects={state.recentProjects}
@@ -360,10 +361,20 @@ export default function AppLayout() {
           totalFiles={totalFiles}
           onOpenFileView={handleOpenFileView}
           viewMode={state.viewMode}
-          onChangeView={state.setViewMode}
           inspectedPath={state.inspectedPath}
         />
       </div>
+      <AppStatusBar
+        rootKind={state.rootKind}
+        rootPath={state.rootPath}
+        files={state.files}
+        tabs={state.tabs}
+        activeTab={state.activeTab}
+        activePath={state.activePath}
+        viewMode={state.viewMode}
+        dirtyPaths={state.dirtyPaths}
+        saveStates={state.saveStates}
+      />
     </div>
   )
 }

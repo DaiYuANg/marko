@@ -3,8 +3,8 @@ use std::sync::Mutex;
 use fluxdi::{Application, Error, Injector, Module, ModuleLifecycleFuture, Provider, Shared};
 
 use super::{
+  document_store::DocumentStoreService,
   events::{EventBus, RuntimeService},
-  fs_buffer::BufferService,
   git::GitService,
   markdown_graph::MarkdownGraphService,
   markdown_index::MarkdownIndexService,
@@ -29,11 +29,11 @@ impl Module for AppModule {
     }))?;
     injector.try_provide::<GitService>(Provider::root(|_| Shared::new(GitService)))?;
     injector.try_provide::<PathResolver>(Provider::root(|_| Shared::new(PathResolver)))?;
-    injector.try_provide::<BufferService>(Provider::root(|injector| {
-      Shared::new(BufferService::new(
+    injector.try_provide::<DocumentStoreService>(Provider::root(|injector| {
+      Shared::new(DocumentStoreService::new(
         injector
           .try_resolve::<PathResolver>()
-          .expect("PathResolver should be registered before BufferService"),
+          .expect("PathResolver should be registered before DocumentStoreService"),
       ))
     }))?;
     injector
@@ -45,9 +45,9 @@ impl Module for AppModule {
       let path_resolver = injector
         .try_resolve::<PathResolver>()
         .expect("PathResolver should be registered before WorkspaceService");
-      let buffer = injector
-        .try_resolve::<BufferService>()
-        .expect("BufferService should be registered before WorkspaceService");
+      let documents = injector
+        .try_resolve::<DocumentStoreService>()
+        .expect("DocumentStoreService should be registered before WorkspaceService");
       let markdown_index = injector
         .try_resolve::<MarkdownIndexService>()
         .expect("MarkdownIndexService should be registered before WorkspaceService");
@@ -60,7 +60,7 @@ impl Module for AppModule {
 
       Shared::new(WorkspaceService::new(
         path_resolver,
-        buffer,
+        documents,
         markdown_index,
         markdown_graph,
         search,
@@ -121,8 +121,8 @@ pub async fn build_app_container() -> Result<AppContainer, Error> {
   let injector = app.injector();
   let services = AppServices {
     export: injector.try_resolve::<ExportService>()?,
+    documents: injector.try_resolve::<DocumentStoreService>()?,
     events: injector.try_resolve::<EventBus>()?,
-    fs_buffer: injector.try_resolve::<BufferService>()?,
     git: injector.try_resolve::<GitService>()?,
     runtime: injector.try_resolve::<RuntimeService>()?,
     workspace: injector.try_resolve::<WorkspaceService>()?,

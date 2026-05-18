@@ -1,5 +1,8 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 
 use fluxdi::Shared;
@@ -10,7 +13,7 @@ use crate::models::{
   FsSearchResult, FsSnapshot, FsWorkspaceIndex,
 };
 use crate::services::{
-  fs_buffer::BufferService,
+  document_store::{DocumentSnapshot, DocumentStoreService},
   markdown_graph::MarkdownGraphService,
   markdown_index::MarkdownIndexService,
   path_resolver::PathResolver,
@@ -21,26 +24,35 @@ use crate::state::{FsBufferState, FsState, FsStateData};
 #[derive(Debug, Clone)]
 pub struct WorkspaceService {
   path_resolver: Shared<PathResolver>,
-  buffer: Shared<BufferService>,
+  documents: Shared<DocumentStoreService>,
   markdown_index: Shared<MarkdownIndexService>,
   markdown_graph: Shared<MarkdownGraphService>,
   search: Shared<SearchService>,
+  index_cache: Arc<Mutex<Option<WorkspaceIndexCache>>>,
+}
+
+#[derive(Debug, Clone)]
+struct WorkspaceIndexCache {
+  workspace_key: String,
+  signature: u64,
+  index: FsWorkspaceIndex,
 }
 
 impl WorkspaceService {
   pub fn new(
     path_resolver: Shared<PathResolver>,
-    buffer: Shared<BufferService>,
+    documents: Shared<DocumentStoreService>,
     markdown_index: Shared<MarkdownIndexService>,
     markdown_graph: Shared<MarkdownGraphService>,
     search: Shared<SearchService>,
   ) -> Self {
     Self {
       path_resolver,
-      buffer,
+      documents,
       markdown_index,
       markdown_graph,
       search,
+      index_cache: Arc::new(Mutex::new(None)),
     }
   }
 
@@ -112,7 +124,8 @@ impl WorkspaceService {
       ensure_default_file_async(PathBuf::from(&root_info.path)).await?;
     }
 
-    self.buffer.clear(buffer_state)?;
+    self.documents.clear(buffer_state)?;
+    self.clear_index_cache();
     Ok(root_info)
   }
 
@@ -144,7 +157,8 @@ impl WorkspaceService {
       }
     };
 
-    self.buffer.clear(buffer_state)?;
+    self.documents.clear(buffer_state)?;
+    self.clear_index_cache();
     Ok(root_info)
   }
 
@@ -163,10 +177,10 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<String, String> {
-    if let Some(content) = self.buffer.read(path, buffer_state)? {
-      return Ok(content);
-    }
-    self.read_from_disk(path, state).await
+    self
+      .documents
+      .read_document(state, buffer_state, path)
+      .await
   }
 
   pub async fn workspace_index(
@@ -185,20 +199,15 @@ impl WorkspaceService {
       .filter(|entry| entry.kind == "file")
       .collect::<Vec<_>>();
 
-    let mut contents = Vec::with_capacity(files.len());
-    for file in &files {
-      let content = if let Some(content) = self.buffer.read(&file.path, buffer_state)? {
-        content
-      } else {
-        self.read_from_disk_data(&file.path, &data).await?
-      };
-      contents.push((file.path.clone(), content));
-    }
+    let workspace_key = workspace_search_key(&data);
+    let documents = self
+      .documents
+      .document_snapshots_for_files(&data, buffer_state, &files)
+      .await?;
 
-    let markdown_index = self.markdown_index.clone();
-    tokio::task::spawn_blocking(move || markdown_index.build_workspace_index(&files, &contents))
+    self
+      .workspace_index_from_documents(workspace_key, files, documents)
       .await
-      .map_err(|err| format!("Workspace index task failed: {err}"))
   }
 
   pub async fn analyze_markdown_buffer(
@@ -208,6 +217,16 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<Vec<FsMarkdownDiagnostic>, String> {
+    if self
+      .documents
+      .cached_content(&path, buffer_state)?
+      .as_deref()
+      == Some(content.as_str())
+    {
+      let index = self.workspace_index(state, buffer_state).await?;
+      return Ok(self.markdown_index.diagnostics_for_file(&index, &path));
+    }
+
     let data = state
       .0
       .read()
@@ -219,17 +238,20 @@ impl WorkspaceService {
       .filter(|entry| entry.kind == "file")
       .collect::<Vec<_>>();
 
-    let mut contents = Vec::with_capacity(files.len());
-    for file in &files {
-      let file_content = if file.path == path {
-        content.clone()
-      } else if let Some(content) = self.buffer.read(&file.path, buffer_state)? {
-        content
-      } else {
-        self.read_from_disk_data(&file.path, &data).await?
-      };
-      contents.push((file.path.clone(), file_content));
-    }
+    let documents = self
+      .documents
+      .document_snapshots_for_files(&data, buffer_state, &files)
+      .await?;
+    let contents = documents
+      .into_iter()
+      .map(|document| {
+        if document.path == path {
+          (document.path, content.clone())
+        } else {
+          (document.path, document.content)
+        }
+      })
+      .collect::<Vec<_>>();
 
     let markdown_index = self.markdown_index.clone();
     tokio::task::spawn_blocking(move || {
@@ -291,13 +313,10 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<String, String> {
-    if let Some(content) = self.buffer.read(path, buffer_state)? {
-      return Ok(content);
-    }
-
-    let content = self.read_from_disk(path, state).await?;
-    self.buffer.insert_clean(buffer_state, path, &content)?;
-    Ok(content)
+    self
+      .documents
+      .read_document(state, buffer_state, path)
+      .await
   }
 
   pub async fn outline_graph(
@@ -321,13 +340,9 @@ impl WorkspaceService {
     state: &FsState,
     buffer_state: &FsBufferState,
   ) -> Result<FsBufferStatus, String> {
-    let state_data = state
-      .0
-      .read()
-      .map_err(|_| "Failed to lock fs state")?
-      .clone();
-    let _ = self.path_resolver.resolve(&state_data, path)?;
-    self.buffer.upsert(buffer_state, path, content)
+    self
+      .documents
+      .update_document(state, buffer_state, path, content)
   }
 
   pub async fn flush_buffers(
@@ -336,7 +351,7 @@ impl WorkspaceService {
     buffer_state: &FsBufferState,
   ) -> Result<Vec<FsBufferStatus>, String> {
     self
-      .buffer
+      .documents
       .flush_all_with_status_async(state, buffer_state)
       .await
   }
@@ -406,16 +421,24 @@ impl WorkspaceService {
         .await
         .map_err(|err| format!("Failed to create dir: {err}"))?;
     }
-    if !tokio::fs::try_exists(&resolved)
+    let created = if !tokio::fs::try_exists(&resolved)
       .await
       .map_err(|err| format!("Failed to check file: {err}"))?
     {
       tokio::fs::write(resolved, "")
         .await
         .map_err(|err| format!("Failed to create file: {err}"))?;
-    }
+      true
+    } else {
+      false
+    };
 
-    self.buffer.remove_path(buffer_state, &path)?;
+    if created {
+      self.documents.insert_clean(buffer_state, &path, "")?;
+    } else {
+      self.documents.remove_path(buffer_state, &path)?;
+    }
+    self.clear_index_cache();
     Ok(())
   }
 
@@ -429,7 +452,9 @@ impl WorkspaceService {
     let resolved = self.path_resolver.resolve(&data, &path)?;
     tokio::fs::create_dir_all(resolved)
       .await
-      .map_err(|err| format!("Failed to create dir: {err}"))
+      .map_err(|err| format!("Failed to create dir: {err}"))?;
+    self.clear_index_cache();
+    Ok(())
   }
 
   pub async fn delete_path(
@@ -457,7 +482,9 @@ impl WorkspaceService {
         .await
         .map_err(|err| format!("Failed to delete file: {err}"))?;
     }
-    self.buffer.remove_path(buffer_state, &path)
+    self.documents.remove_path(buffer_state, &path)?;
+    self.clear_index_cache();
+    Ok(())
   }
 
   pub async fn rename_path(
@@ -483,23 +510,80 @@ impl WorkspaceService {
     tokio::fs::rename(from_path, to_path)
       .await
       .map_err(|err| format!("Failed to rename: {err}"))?;
-    self.buffer.rename_path(buffer_state, &from, &to)
+    self.documents.rename_path(buffer_state, &from, &to)?;
+    self.clear_index_cache();
+    Ok(())
   }
 
-  async fn read_from_disk(&self, path: &str, state: &FsState) -> Result<String, String> {
-    let data = state
-      .0
-      .read()
-      .map_err(|_| "Failed to lock fs state")?
-      .clone();
-    self.read_from_disk_data(path, &data).await
+  pub fn clear_index_cache(&self) {
+    match self.index_cache.lock() {
+      Ok(mut cache) => {
+        *cache = None;
+      }
+      Err(_) => {
+        log::warn!("clear workspace index cache failed: poisoned mutex");
+      }
+    }
   }
 
-  async fn read_from_disk_data(&self, path: &str, data: &FsStateData) -> Result<String, String> {
-    let resolved = self.path_resolver.resolve(data, path)?;
-    tokio::fs::read_to_string(resolved)
-      .await
-      .map_err(|err| format!("Failed to read file: {err}"))
+  async fn workspace_index_from_documents(
+    &self,
+    workspace_key: String,
+    files: Vec<FsEntry>,
+    documents: Vec<DocumentSnapshot>,
+  ) -> Result<FsWorkspaceIndex, String> {
+    let signature = workspace_documents_signature(&workspace_key, &files, &documents);
+    if let Some(index) = self.cached_workspace_index(&workspace_key, signature)? {
+      return Ok(index);
+    }
+
+    let contents = documents
+      .into_iter()
+      .map(|document| (document.path, document.content))
+      .collect::<Vec<_>>();
+    let markdown_index = self.markdown_index.clone();
+    let index =
+      tokio::task::spawn_blocking(move || markdown_index.build_workspace_index(&files, &contents))
+        .await
+        .map_err(|err| format!("Workspace index task failed: {err}"))?;
+    self.store_workspace_index_cache(workspace_key, signature, index.clone())?;
+    Ok(index)
+  }
+
+  fn cached_workspace_index(
+    &self,
+    workspace_key: &str,
+    signature: u64,
+  ) -> Result<Option<FsWorkspaceIndex>, String> {
+    let cache = self
+      .index_cache
+      .lock()
+      .map_err(|_| "Failed to lock workspace index cache")?;
+    Ok(cache.as_ref().and_then(|cache| {
+      if cache.workspace_key == workspace_key && cache.signature == signature {
+        Some(cache.index.clone())
+      } else {
+        None
+      }
+    }))
+  }
+
+  fn store_workspace_index_cache(
+    &self,
+    workspace_key: String,
+    signature: u64,
+    index: FsWorkspaceIndex,
+  ) -> Result<(), String> {
+    let mut cache = self
+      .index_cache
+      .lock()
+      .map_err(|_| "Failed to lock workspace index cache")?;
+    *cache = Some(WorkspaceIndexCache {
+      workspace_key,
+      signature,
+      index,
+    });
+    Ok(())
   }
 
   async fn search_documents(
@@ -518,19 +602,18 @@ impl WorkspaceService {
       .into_iter()
       .filter(|entry| entry.kind == "file")
       .collect::<Vec<_>>();
-    let mut documents = Vec::with_capacity(files.len());
-    for file in files {
-      let body = if let Some(content) = self.buffer.read(&file.path, buffer_state)? {
-        content
-      } else {
-        self.read_from_disk_data(&file.path, &data).await?
-      };
-      documents.push(SearchDocument {
-        title: file_label(&file.path),
-        path: file.path,
-        body,
-      });
-    }
+    let documents = self
+      .documents
+      .document_snapshots_for_files(&data, buffer_state, &files)
+      .await?;
+    let documents = documents
+      .into_iter()
+      .map(|document| SearchDocument {
+        title: file_label(&document.path),
+        path: document.path,
+        body: document.content,
+      })
+      .collect();
     Ok((workspace_key, documents))
   }
 }
@@ -538,10 +621,10 @@ impl WorkspaceService {
 impl Default for WorkspaceService {
   fn default() -> Self {
     let path_resolver = Shared::new(PathResolver);
-    let buffer = Shared::new(BufferService::new(path_resolver.clone()));
+    let documents = Shared::new(DocumentStoreService::new(path_resolver.clone()));
     Self::new(
       path_resolver,
-      buffer,
+      documents,
       Shared::new(MarkdownIndexService),
       Shared::new(MarkdownGraphService),
       Shared::new(SearchService::new()),
@@ -560,6 +643,28 @@ fn file_label(path: &str) -> String {
     .or_else(|| file_name.strip_suffix(".md"))
     .unwrap_or(file_name)
     .to_string()
+}
+
+fn workspace_documents_signature(
+  workspace_key: &str,
+  files: &[FsEntry],
+  documents: &[DocumentSnapshot],
+) -> u64 {
+  let mut hash = DefaultHasher::new();
+  workspace_key.hash(&mut hash);
+  files.len().hash(&mut hash);
+  for file in files {
+    file.path.hash(&mut hash);
+    file.name.hash(&mut hash);
+    file.kind.hash(&mut hash);
+  }
+  for document in documents {
+    document.path.hash(&mut hash);
+    document.revision.hash(&mut hash);
+    document.dirty.hash(&mut hash);
+    document.content.hash(&mut hash);
+  }
+  hash.finish()
 }
 
 pub fn ensure_default_file(root: &Path) -> Result<(), String> {

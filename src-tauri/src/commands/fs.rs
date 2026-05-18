@@ -235,7 +235,7 @@ pub fn fs_get_buffer_status(
   buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<Option<FsBufferStatus>, String> {
-  services.fs_buffer.status(&buffer_state, &path)
+  services.documents.status(&buffer_state, &path)
 }
 
 #[tauri::command]

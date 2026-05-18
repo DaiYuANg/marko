@@ -44,7 +44,6 @@ type RightSidebarContentProps = {
   outgoingLinkCount: number
   displayMetadata: FsPathMetadata | null
   loadingMetadata: boolean
-  onChangeView: (mode: ViewMode) => void
   onOpenHeading: (slug: string) => void
   onOpenBacklink: (backlink: SidebarBacklink) => void
   onOpenProblem: (problem: MarkdownSourceDiagnostic) => void
@@ -81,7 +80,6 @@ export function RightSidebarContent({
   outgoingLinkCount,
   displayMetadata,
   loadingMetadata,
-  onChangeView,
   onOpenHeading,
   onOpenBacklink,
   onOpenProblem,
@@ -99,7 +97,6 @@ export function RightSidebarContent({
         backlinksCount={backlinks.length}
         problemsCount={problems.length}
         lineCount={documentStats.lines}
-        onChangeView={onChangeView}
       />
 
       <Tabs defaultValue="outline" className="mt-1.5 flex min-h-0 flex-1 flex-col">

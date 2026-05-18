@@ -29,7 +29,6 @@ type RightSidebarProps = {
   totalFiles: number
   onOpenFileView: (path: string, view: FileViewKind) => void
   viewMode: ViewMode
-  onChangeView: (mode: ViewMode) => void
 }
 
 const RightSidebarComponent = ({
@@ -44,7 +43,6 @@ const RightSidebarComponent = ({
   totalFiles,
   onOpenFileView,
   viewMode,
-  onChangeView,
 }: RightSidebarProps) => {
   const { t } = useI18n()
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
@@ -153,7 +151,6 @@ const RightSidebarComponent = ({
           outgoingLinkCount={outgoingLinkCount}
           displayMetadata={displayMetadata}
           loadingMetadata={loadingMetadata}
-          onChangeView={onChangeView}
           onOpenHeading={handleOpenHeading}
           onOpenBacklink={handleOpenBacklink}
           onOpenProblem={handleOpenProblem}

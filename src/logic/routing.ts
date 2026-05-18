@@ -2,12 +2,15 @@ import { generatePath } from 'react-router-dom'
 import type { FileViewKind, GitDiffSection } from '@/store/useAppStore'
 
 const GIT_DIFF_SECTIONS = new Set<string>(['staged', 'unstaged', 'untracked', 'conflicts'])
+const SIDEBAR_ACTIVITIES = new Set<string>(['explorer', 'search', 'scm', 'graph', 'projects'])
 
 export const FILE_ROUTE_PATTERN = '/files/edit/*'
 export const GIT_DIFF_ROUTE_PATTERN = '/_diff/:section/*'
 export const SOURCE_ROUTE_PATTERN = '/files/source/*'
 export const GRAPH_FILE_ROUTE_PATTERN = '/files/graph/*'
 export const GRAPH_WORKSPACE_ROUTE_PATTERN = '/workspace/graph'
+export const SIDEBAR_ACTIVITY_PARAM = 'sidebar'
+export type SidebarActivityId = 'explorer' | 'search' | 'scm' | 'graph' | 'projects'
 
 export const fileViewToRoutePattern = (view: FileViewKind) => {
   if (view === 'source') return SOURCE_ROUTE_PATTERN
@@ -41,3 +44,6 @@ export const pathToWorkspaceGraphRoute = () => generatePath(GRAPH_WORKSPACE_ROUT
 
 export const isGitDiffSection = (value: string | null | undefined): value is GitDiffSection =>
   Boolean(value && GIT_DIFF_SECTIONS.has(value))
+
+export const isSidebarActivity = (value: string | null | undefined): value is SidebarActivityId =>
+  Boolean(value && SIDEBAR_ACTIVITIES.has(value))
