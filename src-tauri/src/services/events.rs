@@ -7,16 +7,28 @@ use std::{
 };
 
 use fluxdi::Shared;
+use serde::Serialize;
 use tauri::{Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 use tokio::sync::broadcast;
 
 use crate::state::{FsBufferState, FsState};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize)]
+pub struct ExportTaskEvent {
+  pub id: String,
+  pub format: String,
+  pub output_path: String,
+  pub status: String,
+  pub message: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub enum AppEvent {
   WorkspaceChanged,
   FileSystemChanged,
   BuffersFlushed,
+  ExportTask(ExportTaskEvent),
   RuntimeStopping,
 }
 
@@ -118,26 +130,72 @@ fn start_event_worker(
         }
         Err(broadcast::error::RecvError::Closed) => break,
       };
-      if matches!(event, AppEvent::RuntimeStopping) {
-        break;
+      match event {
+        AppEvent::RuntimeStopping => break,
+        AppEvent::ExportTask(payload) => emit_export_task(&app_handle, payload),
+        AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged | AppEvent::BuffersFlushed => {
+          if coalesce_workspace_events(&app_handle, &mut receiver).await {
+            break;
+          }
+          handle_workspace_event(&app_handle).await;
+        }
       }
-      coalesce_related_events(&mut receiver, event).await;
-      handle_workspace_event(&app_handle).await;
     }
     event_worker_started.store(false, Ordering::SeqCst);
   });
 }
 
-async fn coalesce_related_events(receiver: &mut broadcast::Receiver<AppEvent>, first: AppEvent) {
-  if !matches!(
-    first,
-    AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged | AppEvent::BuffersFlushed
-  ) {
-    return;
-  }
-
+async fn coalesce_workspace_events(
+  app: &tauri::AppHandle,
+  receiver: &mut broadcast::Receiver<AppEvent>,
+) -> bool {
   tokio::time::sleep(Duration::from_millis(80)).await;
-  while receiver.try_recv().is_ok() {}
+
+  loop {
+    match receiver.try_recv() {
+      Ok(AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged | AppEvent::BuffersFlushed) => {}
+      Ok(AppEvent::ExportTask(payload)) => emit_export_task(app, payload),
+      Ok(AppEvent::RuntimeStopping) => return true,
+      Err(broadcast::error::TryRecvError::Empty) => return false,
+      Err(broadcast::error::TryRecvError::Lagged(skipped)) => {
+        log::warn!("app event worker coalescing lagged by {skipped} events");
+        return false;
+      }
+      Err(broadcast::error::TryRecvError::Closed) => return true,
+    }
+  }
+}
+
+fn emit_export_task(app: &tauri::AppHandle, payload: ExportTaskEvent) {
+  notify_export_task(app, &payload);
+
+  if let Err(err) = app.emit("export-task", payload) {
+    log::warn!("emit export-task failed: {err}");
+  }
+}
+
+fn notify_export_task(app: &tauri::AppHandle, payload: &ExportTaskEvent) {
+  let title = match payload.status.as_str() {
+    "finished" => "导出完成",
+    "failed" => "导出失败",
+    _ => return,
+  };
+  let body = payload
+    .message
+    .clone()
+    .unwrap_or_else(|| export_output_name(&payload.output_path));
+
+  if let Err(err) = app.notification().builder().title(title).body(body).show() {
+    log::warn!("show export notification failed: {err}");
+  }
+}
+
+fn export_output_name(path: &str) -> String {
+  std::path::Path::new(path)
+    .file_name()
+    .and_then(|name| name.to_str())
+    .unwrap_or(path)
+    .to_string()
 }
 
 async fn handle_workspace_event(app: &tauri::AppHandle) {

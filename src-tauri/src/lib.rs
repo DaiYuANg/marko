@@ -29,6 +29,26 @@ fn run_impl() {
   let app_lifecycle = app_container.lifecycle;
 
   let builder = tauri::Builder::default()
+    .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+      if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.set_focus();
+      }
+      let _ = app.emit(
+        "single-instance",
+        serde_json::json!({
+          "args": args,
+          "cwd": cwd,
+        }),
+      );
+    }))
+    .plugin(tauri_plugin_deep_link::init())
+    .plugin(tauri_plugin_clipboard_manager::init())
+    .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    .plugin(tauri_plugin_store::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
+    .plugin(tauri_plugin_os::init())
     .manage(app_services)
     .manage(app_lifecycle)
     .manage(FsState(RwLock::new(FsStateData {
@@ -181,6 +201,7 @@ fn run_impl() {
         }
       }
     })
+    .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
       list_markdown_files,

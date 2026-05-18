@@ -1,0 +1,89 @@
+import { useEffect } from 'react'
+import { toast } from 'sonner'
+import { openPath } from '@tauri-apps/plugin-opener'
+import { useI18n } from '@/i18n/useI18n'
+import { Spinner } from '@/components/ui/spinner'
+import { isTauriRuntime } from '@/utils/tauri'
+
+type ExportTaskStatus = 'started' | 'finished' | 'failed'
+
+type ExportTaskPayload = {
+  id: string
+  format: string
+  output_path: string
+  status: ExportTaskStatus
+  message?: string | null
+}
+
+const getOutputName = (path: string) => {
+  return path.split(/[/\\]/).pop() || path
+}
+
+const getFormatLabel = (format: string) => {
+  if (format === 'docx') return 'Word'
+  return format.toUpperCase()
+}
+
+export default function ExportStatusOverlay() {
+  const { t } = useI18n()
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return
+
+    let unlisten: (() => void) | undefined
+    let disposed = false
+
+    void import('@tauri-apps/api/event').then(({ listen }) => {
+      if (disposed) return
+      void listen<ExportTaskPayload>('export-task', (event) => {
+        const task = event.payload
+        const format = getFormatLabel(task.format)
+        const description =
+          task.status === 'failed'
+            ? task.message || getOutputName(task.output_path)
+            : getOutputName(task.output_path)
+
+        if (task.status === 'started') {
+          toast.loading(t('export.running', { format }), {
+            id: task.id,
+            description,
+            icon: <Spinner className="size-4" />,
+          })
+          return
+        }
+
+        if (task.status === 'finished') {
+          toast.success(t('export.finished', { format }), {
+            id: task.id,
+            description,
+            action: {
+              label: t('export.openFile'),
+              onClick: () => {
+                void openPath(task.output_path)
+              },
+            },
+          })
+          return
+        }
+
+        toast.error(t('export.failed', { format }), {
+          id: task.id,
+          description,
+        })
+      }).then((nextUnlisten) => {
+        if (disposed) {
+          nextUnlisten()
+          return
+        }
+        unlisten = nextUnlisten
+      })
+    })
+
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [t])
+
+  return null
+}

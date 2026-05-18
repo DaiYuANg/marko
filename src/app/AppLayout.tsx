@@ -3,6 +3,8 @@ import Sidebar from '@/components/Sidebar'
 import RightSidebar from '@/components/RightSidebar'
 import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
+import ExportStatusOverlay from '@/components/ExportStatusOverlay'
+import { Toaster } from '@/components/ui/sonner'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
 import type {
@@ -291,6 +293,8 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell flex h-full flex-col">
+      <Toaster richColors closeButton />
+      <ExportStatusOverlay />
       <Titlebar
         onToggleSidebar={state.toggleSidebar}
         onToggleRightSidebar={state.toggleRightSidebar}
