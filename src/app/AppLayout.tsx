@@ -32,6 +32,7 @@ import { useTauriReadySignal } from '@/app/useTauriReadySignal'
 import type { GitDiffRequest } from '@/services/gitApi'
 import { getWorkspaceTabId } from '@/logic/tabs'
 import type { FsSearchResult } from '@/services/fsApi'
+import { useKeyboardShortcuts } from '@/app/useKeyboardShortcuts'
 
 export type LayoutContext = {
   activePath: string | null
@@ -62,6 +63,8 @@ export default function AppLayout() {
   const stateOpenFileView = state.onOpenFileView
   const stateOpenGitDiff = state.onOpenGitDiff
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   useTauriReadySignal()
 
   const handleOpenFile = useCallback(
@@ -256,6 +259,7 @@ export default function AppLayout() {
       if (id === 'view.graph') currentState.setViewMode('graph')
       if (id === 'view.toggle_sidebar') currentState.toggleSidebar()
       if (id === 'view.toggle_right_sidebar') currentState.toggleRightSidebar()
+      if (id === 'settings.open') setSettingsOpen(true)
       if (id === 'theme.light') currentState.setTheme('light')
       if (id === 'theme.dark') currentState.setTheme('dark')
       if (id === 'theme.marko-light') currentState.setTheme('marko-light')
@@ -266,6 +270,23 @@ export default function AppLayout() {
     },
     [stateRef],
   )
+
+  useKeyboardShortcuts({
+    activeTabId: state.activeTabId,
+    shortcutOverrides: state.shortcutOverrides,
+    tabs: state.tabs,
+    viewMode: state.viewMode,
+    onCloseActiveTab: state.onCloseActiveTab,
+    onCreateFile: () => handleMenuAction('file.new'),
+    onOpenCommandPalette: () => setCommandOpen(true),
+    onOpenFile: () => handleMenuAction('file.open_file'),
+    onOpenProject: () => handleMenuAction('file.open_project'),
+    onOpenSettings: () => setSettingsOpen(true),
+    onOpenTab: state.onOpenTab,
+    onSetViewMode: state.setViewMode,
+    onToggleRightSidebar: state.toggleRightSidebar,
+    onToggleSidebar: state.toggleSidebar,
+  })
 
   useEffect(() => {
     const domHandler = (event: Event) => {
@@ -311,6 +332,10 @@ export default function AppLayout() {
         setIsMaximized={state.setIsMaximized}
         theme={state.theme}
         setTheme={state.setTheme}
+        commandOpen={commandOpen}
+        onCommandOpenChange={setCommandOpen}
+        settingsOpen={settingsOpen}
+        onSettingsOpenChange={setSettingsOpen}
       />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar

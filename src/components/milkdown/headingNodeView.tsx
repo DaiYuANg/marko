@@ -1,4 +1,3 @@
-import { memo } from 'react'
 import { headingSchema } from '@milkdown/kit/preset/commonmark'
 import type { NodeViewConstructor } from '@milkdown/kit/prose/view'
 import { $view } from '@milkdown/kit/utils'
@@ -11,7 +10,7 @@ const readHeadingLevel = (level: unknown) => {
 
 const HeadingView = markdownBlockComponentRegistry.heading
 
-const MilkdownHeadingNodeView = memo(() => {
+const MilkdownHeadingNodeView = () => {
   const { contentRef, node, selected } = useNodeViewContext()
   return (
     <HeadingView
@@ -20,7 +19,7 @@ const MilkdownHeadingNodeView = memo(() => {
       selected={selected}
     />
   )
-})
+}
 
 export const createMarkdownHeadingNodeView = (
   nodeViewFactory: (options: ReactNodeViewUserOptions) => NodeViewConstructor,

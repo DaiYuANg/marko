@@ -9,7 +9,6 @@ import { createMarkdownMarkViews } from '@/components/milkdown/markViews'
 import { configureMermaidPreview } from '@/components/milkdown/mermaidPreview'
 import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
 import { pasteLinkOnSelection } from '@/components/milkdown/pasteEnhancements'
-import { markdownEditorShortcuts } from '@/components/milkdown/editorShortcuts'
 
 export type NodeViewFactory = (options: ReactNodeViewUserOptions) => NodeViewConstructor
 export type MarkViewFactory = (options: ReactMarkViewUserOptions) => MarkViewConstructor
@@ -37,7 +36,6 @@ export const configureMarkdownCrepe = (
     .use(createMarkdownHeadingNodeView(nodeViewFactory))
     .use(createMarkdownBlockNodeViews(nodeViewFactory))
     .use(createMarkdownMarkViews(markViewFactory))
-    .use(markdownEditorShortcuts)
     .use(pasteLinkOnSelection)
 
   return crepe

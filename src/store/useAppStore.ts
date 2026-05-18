@@ -9,6 +9,12 @@ import {
   normalizeWorkspaceTabId,
   normalizeWorkspaceTabs,
 } from '@/logic/tabs'
+import {
+  normalizeShortcutList,
+  sanitizeShortcutOverrides,
+  type ShortcutActionId,
+  type ShortcutBindings,
+} from '@/logic/shortcuts'
 
 export type ViewMode = 'wysiwyg' | 'source' | 'graph'
 export type FileViewKind = 'edit' | 'source' | 'graph'
@@ -53,6 +59,7 @@ type AppState = {
   defaultFileView: FileViewKind
   graphMiniMapEnabled: boolean
   graphContentMode: GraphContentMode
+  shortcutOverrides: ShortcutBindings
   setRootPath: (path: string) => void
   setRootKind: (kind: 'internal' | 'external' | 'single') => void
   setEntries: (entries: FileEntry[]) => void
@@ -66,6 +73,8 @@ type AppState = {
   setDefaultFileView: (view: FileViewKind) => void
   setGraphMiniMapEnabled: (enabled: boolean) => void
   setGraphContentMode: (mode: GraphContentMode) => void
+  setShortcutOverride: (action: ShortcutActionId, bindings: string[] | null) => void
+  resetShortcutOverrides: () => void
   toggleSidebar: () => void
   toggleRightSidebar: () => void
   touchRecentProject: (path: string) => void
@@ -90,6 +99,7 @@ export const useAppStore = create<AppState>()(
       defaultFileView: 'edit',
       graphMiniMapEnabled: true,
       graphContentMode: 'summary',
+      shortcutOverrides: {},
       setRootPath: (path) => set((state) => (state.rootPath === path ? state : { rootPath: path })),
       setRootKind: (kind) => set((state) => (state.rootKind === kind ? state : { rootKind: kind })),
       setEntries: (entries) => set((state) => (state.entries === entries ? state : { entries })),
@@ -123,6 +133,17 @@ export const useAppStore = create<AppState>()(
         set((state) =>
           state.graphContentMode === graphContentMode ? state : { graphContentMode },
         ),
+      setShortcutOverride: (action, bindings) =>
+        set((state) => {
+          const next = { ...state.shortcutOverrides }
+          if (bindings === null) {
+            delete next[action]
+          } else {
+            next[action] = normalizeShortcutList(bindings)
+          }
+          return { shortcutOverrides: next }
+        }),
+      resetShortcutOverrides: () => set({ shortcutOverrides: {} }),
       toggleSidebar: () =>
         set((state) => ({
           sidebarCollapsed: !state.sidebarCollapsed,
@@ -140,7 +161,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'marko.app',
       storage: createIdleJsonStorage('marko.app'),
-      version: 9,
+      version: 10,
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<AppState> & { theme?: string }
         const legacyTheme =
@@ -188,6 +209,11 @@ export const useAppStore = create<AppState>()(
             state.graphContentMode === 'none' || state.graphContentMode === 'full'
               ? state.graphContentMode
               : 'summary',
+          shortcutOverrides: sanitizeShortcutOverrides(
+            version < 10
+              ? (state as { shortcutOverrides?: unknown }).shortcutOverrides
+              : state.shortcutOverrides,
+          ),
         } as AppState
       },
       partialize: (state) => ({
@@ -206,6 +232,7 @@ export const useAppStore = create<AppState>()(
         defaultFileView: state.defaultFileView,
         graphMiniMapEnabled: state.graphMiniMapEnabled,
         graphContentMode: state.graphContentMode,
+        shortcutOverrides: state.shortcutOverrides,
       }),
     },
   ),

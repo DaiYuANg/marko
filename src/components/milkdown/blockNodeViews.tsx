@@ -1,4 +1,3 @@
-import { memo } from 'react'
 import {
   blockquoteSchema,
   bulletListSchema,
@@ -24,25 +23,25 @@ const createContentElement = (tagName: 'blockquote' | 'ol' | 'ul', className: st
   return element
 }
 
-const MilkdownBlockquoteNodeView = memo(() => {
+const MilkdownBlockquoteNodeView = () => {
   const { contentRef, selected } = useNodeViewContext()
   return <BlockquoteView contentRef={contentRef} selected={selected} />
-})
+}
 
-const MilkdownBulletListNodeView = memo(() => {
+const MilkdownBulletListNodeView = () => {
   const { contentRef, selected } = useNodeViewContext()
   return <ListView contentRef={contentRef} selected={selected} />
-})
+}
 
-const MilkdownOrderedListNodeView = memo(() => {
+const MilkdownOrderedListNodeView = () => {
   const { contentRef, selected } = useNodeViewContext()
   return <ListView contentRef={contentRef} selected={selected} ordered />
-})
+}
 
-const MilkdownDividerNodeView = memo(() => {
+const MilkdownDividerNodeView = () => {
   const { selected } = useNodeViewContext()
   return <DividerView selected={selected} />
-})
+}
 
 export const createMarkdownBlockNodeViews = (nodeViewFactory: NodeViewFactory) => [
   $view(blockquoteSchema.node, () =>

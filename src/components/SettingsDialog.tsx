@@ -1,14 +1,4 @@
-import {
-  Check,
-  Code2,
-  GitGraph,
-  Languages,
-  Map,
-  Palette,
-  PenLine,
-  Save,
-  SlidersHorizontal,
-} from 'lucide-react'
+import { GitGraph, Keyboard, Palette, Save, SlidersHorizontal } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -16,69 +6,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n/useI18n'
-import type { Locale } from '@/i18n/resources'
-import {
-  useAppStore,
-  type FileViewKind,
-  type GraphContentMode,
-  type ThemeMode,
-} from '@/store/useAppStore'
+import AppearanceSettingsPage from '@/components/settings/AppearanceSettingsPage'
+import GeneralSettingsPage from '@/components/settings/GeneralSettingsPage'
+import GraphSettingsPage from '@/components/settings/GraphSettingsPage'
+import SettingsShell from '@/components/settings/SettingsShell'
+import ShortcutsSettingsPage from '@/components/settings/ShortcutsSettingsPage'
 
 type SettingsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-const themes: Array<{ value: ThemeMode; labelKey: string; swatchClass: string }> = [
-  { value: 'light', labelKey: 'theme.light', swatchClass: 'theme-swatch-light' },
-  { value: 'dark', labelKey: 'theme.dark', swatchClass: 'theme-swatch-dark' },
-  {
-    value: 'marko-light',
-    labelKey: 'theme.markoLight',
-    swatchClass: 'theme-swatch-marko-light',
-  },
-  { value: 'marko-dark', labelKey: 'theme.markoDark', swatchClass: 'theme-swatch-marko-dark' },
-]
-
-const locales: Array<{ value: Locale; labelKey: string }> = [
-  { value: 'zh-CN', labelKey: 'language.zh' },
-  { value: 'en-US', labelKey: 'language.en' },
-]
-
-const fileViews: Array<{ value: FileViewKind; labelKey: string; icon: React.ElementType }> = [
-  { value: 'edit', labelKey: 'editor.modeWysiwyg', icon: PenLine },
-  { value: 'source', labelKey: 'editor.modeSource', icon: Code2 },
-  { value: 'graph', labelKey: 'tabs.graph', icon: GitGraph },
-]
-
-const graphContentModes: Array<{ value: GraphContentMode; labelKey: string }> = [
-  { value: 'none', labelKey: 'settings.graphContentNone' },
-  { value: 'summary', labelKey: 'settings.graphContentSummary' },
-  { value: 'full', labelKey: 'settings.graphContentFull' },
-]
-
 export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const { t, locale, setLocale } = useI18n()
-  const theme = useAppStore((state) => state.theme)
-  const setTheme = useAppStore((state) => state.setTheme)
-  const silentSave = useAppStore((state) => state.silentSave)
-  const setSilentSave = useAppStore((state) => state.setSilentSave)
-  const showEditorStatusBar = useAppStore((state) => state.showEditorStatusBar)
-  const setShowEditorStatusBar = useAppStore((state) => state.setShowEditorStatusBar)
-  const defaultFileView = useAppStore((state) => state.defaultFileView)
-  const setDefaultFileView = useAppStore((state) => state.setDefaultFileView)
-  const graphMiniMapEnabled = useAppStore((state) => state.graphMiniMapEnabled)
-  const setGraphMiniMapEnabled = useAppStore((state) => state.setGraphMiniMapEnabled)
-  const graphContentMode = useAppStore((state) => state.graphContentMode)
-  const setGraphContentMode = useAppStore((state) => state.setGraphContentMode)
+  const { t } = useI18n()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="settings-dialog-surface max-w-2xl overflow-hidden rounded-md p-0">
+      <DialogContent className="settings-dialog-surface max-w-none gap-0 overflow-hidden rounded-md p-0">
         <DialogHeader className="tab-strip border-b border-border/80 px-5 py-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -87,187 +32,36 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
           <DialogDescription>{t('settings.description')}</DialogDescription>
         </DialogHeader>
 
-        <Tabs
+        <SettingsShell
           defaultValue="general"
-          className="settings-dialog-body grid min-h-[360px] grid-cols-[160px_1fr]"
-        >
-          <TabsList className="flex h-full flex-col items-stretch justify-start rounded-none border-r border-border bg-muted/35 p-2">
-            <TabsTrigger value="general" className="justify-start gap-2 rounded-md">
-              <Save className="h-4 w-4" />
-              {t('settings.general')}
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="justify-start gap-2 rounded-md">
-              <Palette className="h-4 w-4" />
-              {t('settings.appearance')}
-            </TabsTrigger>
-            <TabsTrigger value="graph" className="justify-start gap-2 rounded-md">
-              <GitGraph className="h-4 w-4" />
-              {t('settings.graphEditor')}
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="min-w-0 p-5">
-            <TabsContent value="general" className="m-0 space-y-4">
-              <SettingsRow
-                title={t('settings.silentSave')}
-                description={t('settings.silentSaveDescription')}
-                control={<Switch checked={silentSave} onCheckedChange={setSilentSave} />}
-              />
-              <SettingsRow
-                title={t('settings.detailedSave')}
-                description={t('settings.detailedSaveDescription')}
-                control={
-                  <Switch
-                    checked={!silentSave}
-                    onCheckedChange={(checked) => setSilentSave(!checked)}
-                  />
-                }
-              />
-              <SettingsRow
-                title={t('settings.statusBar')}
-                description={t('settings.statusBarDescription')}
-                control={
-                  <Switch checked={showEditorStatusBar} onCheckedChange={setShowEditorStatusBar} />
-                }
-              />
-              <section className="settings-row-surface rounded-md p-3">
-                <div className="mb-1 text-sm font-medium">{t('settings.defaultFileView')}</div>
-                <div className="mb-3 text-xs leading-5 text-muted-foreground">
-                  {t('settings.defaultFileViewDescription')}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {fileViews.map((item) => {
-                    const Icon = item.icon
-                    return (
-                      <Button
-                        key={item.value}
-                        variant={defaultFileView === item.value ? 'secondary' : 'outline'}
-                        className="h-9 justify-start rounded-md"
-                        onClick={() => setDefaultFileView(item.value)}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span className="truncate">{t(item.labelKey)}</span>
-                      </Button>
-                    )
-                  })}
-                </div>
-              </section>
-            </TabsContent>
-
-            <TabsContent value="appearance" className="m-0 space-y-5">
-              <section>
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <Palette className="h-4 w-4 text-primary" />
-                  {t('menu.theme')}
-                </div>
-                <div className="mb-3 text-xs text-muted-foreground">
-                  {t('settings.themeDescription')}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {themes.map((item) => (
-                    <Button
-                      key={item.value}
-                      variant="ghost"
-                      data-selected={theme === item.value ? 'true' : 'false'}
-                      className="theme-choice h-auto justify-start gap-3 rounded-md p-2 text-left shadow-none"
-                      onClick={() => setTheme(item.value)}
-                    >
-                      <ThemePreview swatchClass={item.swatchClass} />
-                      <span className="min-w-0 flex-1 truncate text-sm">{t(item.labelKey)}</span>
-                      {theme === item.value && <Check className="h-4 w-4 text-primary" />}
-                    </Button>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                  <Languages className="h-4 w-4 text-primary" />
-                  {t('menu.language')}
-                </div>
-                <div className="mb-3 text-xs text-muted-foreground">
-                  {t('settings.languageDescription')}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {locales.map((item) => (
-                    <Button
-                      key={item.value}
-                      variant={locale === item.value ? 'secondary' : 'outline'}
-                      className="h-9 justify-start rounded-md"
-                      onClick={() => setLocale(item.value)}
-                    >
-                      {t(item.labelKey)}
-                    </Button>
-                  ))}
-                </div>
-              </section>
-            </TabsContent>
-
-            <TabsContent value="graph" className="m-0 space-y-4">
-              <SettingsRow
-                title={t('settings.graphMiniMap')}
-                description={t('settings.graphMiniMapDescription')}
-                control={
-                  <Switch checked={graphMiniMapEnabled} onCheckedChange={setGraphMiniMapEnabled} />
-                }
-              />
-              <section className="settings-row-surface rounded-md p-3">
-                <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-                  <Map className="h-4 w-4 text-primary" />
-                  {t('settings.graphContentMode')}
-                </div>
-                <div className="mb-3 text-xs leading-5 text-muted-foreground">
-                  {t('settings.graphContentModeDescription')}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {graphContentModes.map((item) => (
-                    <Button
-                      key={item.value}
-                      variant={graphContentMode === item.value ? 'secondary' : 'outline'}
-                      className="h-9 rounded-md"
-                      onClick={() => setGraphContentMode(item.value)}
-                    >
-                      {t(item.labelKey)}
-                    </Button>
-                  ))}
-                </div>
-              </section>
-            </TabsContent>
-          </div>
-        </Tabs>
+          sections={[
+            {
+              value: 'general',
+              label: t('settings.general'),
+              icon: Save,
+              content: <GeneralSettingsPage />,
+            },
+            {
+              value: 'appearance',
+              label: t('settings.appearance'),
+              icon: Palette,
+              content: <AppearanceSettingsPage />,
+            },
+            {
+              value: 'graph',
+              label: t('settings.graphEditor'),
+              icon: GitGraph,
+              content: <GraphSettingsPage />,
+            },
+            {
+              value: 'shortcuts',
+              label: t('settings.shortcuts'),
+              icon: Keyboard,
+              content: <ShortcutsSettingsPage />,
+            },
+          ]}
+        />
       </DialogContent>
     </Dialog>
-  )
-}
-
-function SettingsRow({
-  title,
-  description,
-  control,
-}: {
-  title: string
-  description: string
-  control: React.ReactNode
-}) {
-  return (
-    <div className="settings-row-surface flex items-start justify-between gap-4 rounded-md p-3">
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{title}</div>
-        <div className="mt-1 text-xs leading-5 text-muted-foreground">{description}</div>
-      </div>
-      <div className="shrink-0 pt-0.5">{control}</div>
-    </div>
-  )
-}
-
-function ThemePreview({ swatchClass }: { swatchClass: string }) {
-  return (
-    <span className={`theme-swatch ${swatchClass} block h-9 w-12 shrink-0 overflow-hidden rounded`}>
-      <span className="theme-swatch-preview relative block h-full w-full">
-        <span className="absolute inset-y-0 left-0 w-4 bg-[var(--swatch-rail)]" />
-        <span className="absolute left-5 top-2 h-1.5 w-5 rounded-full bg-[var(--swatch-accent)]" />
-        <span className="absolute bottom-2 left-5 h-1 w-3 rounded-full bg-[var(--swatch-accent)] opacity-60" />
-      </span>
-    </span>
   )
 }

@@ -127,6 +127,11 @@
 }
 
 .settings-dialog-surface {
+  width: min(920px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   background: hsl(var(--card));
   color: hsl(var(--card-foreground));
   border: 1px solid hsl(var(--border));
@@ -136,13 +141,43 @@
 }
 
 .settings-dialog-body {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
   background: hsl(var(--card));
+}
+
+.settings-dialog-panel {
+  min-height: 100%;
 }
 
 .settings-row-surface {
   background: color-mix(in srgb, hsl(var(--card)) 92%, hsl(var(--background)));
   border: 1px solid hsl(var(--border));
   box-shadow: 0 1px 2px color-mix(in srgb, hsl(var(--foreground)) 6%, transparent);
+}
+
+@media (max-width: 640px) {
+  .settings-dialog-surface {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
+  .settings-dialog-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-dialog-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+
+  .settings-dialog-tab-trigger {
+    flex: 0 0 auto;
+  }
 }
 
 .command-dialog-surface {

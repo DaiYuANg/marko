@@ -22,6 +22,8 @@ import { createFileLabel } from '@/logic/paths'
 import TitlebarCommandDialog from '@/components/TitlebarCommandDialog'
 import WindowControls from '@/components/WindowControls'
 import TitlebarThemeMenu from '@/components/TitlebarThemeMenu'
+import { useAppStore } from '@/store/useAppStore'
+import { formatShortcutList, resolveShortcutBindings } from '@/logic/shortcuts'
 
 type TitlebarProps = {
   onToggleSidebar: () => void
@@ -38,6 +40,10 @@ type TitlebarProps = {
   setIsMaximized: (value: boolean) => void
   theme: ThemeMode
   setTheme: (theme: ThemeMode) => void
+  commandOpen: boolean
+  onCommandOpenChange: (open: boolean) => void
+  settingsOpen: boolean
+  onSettingsOpenChange: (open: boolean) => void
 }
 
 function Titlebar({
@@ -55,6 +61,10 @@ function Titlebar({
   setIsMaximized,
   theme,
   setTheme,
+  commandOpen,
+  onCommandOpenChange,
+  settingsOpen,
+  onSettingsOpenChange,
 }: TitlebarProps) {
   const getAppWindow = useCallback(async () => {
     if (!isTauriRuntime()) return null
@@ -63,8 +73,7 @@ function Titlebar({
   }, [])
   const { t } = useI18n()
   const [platform, setPlatform] = useState<AppPlatform>(inferPlatformFromUserAgent())
-  const [commandOpen, setCommandOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const shortcutOverrides = useAppStore((state) => state.shortcutOverrides)
   const isWindows =
     typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('windows')
   const showInlineMenu = platform === 'windows' || platform === 'linux'
@@ -76,19 +85,6 @@ function Titlebar({
       .then((next) => setPlatform(next))
       .catch(() => {})
   }, [])
-  useEffect(() => {
-    const onHotkey = (event: KeyboardEvent) => {
-      const withCommand = event.ctrlKey || event.metaKey
-      if (!withCommand || event.key.toLowerCase() !== 'p') return
-      event.preventDefault()
-      setCommandOpen(true)
-    }
-    window.addEventListener('keydown', onHotkey)
-    return () => {
-      window.removeEventListener('keydown', onHotkey)
-    }
-  }, [])
-
   const menuGroups = useMemo(
     () => [
       {
@@ -163,6 +159,12 @@ function Titlebar({
       })),
     )
   }, [workspaceIndex])
+  const commandPaletteShortcut = useMemo(() => {
+    const hotkeyPlatform =
+      platform === 'macos' ? 'mac' : platform === 'windows' ? 'windows' : 'linux'
+    const bindings = resolveShortcutBindings(shortcutOverrides)
+    return formatShortcutList(bindings['app.commandPalette'], hotkeyPlatform)
+  }, [platform, shortcutOverrides])
 
   const onMenuAction = useCallback((id: string) => {
     if (!isTauriRuntime()) return
@@ -172,11 +174,11 @@ function Titlebar({
     window.dispatchEvent(new CustomEvent('marko:focus-file-search'))
   }, [])
   const onOpenSearch = useCallback(() => {
-    setCommandOpen(true)
-  }, [])
+    onCommandOpenChange(true)
+  }, [onCommandOpenChange])
   const onCommandAction = useCallback(
     (id: string) => {
-      setCommandOpen(false)
+      onCommandOpenChange(false)
       if (id === 'view.wysiwyg') {
         onChangeView('wysiwyg')
         return
@@ -210,7 +212,7 @@ function Titlebar({
         return
       }
       if (id === 'settings.open') {
-        setSettingsOpen(true)
+        onSettingsOpenChange(true)
         return
       }
       if (
@@ -234,32 +236,34 @@ function Titlebar({
       onSelectSingleFile,
       onToggleRightSidebar,
       onToggleSidebar,
+      onCommandOpenChange,
+      onSettingsOpenChange,
       setTheme,
     ],
   )
 
   const onCommandOpenFile = useCallback(
     (path: string) => {
-      setCommandOpen(false)
+      onCommandOpenChange(false)
       onOpenFile(path)
     },
-    [onOpenFile],
+    [onCommandOpenChange, onOpenFile],
   )
 
   const onCommandOpenHeading = useCallback(
     (path: string, slug: string) => {
-      setCommandOpen(false)
+      onCommandOpenChange(false)
       onOpenHeading(path, slug)
     },
-    [onOpenHeading],
+    [onCommandOpenChange, onOpenHeading],
   )
 
   const onCommandOpenSearchResult = useCallback(
     (result: FsSearchResult) => {
-      setCommandOpen(false)
+      onCommandOpenChange(false)
       onOpenSearchResult(result)
     },
-    [onOpenSearchResult],
+    [onCommandOpenChange, onOpenSearchResult],
   )
 
   const isMacTauri = platform === 'macos' && isTauriRuntime()
@@ -320,8 +324,7 @@ function Titlebar({
               <Search className="h-3.5 w-3.5" />
               <span>{t('sidebar.search')}</span>
               <KbdGroup className="ml-auto">
-                <Kbd>{isWindows ? 'Ctrl' : 'Cmd'}</Kbd>
-                <Kbd>P</Kbd>
+                <Kbd>{commandPaletteShortcut}</Kbd>
               </KbdGroup>
             </span>
           </Button>
@@ -380,7 +383,7 @@ function Titlebar({
                 variant="ghost"
                 size="icon"
                 className="chrome-button h-8 w-8 rounded-md"
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => onSettingsOpenChange(true)}
                 aria-label={t('menu.settings')}
               >
                 <Settings2 className="h-4 w-4" />
@@ -406,7 +409,7 @@ function Titlebar({
       </TooltipProvider>
       <TitlebarCommandDialog
         open={commandOpen}
-        onOpenChange={setCommandOpen}
+        onOpenChange={onCommandOpenChange}
         files={commandFiles}
         headings={commandHeadings}
         onOpenFile={onCommandOpenFile}
@@ -414,7 +417,7 @@ function Titlebar({
         onOpenSearchResult={onCommandOpenSearchResult}
         onAction={onCommandAction}
       />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog open={settingsOpen} onOpenChange={onSettingsOpenChange} />
       <WindowControls
         platform={platform}
         isWindows={isWindows}

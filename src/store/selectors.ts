@@ -30,6 +30,7 @@ export const useLayoutStoreSlice = () =>
       defaultFileView: state.defaultFileView,
       graphMiniMapEnabled: state.graphMiniMapEnabled,
       graphContentMode: state.graphContentMode,
+      shortcutOverrides: state.shortcutOverrides,
       toggleSidebar: state.toggleSidebar,
       toggleRightSidebar: state.toggleRightSidebar,
       setTheme: state.setTheme,

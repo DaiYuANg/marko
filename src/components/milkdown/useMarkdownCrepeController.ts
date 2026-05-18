@@ -22,8 +22,10 @@ import {
   resolveExternalMarkdownSync,
   resolvePendingMarkdownSync,
 } from '@/components/milkdown/editorSync'
+import { runMarkdownEditorShortcut } from '@/components/milkdown/editorShortcuts'
 import { useFocusHeadingEvent } from '@/components/milkdown/useFocusHeadingEvent'
 import type { MarkdownEditorProps } from '@/components/milkdown/markdownEditorTypes'
+import type { ShortcutActionId } from '@/logic/shortcuts'
 
 type UseMarkdownCrepeControllerOptions = MarkdownEditorProps & {
   darkMode: boolean
@@ -60,6 +62,10 @@ export const useMarkdownCrepeController = ({
 
   const getMarkdown = useCallback(() => {
     return readCrepeMarkdown(crepeRef.current, latestValue.current)
+  }, [])
+
+  const runShortcutAction = useCallback((action: ShortcutActionId) => {
+    return runMarkdownEditorShortcut(crepeRef.current, action)
   }, [])
 
   const scrollEditorToTop = useCallback(() => {
@@ -289,6 +295,7 @@ export const useMarkdownCrepeController = ({
     },
     focusEditor,
     rootRef,
+    runShortcutAction,
     scrollAreaRef,
   }
 }

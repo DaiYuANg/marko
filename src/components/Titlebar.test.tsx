@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
@@ -58,6 +58,10 @@ const createProps = (overrides: Partial<TitlebarProps> = {}): TitlebarProps => (
   setIsMaximized: vi.fn(),
   theme: 'marko-light',
   setTheme: vi.fn(),
+  commandOpen: false,
+  onCommandOpenChange: vi.fn(),
+  settingsOpen: false,
+  onSettingsOpenChange: vi.fn(),
   ...overrides,
 })
 
@@ -85,9 +89,8 @@ beforeEach(async () => {
 describe('Titlebar command palette', () => {
   it('opens workspace files from the command palette', async () => {
     const onOpenFile = vi.fn()
-    renderTitlebar(createProps({ onOpenFile }))
+    renderTitlebar(createProps({ commandOpen: true, onOpenFile }))
 
-    fireEvent.keyDown(window, { key: 'p', ctrlKey: true })
     await userEvent.click(await screen.findByText('target'))
 
     expect(onOpenFile).toHaveBeenCalledWith('notes/target.md')
@@ -95,9 +98,8 @@ describe('Titlebar command palette', () => {
 
   it('opens indexed headings from the command palette', async () => {
     const onOpenHeading = vi.fn()
-    renderTitlebar(createProps({ onOpenHeading }))
+    renderTitlebar(createProps({ commandOpen: true, onOpenHeading }))
 
-    fireEvent.keyDown(window, { key: 'p', ctrlKey: true })
     await userEvent.click(await screen.findByText('## Indexed Detail'))
 
     expect(onOpenHeading).toHaveBeenCalledWith('notes/target.md', 'indexed-detail')
