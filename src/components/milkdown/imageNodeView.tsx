@@ -35,8 +35,10 @@ export const createMarkdownImageNodeView = (
 
     useEffect(() => {
       let cancelled = false
-      setDisplaySrc(src)
-      if (!src) return
+      if (!src) {
+        setDisplaySrc(src)
+        return
+      }
 
       void resolveImageSrc(documentPath, src).then((resolvedSrc) => {
         if (!cancelled) {

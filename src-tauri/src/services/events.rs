@@ -27,6 +27,7 @@ pub struct ExportTaskEvent {
 pub enum AppEvent {
   WorkspaceChanged,
   FileSystemChanged,
+  AssetChanged,
   DocumentChanged,
   BuffersFlushed,
   ExportTask(ExportTaskEvent),
@@ -37,6 +38,8 @@ pub enum AppEvent {
 struct CoalescedWorkspaceEvents {
   should_stop: bool,
   refresh_documents: bool,
+  refresh_snapshot: bool,
+  rebuild_search_index: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -141,6 +144,7 @@ fn start_event_worker(
         AppEvent::RuntimeStopping => break,
         AppEvent::ExportTask(payload) => emit_export_task(&app_handle, payload),
         AppEvent::WorkspaceChanged
+        | AppEvent::AssetChanged
         | AppEvent::FileSystemChanged
         | AppEvent::DocumentChanged
         | AppEvent::BuffersFlushed => {
@@ -148,6 +152,8 @@ fn start_event_worker(
             event,
             AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged
           );
+          let refresh_snapshot = true;
+          let rebuild_search_index = !matches!(event, AppEvent::AssetChanged);
           let coalesced = coalesce_workspace_events(&app_handle, &mut receiver).await;
           if coalesced.should_stop {
             break;
@@ -155,6 +161,8 @@ fn start_event_worker(
           handle_workspace_event(
             &app_handle,
             refresh_documents || coalesced.refresh_documents,
+            refresh_snapshot || coalesced.refresh_snapshot,
+            rebuild_search_index || coalesced.rebuild_search_index,
           )
           .await;
         }
@@ -175,8 +183,16 @@ async fn coalesce_workspace_events(
     match receiver.try_recv() {
       Ok(AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged) => {
         coalesced.refresh_documents = true;
+        coalesced.refresh_snapshot = true;
+        coalesced.rebuild_search_index = true;
       }
-      Ok(AppEvent::DocumentChanged | AppEvent::BuffersFlushed) => {}
+      Ok(AppEvent::AssetChanged) => {
+        coalesced.refresh_snapshot = true;
+      }
+      Ok(AppEvent::DocumentChanged | AppEvent::BuffersFlushed) => {
+        coalesced.refresh_snapshot = true;
+        coalesced.rebuild_search_index = true;
+      }
       Ok(AppEvent::ExportTask(payload)) => emit_export_task(app, payload),
       Ok(AppEvent::RuntimeStopping) => {
         coalesced.should_stop = true;
@@ -227,7 +243,12 @@ fn export_output_name(path: &str) -> String {
     .to_string()
 }
 
-async fn handle_workspace_event(app: &tauri::AppHandle, refresh_documents: bool) {
+async fn handle_workspace_event(
+  app: &tauri::AppHandle,
+  refresh_documents: bool,
+  refresh_snapshot: bool,
+  rebuild_search_index: bool,
+) {
   let (Some(state), Some(buffer_state), Some(services)) = (
     app.try_state::<FsState>(),
     app.try_state::<FsBufferState>(),
@@ -243,17 +264,23 @@ async fn handle_workspace_event(app: &tauri::AppHandle, refresh_documents: bool)
     services.workspace.clear_index_cache();
   }
 
-  match app.path().app_data_dir() {
-    Ok(index_parent) => {
-      if let Err(err) = services
-        .workspace
-        .rebuild_search_index(index_parent, &state, &buffer_state)
-        .await
-      {
-        log::warn!("rebuild search index failed: {err}");
+  if rebuild_search_index {
+    match app.path().app_data_dir() {
+      Ok(index_parent) => {
+        if let Err(err) = services
+          .workspace
+          .rebuild_search_index(index_parent, &state, &buffer_state)
+          .await
+        {
+          log::warn!("rebuild search index failed: {err}");
+        }
       }
+      Err(err) => log::warn!("resolve search index dir failed: {err}"),
     }
-    Err(err) => log::warn!("resolve search index dir failed: {err}"),
+  }
+
+  if !refresh_snapshot {
+    return;
   }
 
   match services.workspace.snapshot(&state).await {

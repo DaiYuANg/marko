@@ -170,7 +170,15 @@ fn handle_fs_watch_events(
       let app_handle = app_handle.clone();
       runtime.spawn(async move {
         if let Some(services) = app_handle.try_state::<crate::services::AppServices>() {
-          if let Err(err) = services.events.publish(AppEvent::FileSystemChanged) {
+          let event = if events
+            .iter()
+            .any(|event| is_markdown_file_path(&event.path))
+          {
+            AppEvent::FileSystemChanged
+          } else {
+            AppEvent::AssetChanged
+          };
+          if let Err(err) = services.events.publish(event) {
             log::warn!("publish filesystem event failed: {err}");
           }
         }
@@ -178,6 +186,14 @@ fn handle_fs_watch_events(
     }
     Err(err) => log::warn!("fs watcher error: {err}"),
   }
+}
+
+fn is_markdown_file_path(path: &Path) -> bool {
+  path
+    .extension()
+    .and_then(|ext| ext.to_str())
+    .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "md" | "markdown"))
+    .unwrap_or(false)
 }
 
 fn is_temp_write_path(path: &Path) -> bool {

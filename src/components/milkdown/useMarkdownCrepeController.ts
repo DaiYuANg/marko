@@ -16,6 +16,7 @@ import {
   insertImageIntoCrepe,
   placeCrepeSelectionAtClientPoint,
   readCrepeMarkdown,
+  replaceImageSourceInCrepe,
   replaceCrepeMarkdown,
   type PendingExternalValue,
   type ReplaceMarkdownOptions,
@@ -81,6 +82,10 @@ export const useMarkdownCrepeController = ({
     return insertImageIntoCrepe(crepeRef.current, src, alt)
   }, [])
 
+  const replaceImageSource = useCallback((from: string, to: string) => {
+    return replaceImageSourceInCrepe(crepeRef.current, from, to)
+  }, [])
+
   const placeSelectionAtClientPoint = useCallback((clientX: number, clientY: number) => {
     return placeCrepeSelectionAtClientPoint(crepeRef.current, clientX, clientY)
   }, [])
@@ -91,10 +96,11 @@ export const useMarkdownCrepeController = ({
         activePath: activePathRef.current,
         insertImage,
         markdown: readCrepeMarkdown(crepeRef.current, latestValue.current),
+        replaceImageSource,
         strategy: markdownAssetImportStrategyRef.current,
       })
     },
-    [insertImage],
+    [insertImage, replaceImageSource],
   )
 
   const pickAndImportImage = useCallback(async () => {

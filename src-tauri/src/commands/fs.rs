@@ -276,7 +276,7 @@ pub async fn fs_import_markdown_asset(
     .import_asset(source_path, document_path, strategy, title, &state)
     .await?;
   if result.copied {
-    publish_app_event(&services, AppEvent::FileSystemChanged)?;
+    publish_app_event(&services, AppEvent::AssetChanged)?;
   }
   Ok(result)
 }
@@ -297,7 +297,7 @@ pub async fn fs_import_markdown_asset_base64(
     .markdown_assets
     .import_asset_bytes(file_name, bytes, document_path, title, &state)
     .await?;
-  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  publish_app_event(&services, AppEvent::AssetChanged)?;
   Ok(result)
 }
 

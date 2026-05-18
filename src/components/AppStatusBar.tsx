@@ -17,6 +17,7 @@ import { SIDEBAR_ACTIVITY_PARAM } from '@/logic/routing'
 import { countChangedFiles, countGitConflicts, gitStatusQueryKey } from '@/logic/gitStatus'
 import { useI18n } from '@/i18n/useI18n'
 import { gitApi } from '@/services/gitApi'
+import { useMarkdownAssetSyncStore } from '@/store/useMarkdownAssetSyncStore'
 import { isTauriRuntime } from '@/utils/tauri'
 import type { SaveState } from '@/app/useEditorBuffer'
 import type { FileEntry, ViewMode, WorkspaceTab } from '@/store/useAppStore'
@@ -63,6 +64,9 @@ function AppStatusBar({
 }: AppStatusBarProps) {
   const { t } = useI18n()
   const [, setSearchParams] = useSearchParams()
+  const assetSyncPending = useMarkdownAssetSyncStore((state) => state.pending)
+  const assetSyncFailed = useMarkdownAssetSyncStore((state) => state.failed)
+  const assetSyncLastError = useMarkdownAssetSyncStore((state) => state.lastError)
   const gitEnabled = isTauriRuntime() && rootKind !== 'single' && Boolean(rootPath)
   const queryKey = useMemo(() => gitStatusQueryKey(rootPath), [rootPath])
 
@@ -171,6 +175,25 @@ function AppStatusBar({
           )}
           {activeSaveState?.status === 'error' && (
             <span className="hidden shrink-0 text-destructive sm:inline">{t('save.error')}</span>
+          )}
+          {assetSyncPending > 0 && (
+            <span className="hidden shrink-0 items-center gap-1.5 text-sky-600 sm:inline-flex">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t('statusBar.assetsSyncing', { count: String(assetSyncPending) })}
+            </span>
+          )}
+          {assetSyncPending === 0 && assetSyncFailed > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="hidden shrink-0 items-center gap-1.5 text-destructive sm:inline-flex">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {t('statusBar.assetsFailed', { count: String(assetSyncFailed) })}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {assetSyncLastError ?? t('statusBar.assetsFailedTooltip')}
+              </TooltipContent>
+            </Tooltip>
           )}
           <span className="hidden shrink-0 sm:inline">{t(viewLabelKeys[viewMode])}</span>
           <div className="hidden h-3.5 w-px bg-border/80 md:block" />

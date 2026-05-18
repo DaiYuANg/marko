@@ -1,10 +1,12 @@
 import type { ClipboardEvent, DragEvent } from 'react'
-import { isTauri } from '@tauri-apps/api/core'
+import { convertFileSrc, isTauri } from '@tauri-apps/api/core'
 import { readImage, readText } from '@tauri-apps/plugin-clipboard-manager'
 import { open } from '@tauri-apps/plugin-dialog'
 import { MARKO_FILE_TREE_ITEM_MIME, readFileTreeDragPayload } from '@/logic/fileDragPayload'
 import { extractHeadings } from '@/logic/paths'
+import { rememberResolvedMarkdownImageSource } from '@/components/milkdown/markdownImageSource'
 import { fsApi } from '@/services/fsApi'
+import { beginMarkdownAssetSyncTask } from '@/store/useMarkdownAssetSyncStore'
 import type { MarkdownAssetImportStrategy } from '@/store/useAppStore'
 
 type FileWithPath = File & {
@@ -16,6 +18,7 @@ type ImportMarkdownAssetOptions = {
   markdown: string
   strategy: MarkdownAssetImportStrategy
   insertImage: (src: string, alt?: string) => boolean
+  replaceImageSource: (from: string, to: string) => boolean
 }
 
 export type MarkdownImageImportSource =
@@ -64,7 +67,7 @@ export const importMarkdownImageFiles = async (
 
 export const importMarkdownImageSources = async (
   sources: MarkdownImageImportSource[],
-  { activePath, insertImage, markdown, strategy }: ImportMarkdownAssetOptions,
+  { activePath, insertImage, markdown, replaceImageSource, strategy }: ImportMarkdownAssetOptions,
 ) => {
   if (!activePath) return false
 
@@ -72,15 +75,32 @@ export const importMarkdownImageSources = async (
   let imported = false
 
   for (const source of sources.filter(isImageImportSource)) {
+    const alt = cleanAltText(
+      source.kind === 'file'
+        ? source.file.name
+        : source.kind === 'url'
+          ? source.name || source.url
+          : source.name || source.path,
+    )
+
     if (source.kind === 'url') {
-      const alt = cleanAltText(source.name || source.url)
       imported = insertImage(source.url, alt) || imported
       continue
     }
 
-    const result = await importMarkdownAsset(source, activePath, strategy, title)
-    const alt = cleanAltText(source.kind === 'file' ? source.file.name : source.name || source.path)
-    imported = insertImage(result.markdown_target, alt) || imported
+    const previewSrc = createPreviewImageSource(source)
+    const inserted = insertImage(previewSrc, alt)
+    imported = inserted || imported
+    if (!inserted) continue
+
+    syncMarkdownAssetInBackground({
+      activePath,
+      previewSrc,
+      replaceImageSource,
+      source,
+      strategy,
+      title,
+    })
   }
 
   return imported
@@ -155,8 +175,46 @@ export const readNativeClipboardImageSource =
     return imageSourcesFromClipboardText(text)[0] ?? null
   }
 
+type SyncMarkdownAssetOptions = {
+  activePath: string
+  previewSrc: string
+  replaceImageSource: (from: string, to: string) => boolean
+  source: Exclude<MarkdownImageImportSource, { kind: 'url' }>
+  strategy: MarkdownAssetImportStrategy
+  title: string | null
+}
+
+const syncMarkdownAssetInBackground = ({
+  activePath,
+  previewSrc,
+  replaceImageSource,
+  source,
+  strategy,
+  title,
+}: SyncMarkdownAssetOptions) => {
+  const finishSync = beginMarkdownAssetSyncTask()
+
+  void importMarkdownAsset(source, activePath, strategy, title)
+    .then((result) => {
+      rememberResolvedMarkdownImageSource(
+        activePath,
+        result.markdown_target,
+        convertFileSrc(result.absolute_path),
+      )
+      const replaced = replaceImageSource(previewSrc, result.markdown_target)
+      if (replaced) {
+        revokePreviewImageSource(previewSrc)
+      }
+      finishSync()
+    })
+    .catch((error) => {
+      console.error('import markdown image asset failed', error)
+      finishSync(error)
+    })
+}
+
 const importMarkdownAsset = async (
-  source: MarkdownImageImportSource,
+  source: Exclude<MarkdownImageImportSource, { kind: 'url' }>,
   activePath: string,
   strategy: MarkdownAssetImportStrategy,
   title: string | null,
@@ -168,10 +226,6 @@ const importMarkdownAsset = async (
       strategy,
       title,
     })
-  }
-
-  if (source.kind === 'url') {
-    throw new Error('URL image sources are inserted directly and should not be imported')
   }
 
   const sourcePath = getFileSourcePath(source.file)
@@ -190,6 +244,30 @@ const importMarkdownAsset = async (
     documentPath: activePath,
     title,
   })
+}
+
+const createPreviewImageSource = (source: Exclude<MarkdownImageImportSource, { kind: 'url' }>) => {
+  if (source.kind === 'file') {
+    const sourcePath = getFileSourcePath(source.file)
+    if (sourcePath) return previewPathSource(sourcePath)
+    return URL.createObjectURL(source.file)
+  }
+
+  return previewPathSource(source.path)
+}
+
+const previewPathSource = (path: string) => {
+  const localPath = fileUriToPath(path) ?? path
+  if (isTauri() && isAbsolutePath(localPath)) {
+    return convertFileSrc(localPath)
+  }
+  return path
+}
+
+const revokePreviewImageSource = (src: string) => {
+  if (src.startsWith('blob:')) {
+    URL.revokeObjectURL(src)
+  }
 }
 
 const blobToBase64 = (blob: Blob) => {
@@ -300,19 +378,22 @@ const imageSourcesFromClipboardText = (value: string) => {
   return []
 }
 
+const fileUriToPath = (value: string) => {
+  if (!value.startsWith('file://')) return null
+  try {
+    return decodeURIComponent(new URL(value).pathname)
+  } catch {
+    return null
+  }
+}
+
 const fileUriListToPaths = (value: string) => {
   return value
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'))
     .filter((line) => line.startsWith('file://'))
-    .map((line) => {
-      try {
-        return decodeURIComponent(new URL(line).pathname)
-      } catch {
-        return ''
-      }
-    })
+    .map((line) => fileUriToPath(line) ?? '')
     .filter(Boolean)
 }
 

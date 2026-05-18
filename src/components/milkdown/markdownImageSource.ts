@@ -2,9 +2,24 @@ import { convertFileSrc, isTauri } from '@tauri-apps/api/core'
 import { fsApi } from '@/services/fsApi'
 
 const localProtocolPattern = /^(https?:|data:|blob:|asset:|file:)/i
+const resolvedImageSourceCache = new Map<string, string>()
+
+const imageSourceCacheKey = (documentPath: string, src: string) => {
+  return `${documentPath}\u0000${src.trim()}`
+}
 
 export const isExternalMarkdownImageSource = (src: string) => {
   return localProtocolPattern.test(src.trim())
+}
+
+export const rememberResolvedMarkdownImageSource = (
+  documentPath: string | null,
+  src: string,
+  resolvedSrc: string,
+) => {
+  const target = src.trim()
+  if (!documentPath || !target || !resolvedSrc) return
+  resolvedImageSourceCache.set(imageSourceCacheKey(documentPath, target), resolvedSrc)
 }
 
 export const resolveMarkdownImageSource = async (documentPath: string | null, src: string) => {
@@ -12,6 +27,9 @@ export const resolveMarkdownImageSource = async (documentPath: string | null, sr
   if (!target || isExternalMarkdownImageSource(target) || !documentPath || !isTauri()) {
     return src
   }
+
+  const cached = resolvedImageSourceCache.get(imageSourceCacheKey(documentPath, target))
+  if (cached) return cached
 
   try {
     const resolved = await fsApi.resolveMarkdownAsset({
@@ -21,7 +39,9 @@ export const resolveMarkdownImageSource = async (documentPath: string | null, sr
     if (resolved.is_external || !resolved.exists || !resolved.absolute_path) {
       return src
     }
-    return convertFileSrc(resolved.absolute_path)
+    const resolvedSrc = convertFileSrc(resolved.absolute_path)
+    rememberResolvedMarkdownImageSource(documentPath, target, resolvedSrc)
+    return resolvedSrc
   } catch (error) {
     console.warn('Failed to resolve Markdown image source', error)
     return src

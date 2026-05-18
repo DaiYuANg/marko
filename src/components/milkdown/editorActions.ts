@@ -150,3 +150,33 @@ export const insertImageIntoCrepe = (crepe: Crepe | null, src: string, alt = '')
   })
   return inserted
 }
+
+export const replaceImageSourceInCrepe = (
+  crepe: Crepe | null,
+  currentSrc: string,
+  nextSrc: string,
+) => {
+  if (!crepe || !currentSrc || !nextSrc || currentSrc === nextSrc) return false
+  let replaced = false
+
+  crepe.editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx)
+    let tr = view.state.tr
+
+    view.state.doc.descendants((node, position) => {
+      if (node.type.name !== 'image' || node.attrs.src !== currentSrc) return true
+      tr = tr.setNodeMarkup(position, undefined, {
+        ...node.attrs,
+        src: nextSrc,
+      })
+      replaced = true
+      return true
+    })
+
+    if (replaced) {
+      view.dispatch(tr)
+    }
+  })
+
+  return replaced
+}
