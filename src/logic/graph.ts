@@ -162,7 +162,10 @@ export const buildGraphFromWorkspaceIndex = (index: FsWorkspaceIndex): GraphData
   return { nodes, edges, layoutKey: createGraphLayoutKey('index', nodes, edges) }
 }
 
-export const buildGraphFromRustGraph = (graph: FsGraph): GraphData => {
+export const buildGraphFromRustGraph = (
+  graph: FsGraph,
+  contentMode: GraphContentMode = 'none',
+): GraphData => {
   const nodes: Node<GraphNodeData>[] = graph.nodes.map((node) => ({
     id: node.id,
     type: node.kind === 'file' ? undefined : node.kind,
@@ -180,7 +183,7 @@ export const buildGraphFromRustGraph = (graph: FsGraph): GraphData => {
       contentBlocks: normalizeMarkdownBlocks(node.content_blocks ?? undefined),
       contentStartLine: node.content_start_line ?? undefined,
       contentEndLine: node.content_end_line ?? undefined,
-      contentMode: 'none',
+      contentMode,
     },
     position: { x: 0, y: 0 },
   }))

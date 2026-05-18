@@ -26,6 +26,7 @@ import {
 } from '@/components/milkdown/editorDom'
 import {
   focusCrepeEditor,
+  focusCrepeEditorAtEnd,
   focusHeadingInCrepe,
   readCrepeMarkdown,
   replaceCrepeMarkdown,
@@ -264,7 +265,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       const target = event.target as HTMLElement | null
       if (!target) return
       if (isEditorChromeTarget(target)) return
-      focusEditor()
+      focusCrepeEditorAtEnd(crepeRef.current)
     }
 
     return (

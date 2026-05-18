@@ -31,6 +31,16 @@ export const focusCrepeEditor = (crepe: Crepe | null) => {
   })
 }
 
+export const focusCrepeEditorAtEnd = (crepe: Crepe | null) => {
+  if (!crepe) return
+  crepe.editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx)
+    const tr = view.state.tr.setSelection(Selection.atEnd(view.state.doc)).scrollIntoView()
+    view.dispatch(tr)
+    view.focus()
+  })
+}
+
 export const replaceCrepeMarkdown = (
   crepe: Crepe,
   nextValue: string,

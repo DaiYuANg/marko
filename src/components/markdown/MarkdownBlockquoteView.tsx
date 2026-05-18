@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useEditableCommit } from '@/components/markdown/useEditableCommit'
 
 type MarkdownBlockquoteViewProps = {
   text?: string
@@ -16,6 +17,10 @@ const MarkdownBlockquoteView = ({
   onCommit,
 }: MarkdownBlockquoteViewProps) => {
   const selectedClass = selected ? 'ring-1 ring-ring bg-accent/40' : 'bg-muted/35'
+  const editableHandlers = useEditableCommit<HTMLDivElement>({
+    value: text,
+    onCommit,
+  })
 
   if (!contentRef) {
     return (
@@ -28,13 +33,7 @@ const MarkdownBlockquoteView = ({
           className="whitespace-pre-wrap py-1 text-xs leading-5 text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
           contentEditable={editable}
           suppressContentEditableWarning
-          onBlur={(event) => {
-            const next = event.currentTarget.textContent ?? ''
-            if (next === text) return
-            onCommit?.(next)
-          }}
-          onKeyDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
+          {...editableHandlers}
         >
           {text}
         </div>

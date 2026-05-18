@@ -51,41 +51,49 @@ describe('buildGraphFromWorkspaceIndex', () => {
   })
 
   it('maps Rust outline graph nodes to React Flow nodes', () => {
-    const graph = buildGraphFromRustGraph({
-      mode: 'outline',
-      nodes: [
-        {
-          id: 'file:notes/current.md',
-          kind: 'file',
-          label: 'current',
-          path: 'notes/current.md',
-        },
-        {
-          id: 'heading:notes/current.md:intro',
-          kind: 'heading',
-          label: 'Intro',
-          path: 'notes/current.md',
-          line: 1,
-          level: 1,
-          slug: 'intro',
-        },
-      ],
-      edges: [
-        {
-          id: 'file:notes/current.md->heading:notes/current.md:intro-0',
-          source: 'file:notes/current.md',
-          target: 'heading:notes/current.md:intro',
-          kind: 'contains',
-        },
-      ],
-    } satisfies FsGraph)
+    const graph = buildGraphFromRustGraph(
+      {
+        mode: 'outline',
+        nodes: [
+          {
+            id: 'file:notes/current.md',
+            kind: 'file',
+            label: 'current',
+            path: 'notes/current.md',
+          },
+          {
+            id: 'heading:notes/current.md:intro',
+            kind: 'heading',
+            label: 'Intro',
+            path: 'notes/current.md',
+            line: 1,
+            level: 1,
+            slug: 'intro',
+          },
+        ],
+        edges: [
+          {
+            id: 'file:notes/current.md->heading:notes/current.md:intro-0',
+            source: 'file:notes/current.md',
+            target: 'heading:notes/current.md:intro',
+            kind: 'contains',
+          },
+        ],
+      } satisfies FsGraph,
+      'full',
+    )
 
     expect(graph.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'heading:notes/current.md:intro',
           type: 'heading',
-          data: expect.objectContaining({ label: 'Intro', subtitle: 'H1', line: 1 }),
+          data: expect.objectContaining({
+            label: 'Intro',
+            subtitle: 'H1',
+            line: 1,
+            contentMode: 'full',
+          }),
         }),
       ]),
     )

@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useEditableCommit } from '@/components/markdown/useEditableCommit'
 
 type MarkdownParagraphViewProps = {
   text?: string
@@ -21,6 +22,10 @@ const MarkdownParagraphView = ({
   const sizeClass = compact
     ? 'max-h-28 overflow-hidden px-2 py-1.5 text-xs text-muted-foreground'
     : 'px-1 py-0.5 text-[0.9375rem]'
+  const editableHandlers = useEditableCommit<HTMLDivElement>({
+    value: text,
+    onCommit,
+  })
 
   if (contentRef) {
     return (
@@ -39,13 +44,7 @@ const MarkdownParagraphView = ({
       className={`nodrag whitespace-pre-wrap rounded-sm bg-muted/55 leading-5 outline-none focus:bg-background focus:ring-1 focus:ring-ring ${sizeClass}`}
       contentEditable={editable}
       suppressContentEditableWarning
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent ?? ''
-        if (next === text) return
-        onCommit?.(next)
-      }}
-      onKeyDown={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
+      {...editableHandlers}
     >
       {text}
     </div>

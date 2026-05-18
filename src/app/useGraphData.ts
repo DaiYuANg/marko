@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { buildGraphFromRustGraph, type GraphData } from '@/logic/graph'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { isTauriRuntime } from '@/utils/tauri'
+import type { GraphContentMode } from '@/store/useAppStore'
 
 const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], layoutKey: 'empty' }
 
@@ -10,6 +11,7 @@ export function useGraphData(
   mode: 'file' | 'workspace' | null,
   workspaceIndex: FsWorkspaceIndex | null,
   activePath: string | null,
+  contentMode: GraphContentMode,
 ) {
   const tauriAvailable = isTauriRuntime()
   const enabled = Boolean(mode)
@@ -37,16 +39,20 @@ export function useGraphData(
   return useMemo(() => {
     if (!enabled) return EMPTY_GRAPH
 
+    const graphContentMode = mode === 'file' ? 'full' : contentMode
+
     if (mode === 'file') {
-      return outlineQuery.data ? buildGraphFromRustGraph(outlineQuery.data) : EMPTY_GRAPH
+      return outlineQuery.data
+        ? buildGraphFromRustGraph(outlineQuery.data, graphContentMode)
+        : EMPTY_GRAPH
     }
 
     if (mode === 'workspace' && workspaceIndex) {
       if (workspaceGraphQuery.data) {
-        return buildGraphFromRustGraph(workspaceGraphQuery.data)
+        return buildGraphFromRustGraph(workspaceGraphQuery.data, graphContentMode)
       }
     }
 
     return EMPTY_GRAPH
-  }, [enabled, mode, outlineQuery.data, workspaceGraphQuery.data, workspaceIndex])
+  }, [contentMode, enabled, mode, outlineQuery.data, workspaceGraphQuery.data, workspaceIndex])
 }

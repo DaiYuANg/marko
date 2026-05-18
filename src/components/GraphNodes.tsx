@@ -1,12 +1,13 @@
 import type { NodeProps } from 'reactflow'
 import { Handle, Position } from 'reactflow'
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import type { GraphNodeData } from '@/logic/graph'
 import {
-  createHeadingSectionBlocks,
+  createHeadingSectionViewModel,
   serializeMarkdownBlocks,
   updateMarkdownBlockText,
   type MarkdownBlockCommit,
+  type MarkdownBlockViewModel,
 } from '@/logic/markdownBlocks'
 import MarkdownBlockSurface from '@/components/MarkdownBlockSurface'
 
@@ -35,33 +36,43 @@ export const MissingNode = ({ data }: NodeProps<{ label: string; subtitle?: stri
 }
 
 export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
-  const blocks = createHeadingSectionBlocks({
-    headingId: id,
-    level: data.level ?? 2,
-    title: data.label,
-    content: data.content,
-    contentBlocks: data.contentBlocks,
-    contentMode: data.contentMode ?? 'none',
-    editable: Boolean(data.editable),
-  })
+  const onUpdateTitle = data.onUpdateTitle
+  const onUpdateContent = data.onUpdateContent
+  const blocks = useMemo(
+    () =>
+      createHeadingSectionViewModel({
+        headingId: id,
+        level: data.level ?? 2,
+        title: data.label,
+        content: data.content,
+        contentBlocks: data.contentBlocks,
+        contentMode: data.contentMode ?? 'none',
+        editable: Boolean(data.editable),
+      }),
+    [data.content, data.contentBlocks, data.contentMode, data.editable, data.label, data.level, id],
+  )
 
   const commitBlock = useCallback(
     (commit: MarkdownBlockCommit) => {
-      if (commit.id.endsWith(':heading')) {
-        data.onUpdateTitle?.(id, commit.text)
-        return
-      }
-      if (commit.id.endsWith(':content')) {
-        data.onUpdateContent?.(id, commit.text)
+      const committedBlock = blocks.find((block) => block.id === commit.id)
+      if (!committedBlock || committedBlock.commitTarget === 'none') return
+
+      if (committedBlock.commitTarget === 'title') {
+        onUpdateTitle?.(id, commit.text)
         return
       }
 
-      const contentBlocks = blocks.filter((block) => block.kind !== 'heading')
+      if (committedBlock.commitTarget === 'content') {
+        onUpdateContent?.(id, commit.text)
+        return
+      }
+
+      const contentBlocks = blocks.filter(isContentBlock)
       const nextBlocks = updateMarkdownBlockText(contentBlocks, commit)
       if (!nextBlocks) return
-      data.onUpdateContent?.(id, serializeMarkdownBlocks(nextBlocks))
+      onUpdateContent?.(id, serializeMarkdownBlocks(nextBlocks))
     },
-    [blocks, data, id],
+    [blocks, id, onUpdateContent, onUpdateTitle],
   )
 
   return (
@@ -73,3 +84,7 @@ export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
     </div>
   )
 })
+
+const isContentBlock = (block: MarkdownBlockViewModel) => {
+  return block.role === 'content'
+}

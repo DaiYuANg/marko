@@ -29,6 +29,7 @@ function GraphViewPage({
 }: GraphViewPageProps) {
   const { t } = useI18n()
   const canEdit = editable && graph.nodes.some((node) => node.type === 'heading')
+  const graphContentMode = canEdit ? 'full' : contentMode
 
   const updateHeadingTitle = useMemo(
     () => (nodeId: string, title: string) => {
@@ -62,7 +63,7 @@ function GraphViewPage({
                 graph={graph}
                 onOpenFile={onOpenFile}
                 showMiniMap={showMiniMap}
-                contentMode={contentMode}
+                contentMode={graphContentMode}
                 editable={canEdit}
                 onUpdateHeadingTitle={updateHeadingTitle}
                 onUpdateHeadingContent={updateHeadingContent}

@@ -185,7 +185,7 @@ export function useAppLayoutState() {
     entries.some((entry) => entry.kind === 'file'),
   )
   const graphMode = graphWorkspaceMatch ? 'workspace' : graphFileMatch ? 'file' : null
-  const graph = useGraphData(graphMode, workspaceIndex, currentFilePath)
+  const graph = useGraphData(graphMode, workspaceIndex, currentFilePath, graphContentMode)
 
   return {
     rootPath,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createHeadingSectionBlocks,
+  createHeadingSectionViewModel,
   normalizeMarkdownBlocks,
   serializeMarkdownBlocks,
   updateMarkdownBlockText,
@@ -53,6 +54,32 @@ describe('createHeadingSectionBlocks', () => {
     )
   })
 
+  it('creates an empty editable content block for graph editing', () => {
+    expect(
+      createHeadingSectionBlocks({
+        headingId: 'heading:notes/current.md:intro',
+        level: 2,
+        title: 'Intro',
+        contentMode: 'full',
+        editable: true,
+      }),
+    ).toEqual([
+      {
+        id: 'heading:notes/current.md:intro:heading',
+        kind: 'heading',
+        level: 2,
+        text: 'Intro',
+        editable: true,
+      },
+      {
+        id: 'heading:notes/current.md:intro:content',
+        kind: 'paragraph',
+        text: '',
+        editable: true,
+      },
+    ])
+  })
+
   it('uses rust-parsed blocks for full content mode', () => {
     const blocks = createHeadingSectionBlocks({
       headingId: 'heading:notes/current.md:intro',
@@ -90,19 +117,19 @@ describe('createHeadingSectionBlocks', () => {
         kind: 'code',
         text: 'const value = 1',
         language: 'ts',
-        editable: false,
+        editable: true,
       },
       {
         id: 'heading:notes/current.md:intro:block:1',
         kind: 'list',
         ordered: false,
         items: ['One', 'Two'],
-        editable: false,
+        editable: true,
       },
     ])
   })
 
-  it('keeps editable rust-parsed text blocks in graph full content mode', () => {
+  it('keeps editable rust-parsed content blocks in graph full content mode', () => {
     const blocks = createHeadingSectionBlocks({
       headingId: 'heading:notes/current.md:intro',
       level: 2,
@@ -129,7 +156,54 @@ describe('createHeadingSectionBlocks', () => {
       editable: true,
     })
 
-    expect(blocks.slice(1).map((block) => block.editable)).toEqual([true, true, false])
+    expect(blocks.slice(1).map((block) => block.editable)).toEqual([true, true, true])
+  })
+
+  it('marks graph commit targets for heading and content blocks', () => {
+    const blocks = createHeadingSectionViewModel({
+      headingId: 'heading:notes/current.md:intro',
+      level: 2,
+      title: 'Intro',
+      contentBlocks: normalizeMarkdownBlocks([
+        {
+          id: 'heading:notes/current.md:intro:block:0',
+          kind: 'paragraph',
+          text: 'Body',
+        },
+        {
+          id: 'heading:notes/current.md:intro:block:1',
+          kind: 'code',
+          text: 'const value = 1',
+          language: 'ts',
+        },
+      ]),
+      contentMode: 'full',
+      editable: true,
+    })
+
+    expect(
+      blocks.map((block) => ({
+        id: block.id,
+        role: block.role,
+        commitTarget: block.commitTarget,
+      })),
+    ).toEqual([
+      {
+        id: 'heading:notes/current.md:intro:heading',
+        role: 'title',
+        commitTarget: 'title',
+      },
+      {
+        id: 'heading:notes/current.md:intro:block:0',
+        role: 'content',
+        commitTarget: 'block',
+      },
+      {
+        id: 'heading:notes/current.md:intro:block:1',
+        role: 'content',
+        commitTarget: 'block',
+      },
+    ])
   })
 
   it('serializes edited text blocks back to markdown content', () => {
@@ -152,5 +226,41 @@ describe('createHeadingSectionBlocks', () => {
 
     expect(nextBlocks).not.toBeNull()
     expect(serializeMarkdownBlocks(nextBlocks ?? [])).toBe('Body\n\n> Updated quote')
+  })
+
+  it('serializes edited code blocks back to markdown content', () => {
+    const blocks = normalizeMarkdownBlocks([
+      {
+        id: 'heading:notes/current.md:intro:block:0',
+        kind: 'code',
+        text: 'const value = 1',
+        language: 'ts',
+      },
+    ])
+    const nextBlocks = updateMarkdownBlockText(blocks, {
+      id: 'heading:notes/current.md:intro:block:0',
+      text: 'const value = 2',
+    })
+
+    expect(nextBlocks).not.toBeNull()
+    expect(serializeMarkdownBlocks(nextBlocks ?? [])).toBe('```ts\nconst value = 2\n```')
+  })
+
+  it('normalizes edited list text back to markdown content', () => {
+    const blocks = normalizeMarkdownBlocks([
+      {
+        id: 'heading:notes/current.md:intro:block:0',
+        kind: 'list',
+        ordered: true,
+        items: ['One', 'Two'],
+      },
+    ])
+    const nextBlocks = updateMarkdownBlockText(blocks, {
+      id: 'heading:notes/current.md:intro:block:0',
+      text: '1. First\n- Second\nThird',
+    })
+
+    expect(nextBlocks).not.toBeNull()
+    expect(serializeMarkdownBlocks(nextBlocks ?? [])).toBe('1. First\n2. Second\n3. Third')
   })
 })

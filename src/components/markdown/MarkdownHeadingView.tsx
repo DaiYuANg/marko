@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import clamp from 'lodash-es/clamp'
+import { useEditableCommit } from '@/components/markdown/useEditableCommit'
 
 type MarkdownHeadingViewProps = {
   level: number
@@ -45,6 +46,13 @@ const MarkdownHeadingView = ({
 }: MarkdownHeadingViewProps) => {
   const headingClass = getHeadingClass(level, compact)
   const selectedClass = selected ? 'border-ring bg-accent/50' : 'border-transparent'
+  const editableHandlers = useEditableCommit<HTMLDivElement>({
+    value: text,
+    onCommit,
+    normalizeValue: (next) => next.trim(),
+    commitOnEnter: true,
+    rejectEmpty: true,
+  })
 
   if (contentRef) {
     return (
@@ -64,19 +72,7 @@ const MarkdownHeadingView = ({
       data-selected={selected ? 'true' : 'false'}
       contentEditable={editable}
       suppressContentEditableWarning
-      onBlur={(event) => {
-        const next = event.currentTarget.textContent?.trim() ?? ''
-        if (!next || next === text) return
-        onCommit?.(next)
-      }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          event.currentTarget.blur()
-        }
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
+      {...editableHandlers}
     >
       {text}
     </div>

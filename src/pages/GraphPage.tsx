@@ -88,7 +88,7 @@ const GraphPageComponent = ({
         minZoom={0.15}
         maxZoom={2.2}
         onNodeClick={(_, node: Node<GraphNodeData>) => {
-          if (editable) return
+          if (editable && node.type === 'heading') return
           if (node.id.startsWith('file:')) {
             onOpenFile(node.id.replace('file:', ''))
             return
