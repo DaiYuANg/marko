@@ -4,15 +4,12 @@ import path from 'node:path'
 import { constants as zlibConstants } from 'node:zlib'
 import TurboConsole from 'unplugin-turbo-console/vite'
 import { compression, defineAlgorithm } from 'vite-plugin-compression2'
-import { viteStaticCopy } from 'vite-plugin-static-copy'
 
 const isNodeModule = (id: string) => id.includes('/node_modules/')
 
 const includesAny = (id: string, values: string[]) => values.some((value) => id.includes(value))
 
 const packagePathMatches = (id: string, pattern: RegExp) => pattern.test(id)
-
-const katexFontsPath = path.resolve(__dirname, 'node_modules/.pnpm/node_modules/katex/dist/fonts/*')
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
@@ -26,16 +23,6 @@ export default defineConfig(({ command }) => {
     },
     plugins: [
       react(),
-      isBuild &&
-        viteStaticCopy({
-          targets: [
-            {
-              src: katexFontsPath,
-              dest: 'assets/fonts',
-              rename: { stripBase: true },
-            },
-          ],
-        }),
       isBuild &&
         compression({
           include: /\.(html|xml|css|json|js|mjs|svg|wasm)$/,
