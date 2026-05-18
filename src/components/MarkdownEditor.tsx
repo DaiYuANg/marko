@@ -40,6 +40,8 @@ import type {
   MarkdownEditorProps,
 } from '@/components/milkdown/markdownEditorTypes'
 import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
+import { pasteLinkOnSelection } from '@/components/milkdown/pasteEnhancements'
+import { markdownEditorShortcuts } from '@/components/milkdown/editorShortcuts'
 
 const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   ({ activePath, value, onChange, placeholder, slashLabels }, ref) => {
@@ -157,6 +159,8 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
         .use(createMarkdownHeadingNodeView(nodeViewFactory))
         .use(createMarkdownBlockNodeViews(nodeViewFactory))
         .use(createMarkdownMarkViews(markViewFactory))
+        .use(markdownEditorShortcuts)
+        .use(pasteLinkOnSelection)
 
       let destroyed = false
       void crepe
