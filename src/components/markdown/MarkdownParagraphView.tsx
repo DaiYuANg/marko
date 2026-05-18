@@ -20,7 +20,7 @@ const MarkdownParagraphView = ({
   const selectedClass = selected ? 'ring-1 ring-ring bg-accent/50' : ''
   const sizeClass = compact
     ? 'max-h-28 overflow-hidden px-2 py-1.5 text-xs text-muted-foreground'
-    : 'px-1 py-0.5 text-sm'
+    : 'px-1 py-0.5 text-[0.9375rem]'
 
   if (contentRef) {
     return (

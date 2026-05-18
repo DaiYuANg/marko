@@ -6,7 +6,7 @@ authors = ["you"]
 license = ""
 repository = ""
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.80"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -27,7 +27,6 @@ tauri-plugin-dialog = "2.7.1"
 walkdir = "2.5"
 notify = "8.2.0"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "time"] }
-markdown2pdf = "1.0.0"
 pulldown-cmark = "0.13.3"
 docx-rs = "0.4"
 fluxdi = { version = "1.2.2", features = ["thread-safe", "lifecycle"] }
@@ -39,6 +38,7 @@ similar = "2.7.0"
 percent-encoding = "2.3.2"
 notify-debouncer-mini = "0.7.0"
 tantivy = "0.22.1"
+mdxport = { version = "0.2.11", default-features = false }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-window-state = "2.4.1"

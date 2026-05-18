@@ -2,7 +2,7 @@
 //! All exporters use pure Rust libraries (no subprocess/exec).
 
 use docx_rs::{BreakType, Docx, Paragraph, Run, RunFonts};
-use markdown2pdf::config::ConfigSource;
+use mdxport::{Options as PdfExportOptions, Style as PdfExportStyle};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 /// Supported export formats.
@@ -76,29 +76,24 @@ impl ExportService {
   }
 }
 
-/// Preprocess markdown to fix patterns that cause markdown2pdf's strict parser to fail
-/// (e.g. "Unmatched emphasis" from * or _ in ambiguous contexts).
-fn sanitize_markdown_for_pdf(md: &str) -> String {
+/// Normalize editor-produced Markdown into portable Markdown before exporting.
+fn normalize_markdown_for_export(md: &str) -> String {
   let mut out = String::with_capacity(md.len() + 64);
   let mut in_code_block = 0u8; // 0=no, 1=backtick, 2=tilde
   let mut in_inline_code = false;
-  let bytes = md.as_bytes();
+  let chars: Vec<(usize, char)> = md.char_indices().collect();
   let mut i = 0;
 
-  while i < bytes.len() {
-    let c = bytes[i] as char;
-    let prev = if i > 0 { bytes[i - 1] as char } else { ' ' };
-    let next = if i + 1 < bytes.len() {
-      bytes[i + 1] as char
-    } else {
-      ' '
-    };
+  while i < chars.len() {
+    let (byte_index, c) = chars[i];
+    let prev = if i > 0 { chars[i - 1].1 } else { ' ' };
+    let next = chars.get(i + 1).map(|(_, c)| *c).unwrap_or(' ');
 
     if in_code_block > 0 {
       out.push(c);
       if (in_code_block == 1 && c == '`') || (in_code_block == 2 && c == '~') {
         let mut j = i;
-        while j < bytes.len() && (bytes[j] as char) == c {
+        while j < chars.len() && chars[j].1 == c {
           j += 1;
         }
         if j - i >= 3 {
@@ -115,7 +110,7 @@ fn sanitize_markdown_for_pdf(md: &str) -> String {
 
     if c == '`' {
       let mut j = i;
-      while j < bytes.len() && (bytes[j] as char) == '`' {
+      while j < chars.len() && chars[j].1 == '`' {
         j += 1;
       }
       let n = j - i;
@@ -137,11 +132,19 @@ fn sanitize_markdown_for_pdf(md: &str) -> String {
       continue;
     }
 
+    if c == '<' {
+      if let Some((replacement, consumed)) = html_break_replacement(&md[byte_index..]) {
+        out.push_str(replacement);
+        i += md[byte_index..byte_index + consumed].chars().count();
+        continue;
+      }
+    }
+
     if c == '~'
-      && i + 2 < bytes.len()
-      && bytes[i] == b'~'
-      && bytes[i + 1] == b'~'
-      && bytes[i + 2] == b'~'
+      && i + 2 < chars.len()
+      && chars[i].1 == '~'
+      && chars[i + 1].1 == '~'
+      && chars[i + 2].1 == '~'
     {
       out.push_str("~~~");
       i += 3;
@@ -149,7 +152,7 @@ fn sanitize_markdown_for_pdf(md: &str) -> String {
       continue;
     }
 
-    // Escape * between digits (e.g. 2*3) - markdown2pdf misparses as emphasis.
+    // Keep numeric expressions like 2*3 from being parsed as emphasis.
     if c == '*' && prev.is_ascii_digit() && next.is_ascii_digit() {
       out.push('\\');
     }
@@ -162,31 +165,29 @@ fn sanitize_markdown_for_pdf(md: &str) -> String {
 }
 
 fn export_to_pdf(markdown: &str, output_path: &str) -> Result<(), String> {
-  let sanitized = sanitize_markdown_for_pdf(markdown);
-  markdown2pdf::parse_into_file(sanitized, output_path, ConfigSource::Default, None).map_err(
-    |e| {
-      let msg = e.to_string();
-      if msg.contains("Unmatched emphasis") {
-        format!(
-          "{}\n\nTip: The document may contain emphasis syntax (* or _) that markdown2pdf cannot parse. \
-Try checking for unmatched * or _, or export as HTML and print to PDF from your browser.",
-          msg
-        )
-      } else {
-        format!("Failed to export PDF: {}", msg)
-      }
+  let normalized = normalize_markdown_for_export(markdown);
+  let pdf = mdxport::markdown_to_pdf(
+    &normalized,
+    &PdfExportOptions {
+      style: PdfExportStyle::ModernTech,
+      lang: Some("zh".to_string()),
+      ..PdfExportOptions::default()
     },
   )
+  .map_err(|e| format!("Failed to export PDF: {}", e))?;
+
+  std::fs::write(output_path, pdf).map_err(|e| format!("Failed to write PDF: {}", e))
 }
 
 fn export_to_html(markdown: &str, output_path: &str) -> Result<(), String> {
+  let markdown = normalize_markdown_for_export(markdown);
   let mut options = Options::empty();
   options.insert(Options::ENABLE_STRIKETHROUGH);
   options.insert(Options::ENABLE_TABLES);
   options.insert(Options::ENABLE_TASKLISTS);
   options.insert(Options::ENABLE_FOOTNOTES);
 
-  let parser = Parser::new_ext(markdown, options);
+  let parser = Parser::new_ext(&markdown, options);
   let mut body = String::new();
   pulldown_cmark::html::push_html(&mut body, parser);
 
@@ -198,7 +199,7 @@ fn export_to_html(markdown: &str, output_path: &str) -> Result<(), String> {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Exported Document</title>
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #111827; }}
     pre {{ background: #f5f5f5; padding: 1rem; overflow-x: auto; border-radius: 4px; }}
     code {{ font-family: ui-monospace, monospace; background: #f5f5f5; padding: 0.2em 0.4em; border-radius: 4px; }}
     table {{ border-collapse: collapse; width: 100%; }}
@@ -217,12 +218,13 @@ fn export_to_html(markdown: &str, output_path: &str) -> Result<(), String> {
 }
 
 fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
+  let markdown = normalize_markdown_for_export(markdown);
   let mut options = Options::empty();
   options.insert(Options::ENABLE_STRIKETHROUGH);
   options.insert(Options::ENABLE_TABLES);
   options.insert(Options::ENABLE_TASKLISTS);
 
-  let parser = Parser::new_ext(markdown, options);
+  let parser = Parser::new_ext(&markdown, options);
 
   let mut docx = Docx::new();
   let mut run_buf: Vec<Run> = Vec::new();
@@ -292,7 +294,7 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
       },
       Event::Text(text) => {
         let t = text.to_string();
-        let mut run = Run::new().add_text(t);
+        let mut run = Run::new().add_text(t).fonts(default_docx_fonts());
         if bold {
           run = run.bold();
         }
@@ -306,11 +308,7 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
       }
       Event::Code(text) => {
         let t = text.to_string();
-        run_buf.push(
-          Run::new()
-            .add_text(t)
-            .fonts(RunFonts::new().ascii("Consolas")),
-        );
+        run_buf.push(Run::new().add_text(t).fonts(code_docx_fonts()));
       }
       Event::SoftBreak => {
         run_buf.push(Run::new().add_break(BreakType::TextWrapping));
@@ -337,4 +335,138 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
     .pack(file)
     .map_err(|e| format!("Failed to write DOCX: {}", e))?;
   Ok(())
+}
+
+fn default_docx_fonts() -> RunFonts {
+  RunFonts::new()
+    .ascii(docx_latin_font())
+    .east_asia(docx_east_asia_font())
+    .cs(docx_east_asia_font())
+}
+
+fn html_break_replacement(input: &str) -> Option<(&'static str, usize)> {
+  let variants = [
+    ("<br>", "\n"),
+    ("<br/>", "\n"),
+    ("<br />", "\n"),
+    ("</br>", "\n"),
+    ("<BR>", "\n"),
+    ("<BR/>", "\n"),
+    ("<BR />", "\n"),
+    ("</BR>", "\n"),
+  ];
+
+  variants
+    .iter()
+    .find_map(|(tag, replacement)| input.starts_with(tag).then_some((*replacement, tag.len())))
+}
+
+fn code_docx_fonts() -> RunFonts {
+  RunFonts::new()
+    .ascii(docx_code_font())
+    .east_asia(docx_east_asia_font())
+    .cs(docx_east_asia_font())
+}
+
+fn docx_latin_font() -> &'static str {
+  if cfg!(target_os = "macos") {
+    "Aptos"
+  } else if cfg!(target_os = "windows") {
+    "Aptos"
+  } else {
+    "Noto Sans"
+  }
+}
+
+fn docx_east_asia_font() -> &'static str {
+  if cfg!(target_os = "macos") {
+    "PingFang SC"
+  } else if cfg!(target_os = "windows") {
+    "Microsoft YaHei"
+  } else {
+    "Noto Sans CJK SC"
+  }
+}
+
+fn docx_code_font() -> &'static str {
+  if cfg!(target_os = "macos") {
+    "SF Mono"
+  } else if cfg!(target_os = "windows") {
+    "Cascadia Mono"
+  } else {
+    "DejaVu Sans Mono"
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::fs;
+  use std::time::{SystemTime, UNIX_EPOCH};
+
+  fn temp_export_path(ext: &str) -> String {
+    let nanos = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .expect("system time should be after unix epoch")
+      .as_nanos();
+    std::env::temp_dir()
+      .join(format!(
+        "marko-export-{}-{}.{}",
+        std::process::id(),
+        nanos,
+        ext
+      ))
+      .to_string_lossy()
+      .into_owned()
+  }
+
+  #[test]
+  fn html_export_writes_utf8_chinese_document() {
+    let path = temp_export_path("html");
+
+    export_to_html("# 标题\n\n中文正文", &path).expect("html export should succeed");
+
+    let html = fs::read_to_string(&path).expect("html should be readable as utf8");
+    let _ = fs::remove_file(&path);
+
+    assert!(html.contains("<meta charset=\"UTF-8\">"));
+    assert!(html.contains("<h1>标题</h1>"));
+    assert!(html.contains("中文正文"));
+  }
+
+  #[test]
+  fn docx_export_writes_non_empty_chinese_document() {
+    let path = temp_export_path("docx");
+
+    export_to_docx("# 标题\n\n中文正文和 `code`", &path).expect("docx export should succeed");
+
+    let metadata = fs::metadata(&path).expect("docx should exist");
+    let _ = fs::remove_file(&path);
+
+    assert!(metadata.len() > 0);
+  }
+
+  #[test]
+  fn pdf_export_writes_non_empty_chinese_document() {
+    let path = temp_export_path("pdf");
+
+    export_to_pdf("# 标题\n\n中文正文<br />下一行", &path).expect("pdf export should succeed");
+
+    let metadata = fs::metadata(&path).expect("pdf should exist");
+    if let Ok(keep_path) = std::env::var("MARKO_KEEP_EXPORT_TEST_PDF") {
+      fs::copy(&path, keep_path).expect("pdf should be copied for inspection");
+    }
+    let _ = fs::remove_file(&path);
+
+    assert!(metadata.len() > 0);
+  }
+
+  #[test]
+  fn sanitize_keeps_code_and_escapes_numeric_asterisk() {
+    let sanitized = normalize_markdown_for_export("计算 2*3<br />下一行\n\n`2*3`\n");
+
+    assert!(sanitized.contains("2\\*3"));
+    assert!(sanitized.contains("下一行"));
+    assert!(sanitized.contains("`2*3`"));
+  }
 }
