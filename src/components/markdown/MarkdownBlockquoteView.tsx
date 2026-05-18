@@ -8,13 +8,13 @@ type MarkdownBlockquoteViewProps = {
   onCommit?: (text: string) => void
 }
 
-function MarkdownBlockquoteView({
+const MarkdownBlockquoteView = ({
   text = '',
   editable = false,
   contentRef,
   selected = false,
   onCommit,
-}: MarkdownBlockquoteViewProps) {
+}: MarkdownBlockquoteViewProps) => {
   const selectedClass = selected ? 'ring-1 ring-ring bg-accent/40' : 'bg-muted/35'
 
   if (!contentRef) {

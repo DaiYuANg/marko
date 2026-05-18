@@ -7,12 +7,12 @@ type MarkdownListViewProps = {
   children?: ReactNode
 }
 
-function MarkdownListView({
+const MarkdownListView = ({
   contentRef,
   selected = false,
   ordered = false,
   children,
-}: MarkdownListViewProps) {
+}: MarkdownListViewProps) => {
   const selectedClass = selected ? 'ring-1 ring-ring bg-accent/35' : ''
 
   return (

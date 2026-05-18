@@ -37,27 +37,27 @@ const createContentElement = (
   }
 }
 
-const MilkdownInlineCodeMarkView = memo(function MilkdownInlineCodeMarkView() {
+const MilkdownInlineCodeMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
   return <MarkdownInlineCodeView contentRef={contentRef} />
 })
 
-const MilkdownLinkMarkView = memo(function MilkdownLinkMarkView() {
+const MilkdownLinkMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
   return <MarkdownLinkView contentRef={contentRef} />
 })
 
-const MilkdownStrongMarkView = memo(function MilkdownStrongMarkView() {
+const MilkdownStrongMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
   return <MarkdownTextMarkView variant="strong" contentRef={contentRef} />
 })
 
-const MilkdownEmphasisMarkView = memo(function MilkdownEmphasisMarkView() {
+const MilkdownEmphasisMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
   return <MarkdownTextMarkView variant="emphasis" contentRef={contentRef} />
 })
 
-const MilkdownStrikethroughMarkView = memo(function MilkdownStrikethroughMarkView() {
+const MilkdownStrikethroughMarkView = memo(() => {
   const { contentRef } = useMarkViewContext()
   return <MarkdownTextMarkView variant="strikethrough" contentRef={contentRef} />
 })

@@ -9,14 +9,14 @@ type MarkdownParagraphViewProps = {
   onCommit?: (text: string) => void
 }
 
-function MarkdownParagraphView({
+const MarkdownParagraphView = ({
   text = '',
   editable = false,
   contentRef,
   selected = false,
   compact = false,
   onCommit,
-}: MarkdownParagraphViewProps) {
+}: MarkdownParagraphViewProps) => {
   const selectedClass = selected ? 'ring-1 ring-ring bg-accent/50' : ''
   const sizeClass = compact
     ? 'max-h-28 overflow-hidden px-2 py-1.5 text-xs text-muted-foreground'

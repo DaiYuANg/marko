@@ -5,7 +5,7 @@ type MarkdownCodeBlockViewProps = {
   language?: string
 }
 
-function MarkdownCodeBlockView({ text, language }: MarkdownCodeBlockViewProps) {
+const MarkdownCodeBlockView = ({ text, language }: MarkdownCodeBlockViewProps) => {
   return (
     <div className="nodrag overflow-hidden rounded-sm border border-border bg-muted/55 text-xs">
       {language ? (

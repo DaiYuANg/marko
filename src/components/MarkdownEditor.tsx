@@ -19,7 +19,6 @@ import { slugify } from '@/logic/paths'
 import { createMarkdownBlockNodeViews } from '@/components/milkdown/blockNodeViews'
 import { createMarkdownHeadingNodeView } from '@/components/milkdown/headingNodeView'
 import { createMarkdownMarkViews } from '@/components/milkdown/markViews'
-import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
 
 type MarkdownEditorProps = {
   activePath: string | null
@@ -128,7 +127,7 @@ const readCrepeMarkdown = (crepe: Crepe | null, fallback: string) => {
 }
 
 const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-  function MarkdownEditorInner({ activePath, value, onChange }, ref) {
+  ({ activePath, value, onChange }, ref) => {
     const rootRef = useRef<HTMLDivElement | null>(null)
     const crepeRef = useRef<Crepe | null>(null)
     const latestValue = useRef(value)
@@ -296,7 +295,6 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
         })
         .use(listener)
         .use(createMarkdownHeadingNodeView(nodeViewFactory))
-        .use(createMarkdownParagraphNodeView(nodeViewFactory))
         .use(createMarkdownBlockNodeViews(nodeViewFactory))
         .use(createMarkdownMarkViews(markViewFactory))
 
@@ -388,14 +386,12 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
   },
 )
 
-const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-  function MarkdownEditor(props, ref) {
-    return (
-      <ProsemirrorAdapterProvider>
-        <MarkdownEditorInner {...props} ref={ref} />
-      </ProsemirrorAdapterProvider>
-    )
-  },
-)
+const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>((props, ref) => {
+  return (
+    <ProsemirrorAdapterProvider>
+      <MarkdownEditorInner {...props} ref={ref} />
+    </ProsemirrorAdapterProvider>
+  )
+})
 
 export default MarkdownEditor

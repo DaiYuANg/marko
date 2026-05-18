@@ -12,7 +12,7 @@ type MarkdownBlockSurfaceProps = {
   onCommitBlock?: (commit: MarkdownBlockCommit) => void
 }
 
-function MarkdownBlockSurface({ blocks, onCommitBlock }: MarkdownBlockSurfaceProps) {
+const MarkdownBlockSurface = ({ blocks, onCommitBlock }: MarkdownBlockSurfaceProps) => {
   return (
     <div className="space-y-1.5">
       {blocks.map((block) => (
@@ -24,19 +24,20 @@ function MarkdownBlockSurface({ blocks, onCommitBlock }: MarkdownBlockSurfacePro
 
 export default memo(MarkdownBlockSurface)
 
-function MarkdownSurfaceBlock({
+const MarkdownSurfaceBlock = ({
   block,
   onCommitBlock,
 }: {
   block: MarkdownBlock
   onCommitBlock?: (commit: MarkdownBlockCommit) => void
-}) {
+}) => {
   if (block.kind === 'heading') {
     return (
       <MarkdownHeadingBlock
         level={block.level}
         value={block.text}
         editable={block.editable}
+        compact
         onCommit={(text) => onCommitBlock?.({ id: block.id, text })}
       />
     )
@@ -69,21 +70,31 @@ function MarkdownSurfaceBlock({
   )
 }
 
-function MarkdownHeadingBlock({
+const MarkdownHeadingBlock = ({
   level,
   value,
   editable,
+  compact,
   onCommit,
 }: {
   level: number
   value: string
   editable: boolean
+  compact?: boolean
   onCommit?: (value: string) => void
-}) {
-  return <MarkdownHeadingView level={level} text={value} editable={editable} onCommit={onCommit} />
+}) => {
+  return (
+    <MarkdownHeadingView
+      level={level}
+      text={value}
+      editable={editable}
+      compact={compact}
+      onCommit={onCommit}
+    />
+  )
 }
 
-function MarkdownContentBlock({
+const MarkdownContentBlock = ({
   value,
   editable,
   onCommit,
@@ -91,11 +102,11 @@ function MarkdownContentBlock({
   value: string
   editable: boolean
   onCommit?: (value: string) => void
-}) {
+}) => {
   return <MarkdownParagraphView text={value} editable={editable} compact onCommit={onCommit} />
 }
 
-function MarkdownListItemsBlock({ ordered, items }: { ordered: boolean; items: string[] }) {
+const MarkdownListItemsBlock = ({ ordered, items }: { ordered: boolean; items: string[] }) => {
   const ListTag = ordered ? 'ol' : 'ul'
   return (
     <MarkdownListView ordered={ordered}>

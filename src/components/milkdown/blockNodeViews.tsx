@@ -20,22 +20,22 @@ const createContentElement = (tagName: 'blockquote' | 'ol' | 'ul', className: st
   return element
 }
 
-const MilkdownBlockquoteNodeView = memo(function MilkdownBlockquoteNodeView() {
+const MilkdownBlockquoteNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
   return <MarkdownBlockquoteView contentRef={contentRef} selected={selected} />
 })
 
-const MilkdownBulletListNodeView = memo(function MilkdownBulletListNodeView() {
+const MilkdownBulletListNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
   return <MarkdownListView contentRef={contentRef} selected={selected} />
 })
 
-const MilkdownOrderedListNodeView = memo(function MilkdownOrderedListNodeView() {
+const MilkdownOrderedListNodeView = memo(() => {
   const { contentRef, selected } = useNodeViewContext()
   return <MarkdownListView contentRef={contentRef} selected={selected} ordered />
 })
 
-const MilkdownDividerNodeView = memo(function MilkdownDividerNodeView() {
+const MilkdownDividerNodeView = memo(() => {
   const { selected } = useNodeViewContext()
   return <MarkdownDividerView selected={selected} />
 })

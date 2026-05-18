@@ -37,7 +37,7 @@ const HEADING_NODE_HEIGHT = 56
 const FILE_NODE_WIDTH = 200
 const FILE_NODE_HEIGHT = 54
 
-export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData {
+export const buildGraphFromWorkspaceIndex = (index: FsWorkspaceIndex): GraphData => {
   const edges: Edge[] = []
   const fileNodes = new Map<string, Node<GraphNodeData>>()
   const externalNodes = new Map<string, Node<GraphNodeData>>()
@@ -162,7 +162,7 @@ export function buildGraphFromWorkspaceIndex(index: FsWorkspaceIndex): GraphData
   return { nodes, edges, layoutKey: createGraphLayoutKey('index', nodes, edges) }
 }
 
-export function buildGraphFromRustGraph(graph: FsGraph): GraphData {
+export const buildGraphFromRustGraph = (graph: FsGraph): GraphData => {
   const nodes: Node<GraphNodeData>[] = graph.nodes.map((node) => ({
     id: node.id,
     type: node.kind === 'file' ? undefined : node.kind,

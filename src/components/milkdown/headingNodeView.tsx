@@ -9,7 +9,7 @@ const readHeadingLevel = (level: unknown) => {
   return typeof level === 'number' ? level : 1
 }
 
-const MilkdownHeadingNodeView = memo(function MilkdownHeadingNodeView() {
+const MilkdownHeadingNodeView = memo(() => {
   const { contentRef, node, selected } = useNodeViewContext()
   return (
     <MarkdownHeadingView

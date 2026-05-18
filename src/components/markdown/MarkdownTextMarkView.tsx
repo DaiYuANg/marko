@@ -7,7 +7,7 @@ type MarkdownTextMarkViewProps = {
   contentRef?: (element: HTMLElement | null) => void
 }
 
-function MarkdownTextMarkView({ variant, contentRef }: MarkdownTextMarkViewProps) {
+const MarkdownTextMarkView = ({ variant, contentRef }: MarkdownTextMarkViewProps) => {
   if (variant === 'strong') {
     return (
       <span className="font-semibold text-foreground">

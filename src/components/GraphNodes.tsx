@@ -5,9 +5,9 @@ import type { GraphNodeData } from '@/logic/graph'
 import { createHeadingSectionBlocks } from '@/logic/markdownBlocks'
 import MarkdownBlockSurface from '@/components/MarkdownBlockSurface'
 
-export function ExternalNode({
+export const ExternalNode = ({
   data,
-}: NodeProps<{ label: string; subtitle?: string; url: string }>) {
+}: NodeProps<{ label: string; subtitle?: string; url: string }>) => {
   return (
     <div className="rounded-md border border-amber-500/35 bg-card px-3 py-2 shadow-sm">
       <Handle type="target" position={Position.Left} />
@@ -18,7 +18,7 @@ export function ExternalNode({
   )
 }
 
-export function MissingNode({ data }: NodeProps<{ label: string; subtitle?: string }>) {
+export const MissingNode = ({ data }: NodeProps<{ label: string; subtitle?: string }>) => {
   return (
     <div className="rounded-md border border-destructive/35 bg-card px-3 py-2 shadow-sm">
       <Handle type="target" position={Position.Left} />
@@ -29,7 +29,7 @@ export function MissingNode({ data }: NodeProps<{ label: string; subtitle?: stri
   )
 }
 
-export const HeadingNode = memo(function HeadingNode({ id, data }: NodeProps<GraphNodeData>) {
+export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
   const blocks = createHeadingSectionBlocks({
     headingId: id,
     level: data.level ?? 2,
