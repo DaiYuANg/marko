@@ -11,6 +11,10 @@ export type PendingExternalValue = {
   baseValue: string
 }
 
+export type ReplaceMarkdownOptions = {
+  preserveSelection?: boolean
+}
+
 export const readCrepeMarkdown = (crepe: Crepe | null, fallback: string) => {
   if (!crepe) return fallback
   try {
@@ -32,6 +36,7 @@ export const replaceCrepeMarkdown = (
   nextValue: string,
   applyingExternalValueRef: { current: boolean },
   latestValueRef: { current: string },
+  options: ReplaceMarkdownOptions = {},
 ) => {
   crepe.editor.action((ctx) => {
     applyingExternalValueRef.current = true
@@ -43,7 +48,8 @@ export const replaceCrepeMarkdown = (
       const state = view.state
       const selection = state.selection
       let tr = state.tr.replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
-      const safeFrom = clamp(selection.from, 0, Math.max(0, doc.content.size - 2))
+      const nextPosition = options.preserveSelection === false ? 0 : selection.from
+      const safeFrom = clamp(nextPosition, 0, Math.max(0, doc.content.size - 2))
       tr = tr.setSelection(Selection.near(tr.doc.resolve(safeFrom)))
       view.dispatch(tr)
       latestValueRef.current = nextValue

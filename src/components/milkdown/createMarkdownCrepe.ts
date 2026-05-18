@@ -1,0 +1,40 @@
+import { Crepe } from '@milkdown/crepe'
+import { eclipse } from '@uiw/codemirror-theme-eclipse'
+import { createSlashMenuConfig, type SlashCommandLabels } from './slashMenuConfig'
+
+type CreateMarkdownCrepeOptions = {
+  root: HTMLElement
+  initialValue: string
+  darkMode: boolean
+  placeholder: string
+  slashLabels: SlashCommandLabels
+}
+
+export const createMarkdownCrepe = ({
+  root,
+  initialValue,
+  darkMode,
+  placeholder,
+  slashLabels,
+}: CreateMarkdownCrepeOptions) =>
+  new Crepe({
+    root,
+    defaultValue: initialValue,
+    features: {
+      [Crepe.Feature.BlockEdit]: true,
+      [Crepe.Feature.Placeholder]: true,
+    },
+    featureConfigs: {
+      [Crepe.Feature.CodeMirror]: {
+        theme: darkMode ? undefined : eclipse,
+      },
+      [Crepe.Feature.LinkTooltip]: {
+        onCopyLink: () => {},
+      },
+      [Crepe.Feature.Placeholder]: {
+        text: placeholder,
+        mode: 'block',
+      },
+      [Crepe.Feature.BlockEdit]: createSlashMenuConfig(slashLabels),
+    },
+  })

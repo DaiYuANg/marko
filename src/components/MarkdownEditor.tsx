@@ -14,43 +14,37 @@ import {
   useMarkViewFactory,
   useNodeViewFactory,
 } from '@prosemirror-adapter/react'
-import { eclipse } from '@uiw/codemirror-theme-eclipse'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDarkMode } from '@/hooks/useDarkMode'
 import { FOCUS_HEADING_EVENT, type FocusHeadingRequest } from '@/utils/editorNavigation'
 import { createMarkdownBlockNodeViews } from '@/components/milkdown/blockNodeViews'
+import { createMarkdownCrepe } from '@/components/milkdown/createMarkdownCrepe'
+import {
+  containsActiveElement,
+  isEditorChromeTarget,
+  scrollEditorViewportToTop,
+} from '@/components/milkdown/editorDom'
 import {
   focusCrepeEditor,
   focusHeadingInCrepe,
   readCrepeMarkdown,
   replaceCrepeMarkdown,
   type PendingExternalValue,
+  type ReplaceMarkdownOptions,
 } from '@/components/milkdown/editorActions'
 import { createMarkdownHeadingNodeView } from '@/components/milkdown/headingNodeView'
 import { createMarkdownMarkViews } from '@/components/milkdown/markViews'
 import { configureMermaidPreview } from '@/components/milkdown/mermaidPreview'
+import type {
+  MarkdownEditorHandle,
+  MarkdownEditorProps,
+} from '@/components/milkdown/markdownEditorTypes'
 import { createMarkdownParagraphNodeView } from '@/components/milkdown/paragraphNodeView'
-import {
-  createSlashMenuConfig,
-  type SlashCommandLabels,
-} from '@/components/milkdown/slashMenuConfig'
-
-type MarkdownEditorProps = {
-  activePath: string | null
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  slashLabels: SlashCommandLabels
-}
-
-export type MarkdownEditorHandle = {
-  focus: () => void
-  getMarkdown: () => string
-}
 
 const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   ({ activePath, value, onChange, placeholder, slashLabels }, ref) => {
     const rootRef = useRef<HTMLDivElement | null>(null)
+    const scrollAreaRef = useRef<HTMLDivElement | null>(null)
     const crepeRef = useRef<Crepe | null>(null)
     const latestValue = useRef(value)
     const onChangeRef = useRef(onChange)
@@ -58,6 +52,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     const localEchoRef = useRef<{ path: string | null; value: string } | null>(null)
     const applyingExternalValueRef = useRef(false)
     const isComposingRef = useRef(false)
+    const hasInitializedEditorRef = useRef(false)
     const lastSyncedPathRef = useRef(activePath)
     const pendingExternalValueRef = useRef<PendingExternalValue | null>(null)
     const darkMode = useDarkMode()
@@ -81,14 +76,17 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       activePathRef.current = activePath
     }, [activePath])
 
-    const applyExternalValue = (crepe: Crepe, nextValue: string) => {
-      replaceCrepeMarkdown(crepe, nextValue, applyingExternalValueRef, latestValue)
+    const scrollEditorToTop = () => scrollEditorViewportToTop(scrollAreaRef.current)
+
+    const applyExternalValue = (
+      crepe: Crepe,
+      nextValue: string,
+      options?: ReplaceMarkdownOptions,
+    ) => {
+      replaceCrepeMarkdown(crepe, nextValue, applyingExternalValueRef, latestValue, options)
     }
 
-    const hasEditorFocus = () => {
-      const root = rootRef.current
-      return Boolean(root && document.activeElement && root.contains(document.activeElement))
-    }
+    const hasEditorFocus = () => containsActiveElement(rootRef.current)
 
     const applyPendingExternalValue = () => {
       const pending = pendingExternalValueRef.current
@@ -128,26 +126,12 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       const root = rootRef.current
       if (!root) return
 
-      const crepe = new Crepe({
+      const crepe = createMarkdownCrepe({
         root,
-        defaultValue: latestValue.current,
-        features: {
-          [Crepe.Feature.BlockEdit]: true,
-          [Crepe.Feature.Placeholder]: true,
-        },
-        featureConfigs: {
-          [Crepe.Feature.CodeMirror]: {
-            theme: darkMode ? undefined : eclipse,
-          },
-          [Crepe.Feature.LinkTooltip]: {
-            onCopyLink: () => {},
-          },
-          [Crepe.Feature.Placeholder]: {
-            text: placeholder,
-            mode: 'block',
-          },
-          [Crepe.Feature.BlockEdit]: createSlashMenuConfig(slashLabels),
-        },
+        initialValue: latestValue.current,
+        darkMode,
+        placeholder,
+        slashLabels,
       })
 
       crepe.editor
@@ -181,9 +165,16 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
           if (destroyed) return
           crepeRef.current = crepe
           if (readCrepeMarkdown(crepe, latestValue.current) !== latestValue.current) {
-            applyExternalValue(crepe, latestValue.current)
+            applyExternalValue(crepe, latestValue.current, { preserveSelection: false })
           }
           lastSyncedPathRef.current = activePathRef.current
+          if (!hasInitializedEditorRef.current) {
+            hasInitializedEditorRef.current = true
+            if (activePathRef.current) {
+              scrollEditorToTop()
+              focusEditor()
+            }
+          }
         })
         .catch((error) => {
           if (destroyed) return
@@ -213,6 +204,16 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
       }
       const pathChanged = lastSyncedPathRef.current !== activePath
       const localEcho = localEchoRef.current
+      if (pathChanged) {
+        localEchoRef.current = null
+        pendingExternalValueRef.current = null
+        applyExternalValue(crepe, value, { preserveSelection: false })
+        lastSyncedPathRef.current = activePath
+        scrollEditorToTop()
+        if (activePath) focusEditor()
+        return
+      }
+
       if (localEcho?.path === activePath && localEcho.value === value) {
         latestValue.current = value
         localEchoRef.current = null
@@ -258,8 +259,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement | null
       if (!target) return
-      if (target.closest('.ProseMirror')) return
-      if (target.closest('.milkdown-toolbar, .milkdown-link-preview, .milkdown-link-edit')) return
+      if (isEditorChromeTarget(target)) return
       focusEditor()
     }
 
@@ -271,7 +271,11 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
         onBlur={handleBlur}
         onPointerDown={handlePointerDown}
       >
-        <ScrollArea className="h-full flex-1">
+        <ScrollArea
+          ref={scrollAreaRef}
+          className="h-full flex-1"
+          viewportClassName="editor-scroll-viewport"
+        >
           <div className="milkdown min-h-full" ref={rootRef} />
         </ScrollArea>
       </div>
