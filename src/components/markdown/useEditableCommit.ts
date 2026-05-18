@@ -14,6 +14,7 @@ export type UseEditableCommitOptions<T extends HTMLElement> = {
   normalizeValue?: (value: string) => string
   commitOnEnter?: boolean
   rejectEmpty?: boolean
+  resetValue?: (element: T) => void
   resetOnEscape?: boolean
 }
 
@@ -28,6 +29,7 @@ export const useEditableCommit = <T extends HTMLElement>({
   normalizeValue = (next) => next,
   commitOnEnter = false,
   rejectEmpty = false,
+  resetValue,
   resetOnEscape = true,
 }: UseEditableCommitOptions<T>) => {
   const composingRef = useRef(false)
@@ -37,13 +39,17 @@ export const useEditableCommit = <T extends HTMLElement>({
     (element: T) => {
       const next = normalizeValue(readValue(element))
       if (rejectEmpty && !next) {
-        element.textContent = value
+        if (resetValue) {
+          resetValue(element)
+        } else {
+          element.textContent = value
+        }
         return
       }
       if (next === value) return
       onCommit?.(next)
     },
-    [normalizeValue, onCommit, readValue, rejectEmpty, value],
+    [normalizeValue, onCommit, readValue, rejectEmpty, resetValue, value],
   )
 
   const onBlur = useCallback(
@@ -75,10 +81,16 @@ export const useEditableCommit = <T extends HTMLElement>({
   const onKeyDown = useCallback(
     (event: KeyboardEvent<T>) => {
       event.stopPropagation()
+      if (composingRef.current) return
+
       if (event.key === 'Escape') {
         event.preventDefault()
         if (resetOnEscape) {
-          event.currentTarget.textContent = value
+          if (resetValue) {
+            resetValue(event.currentTarget)
+          } else {
+            event.currentTarget.textContent = value
+          }
         }
         event.currentTarget.blur()
         return
@@ -88,7 +100,7 @@ export const useEditableCommit = <T extends HTMLElement>({
         event.currentTarget.blur()
       }
     },
-    [commitOnEnter, resetOnEscape, value],
+    [commitOnEnter, resetOnEscape, resetValue, value],
   )
 
   const onPointerDown = useCallback((event: PointerEvent<T>) => {

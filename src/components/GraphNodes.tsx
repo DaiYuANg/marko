@@ -2,13 +2,8 @@ import type { NodeProps } from 'reactflow'
 import { Handle, Position } from 'reactflow'
 import { memo, useCallback, useMemo } from 'react'
 import type { GraphNodeData } from '@/logic/graph'
-import {
-  createHeadingSectionViewModel,
-  serializeMarkdownBlocks,
-  updateMarkdownBlockText,
-  type MarkdownBlockCommit,
-  type MarkdownBlockViewModel,
-} from '@/logic/markdownBlocks'
+import { resolveHeadingSectionCommit } from '@/logic/markdownBlockCommits'
+import { createHeadingSectionViewModel, type MarkdownBlockCommit } from '@/logic/markdownBlocks'
 import MarkdownBlockSurface from '@/components/MarkdownBlockSurface'
 
 export const ExternalNode = ({
@@ -54,23 +49,20 @@ export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
 
   const commitBlock = useCallback(
     (commit: MarkdownBlockCommit) => {
-      const committedBlock = blocks.find((block) => block.id === commit.id)
-      if (!committedBlock || committedBlock.commitTarget === 'none') return
-
-      if (committedBlock.commitTarget === 'title') {
-        onUpdateTitle?.(id, commit.text)
+      const resolution = resolveHeadingSectionCommit(blocks, commit)
+      if (resolution.type === 'title') {
+        onUpdateTitle?.(id, resolution.text)
         return
       }
 
-      if (committedBlock.commitTarget === 'content') {
-        onUpdateContent?.(id, commit.text)
+      if (resolution.type === 'content') {
+        onUpdateContent?.(id, resolution.text)
         return
       }
 
-      const contentBlocks = blocks.filter(isContentBlock)
-      const nextBlocks = updateMarkdownBlockText(contentBlocks, commit)
-      if (!nextBlocks) return
-      onUpdateContent?.(id, serializeMarkdownBlocks(nextBlocks), nextBlocks)
+      if (resolution.type === 'blocks') {
+        onUpdateContent?.(id, resolution.text, resolution.blocks)
+      }
     },
     [blocks, id, onUpdateContent, onUpdateTitle],
   )
@@ -84,7 +76,3 @@ export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
     </div>
   )
 })
-
-const isContentBlock = (block: MarkdownBlockViewModel) => {
-  return block.role === 'content'
-}
