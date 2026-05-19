@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import {
   Tree,
@@ -36,6 +36,10 @@ export default function SidebarFileTree({
   searchTerm,
 }: SidebarFileTreeProps) {
   const treeRef = useRef<TreeApi<FileTreeNode> | undefined>(undefined)
+  const [dndRootElement, setDndRootElement] = useState<HTMLDivElement | null>(null)
+  const setTreeContainerRef = useCallback((element: HTMLDivElement | null) => {
+    setDndRootElement(element)
+  }, [])
 
   const getActiveNode = useCallback(() => {
     const tree = treeRef.current
@@ -198,45 +202,52 @@ export default function SidebarFileTree({
   )
 
   return (
-    <div className="h-full min-h-0 w-full overflow-hidden" onKeyDownCapture={handleKeyDownCapture}>
-      <AutoSizer
-        className="h-full w-full"
-        renderProp={({ height, width }) => {
-          const treeHeight = height ?? 0
-          const treeWidth = width ?? 0
-          if (treeHeight <= 0 || treeWidth <= 0) return null
+    <div
+      ref={setTreeContainerRef}
+      className="h-full min-h-0 w-full overflow-hidden"
+      onKeyDownCapture={handleKeyDownCapture}
+    >
+      {dndRootElement && (
+        <AutoSizer
+          className="h-full w-full"
+          renderProp={({ height, width }) => {
+            const treeHeight = height ?? 0
+            const treeWidth = width ?? 0
+            if (treeHeight <= 0 || treeWidth <= 0) return null
 
-          return (
-            <Tree<FileTreeNode>
-              ref={treeRef}
-              data={nodes}
-              idAccessor="path"
-              childrenAccessor="children"
-              rowHeight={28}
-              indent={13}
-              overscanCount={8}
-              height={treeHeight}
-              width={treeWidth}
-              openByDefault={false}
-              selection={activePath ?? undefined}
-              searchTerm={searchTerm}
-              searchMatch={(treeNode, term) =>
-                treeNode.data.name.toLowerCase().includes(term.toLowerCase())
-              }
-              disableDrag={readonlyTree}
-              disableDrop={disableDrop}
-              disableEdit={readonlyTree}
-              disableMultiSelection
-              className="outline-none"
-              onActivate={handleActivate}
-              onMove={handleMove}
-              onRename={handleRename}
-            >
-              {renderNode}
-            </Tree>
-          )
-        }}
-      />
+            return (
+              <Tree<FileTreeNode>
+                ref={treeRef}
+                data={nodes}
+                idAccessor="path"
+                childrenAccessor="children"
+                rowHeight={28}
+                indent={13}
+                overscanCount={8}
+                height={treeHeight}
+                width={treeWidth}
+                openByDefault={false}
+                selection={activePath ?? undefined}
+                searchTerm={searchTerm}
+                searchMatch={(treeNode, term) =>
+                  treeNode.data.name.toLowerCase().includes(term.toLowerCase())
+                }
+                dndRootElement={dndRootElement}
+                disableDrag={readonlyTree}
+                disableDrop={disableDrop}
+                disableEdit={readonlyTree}
+                disableMultiSelection
+                className="outline-none"
+                onActivate={handleActivate}
+                onMove={handleMove}
+                onRename={handleRename}
+              >
+                {renderNode}
+              </Tree>
+            )
+          }}
+        />
+      )}
     </div>
   )
 }
