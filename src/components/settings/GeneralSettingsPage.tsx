@@ -1,4 +1,7 @@
 import type { ElementType } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Code2, GitGraph, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -21,6 +24,15 @@ const assetImportStrategies: Array<{ value: MarkdownAssetImportStrategy; labelKe
   { value: 'preserve-path', labelKey: 'settings.assetStrategyPreserve' },
 ]
 
+const generalSettingsSchema = z.object({
+  silentSave: z.boolean(),
+  showEditorStatusBar: z.boolean(),
+  defaultFileView: z.enum(['edit', 'source', 'graph']),
+  markdownAssetImportStrategy: z.enum(['copy-to-document-assets', 'preserve-path']),
+})
+
+type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
+
 export default function GeneralSettingsPage() {
   const { t } = useI18n()
   const silentSave = useAppStore((state) => state.silentSave)
@@ -33,25 +45,75 @@ export default function GeneralSettingsPage() {
   const setMarkdownAssetImportStrategy = useAppStore(
     (state) => state.setMarkdownAssetImportStrategy,
   )
+  const form = useForm<GeneralSettingsValues>({
+    mode: 'onChange',
+    resolver: zodResolver(generalSettingsSchema),
+    values: {
+      silentSave,
+      showEditorStatusBar,
+      defaultFileView,
+      markdownAssetImportStrategy,
+    },
+  })
 
   return (
     <div className="space-y-4">
       <SettingsRow
         title={t('settings.silentSave')}
         description={t('settings.silentSaveDescription')}
-        control={<Switch checked={silentSave} onCheckedChange={setSilentSave} />}
+        control={
+          <Controller
+            control={form.control}
+            name="silentSave"
+            render={({ field }) => (
+              <Switch
+                checked={field.value}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked)
+                  setSilentSave(checked)
+                }}
+              />
+            )}
+          />
+        }
       />
       <SettingsRow
         title={t('settings.detailedSave')}
         description={t('settings.detailedSaveDescription')}
         control={
-          <Switch checked={!silentSave} onCheckedChange={(checked) => setSilentSave(!checked)} />
+          <Controller
+            control={form.control}
+            name="silentSave"
+            render={({ field }) => (
+              <Switch
+                checked={!field.value}
+                onCheckedChange={(checked) => {
+                  field.onChange(!checked)
+                  setSilentSave(!checked)
+                }}
+              />
+            )}
+          />
         }
       />
       <SettingsRow
         title={t('settings.statusBar')}
         description={t('settings.statusBarDescription')}
-        control={<Switch checked={showEditorStatusBar} onCheckedChange={setShowEditorStatusBar} />}
+        control={
+          <Controller
+            control={form.control}
+            name="showEditorStatusBar"
+            render={({ field }) => (
+              <Switch
+                checked={field.value}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked)
+                  setShowEditorStatusBar(checked)
+                }}
+              />
+            )}
+          />
+        }
       />
       <section className="settings-row-surface rounded-md p-3">
         <div className="mb-1 text-sm font-medium">{t('settings.defaultFileView')}</div>
@@ -59,20 +121,31 @@ export default function GeneralSettingsPage() {
           {t('settings.defaultFileViewDescription')}
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {fileViews.map((item) => {
-            const Icon = item.icon
-            return (
-              <Button
-                key={item.value}
-                variant={defaultFileView === item.value ? 'secondary' : 'outline'}
-                className="h-9 justify-start rounded-md"
-                onClick={() => setDefaultFileView(item.value)}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="truncate">{t(item.labelKey)}</span>
-              </Button>
-            )
-          })}
+          <Controller
+            control={form.control}
+            name="defaultFileView"
+            render={({ field }) => (
+              <>
+                {fileViews.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Button
+                      key={item.value}
+                      variant={field.value === item.value ? 'secondary' : 'outline'}
+                      className="h-9 justify-start rounded-md"
+                      onClick={() => {
+                        field.onChange(item.value)
+                        setDefaultFileView(item.value)
+                      }}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="truncate">{t(item.labelKey)}</span>
+                    </Button>
+                  )
+                })}
+              </>
+            )}
+          />
         </div>
       </section>
       <section className="settings-row-surface rounded-md p-3">
@@ -81,16 +154,27 @@ export default function GeneralSettingsPage() {
           {t('settings.assetStrategyDescription')}
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {assetImportStrategies.map((item) => (
-            <Button
-              key={item.value}
-              variant={markdownAssetImportStrategy === item.value ? 'secondary' : 'outline'}
-              className="h-9 justify-start rounded-md"
-              onClick={() => setMarkdownAssetImportStrategy(item.value)}
-            >
-              <span className="truncate">{t(item.labelKey)}</span>
-            </Button>
-          ))}
+          <Controller
+            control={form.control}
+            name="markdownAssetImportStrategy"
+            render={({ field }) => (
+              <>
+                {assetImportStrategies.map((item) => (
+                  <Button
+                    key={item.value}
+                    variant={field.value === item.value ? 'secondary' : 'outline'}
+                    className="h-9 justify-start rounded-md"
+                    onClick={() => {
+                      field.onChange(item.value)
+                      setMarkdownAssetImportStrategy(item.value)
+                    }}
+                  >
+                    <span className="truncate">{t(item.labelKey)}</span>
+                  </Button>
+                ))}
+              </>
+            )}
+          />
         </div>
       </section>
     </div>

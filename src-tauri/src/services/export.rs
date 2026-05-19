@@ -4,6 +4,7 @@
 use docx_rs::{BreakType, Docx, Paragraph, Run, RunFonts};
 use mdxport::{Options as PdfExportOptions, Style as PdfExportStyle};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark_to_cmark::cmark;
 
 /// Supported export formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +79,19 @@ impl ExportService {
 
 /// Normalize editor-produced Markdown into portable Markdown before exporting.
 fn normalize_markdown_for_export(md: &str) -> String {
-  let mut out = String::with_capacity(md.len() + 64);
+  let html_breaks_normalized = normalize_html_breaks(md);
+  let parser = Parser::new_ext(&html_breaks_normalized, export_markdown_options());
+  let mut out = String::with_capacity(html_breaks_normalized.len() + 64);
+  match cmark(parser, &mut out) {
+    Ok(_) if !out.trim().is_empty() || html_breaks_normalized.trim().is_empty() => {
+      escape_numeric_asterisks(&out)
+    }
+    Ok(_) | Err(_) => escape_numeric_asterisks(&html_breaks_normalized),
+  }
+}
+
+fn normalize_html_breaks(md: &str) -> String {
+  let mut out = String::with_capacity(md.len());
   let mut in_code_block = 0u8; // 0=no, 1=backtick, 2=tilde
   let mut in_inline_code = false;
   let chars: Vec<(usize, char)> = md.char_indices().collect();
@@ -86,8 +99,6 @@ fn normalize_markdown_for_export(md: &str) -> String {
 
   while i < chars.len() {
     let (byte_index, c) = chars[i];
-    let prev = if i > 0 { chars[i - 1].1 } else { ' ' };
-    let next = chars.get(i + 1).map(|(_, c)| *c).unwrap_or(' ');
 
     if in_code_block > 0 {
       out.push(c);
@@ -152,8 +163,63 @@ fn normalize_markdown_for_export(md: &str) -> String {
       continue;
     }
 
+    out.push(c);
+    i += 1;
+  }
+
+  out
+}
+
+fn escape_numeric_asterisks(md: &str) -> String {
+  let mut out = String::with_capacity(md.len());
+  let chars: Vec<(usize, char)> = md.char_indices().collect();
+  let mut in_code_block = 0u8; // 0=no, 1=backtick, 2=tilde
+  let mut in_inline_code = false;
+  let mut i = 0;
+
+  while i < chars.len() {
+    let c = chars[i].1;
+    let prev = if i > 0 { chars[i - 1].1 } else { ' ' };
+    let next = chars.get(i + 1).map(|(_, c)| *c).unwrap_or(' ');
+
+    if c == '`' {
+      let mut j = i;
+      while j < chars.len() && chars[j].1 == '`' {
+        j += 1;
+      }
+      let n = j - i;
+      for _ in 0..n {
+        out.push('`');
+      }
+      i = j;
+      if n >= 3 {
+        in_code_block = if in_code_block == 1 { 0 } else { 1 };
+      } else if in_code_block == 0 {
+        in_inline_code = !in_inline_code;
+      }
+      continue;
+    }
+
+    if c == '~'
+      && !in_inline_code
+      && i + 2 < chars.len()
+      && chars[i].1 == '~'
+      && chars[i + 1].1 == '~'
+      && chars[i + 2].1 == '~'
+    {
+      out.push_str("~~~");
+      i += 3;
+      in_code_block = if in_code_block == 2 { 0 } else { 2 };
+      continue;
+    }
+
     // Keep numeric expressions like 2*3 from being parsed as emphasis.
-    if c == '*' && prev.is_ascii_digit() && next.is_ascii_digit() {
+    if in_code_block == 0
+      && !in_inline_code
+      && c == '*'
+      && prev.is_ascii_digit()
+      && next.is_ascii_digit()
+    {
       out.push('\\');
     }
 
@@ -181,13 +247,8 @@ fn export_to_pdf(markdown: &str, output_path: &str) -> Result<(), String> {
 
 fn export_to_html(markdown: &str, output_path: &str) -> Result<(), String> {
   let markdown = normalize_markdown_for_export(markdown);
-  let mut options = Options::empty();
-  options.insert(Options::ENABLE_STRIKETHROUGH);
-  options.insert(Options::ENABLE_TABLES);
-  options.insert(Options::ENABLE_TASKLISTS);
-  options.insert(Options::ENABLE_FOOTNOTES);
 
-  let parser = Parser::new_ext(&markdown, options);
+  let parser = Parser::new_ext(&markdown, export_markdown_options());
   let mut body = String::new();
   pulldown_cmark::html::push_html(&mut body, parser);
 
@@ -219,12 +280,8 @@ fn export_to_html(markdown: &str, output_path: &str) -> Result<(), String> {
 
 fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
   let markdown = normalize_markdown_for_export(markdown);
-  let mut options = Options::empty();
-  options.insert(Options::ENABLE_STRIKETHROUGH);
-  options.insert(Options::ENABLE_TABLES);
-  options.insert(Options::ENABLE_TASKLISTS);
 
-  let parser = Parser::new_ext(&markdown, options);
+  let parser = Parser::new_ext(&markdown, export_markdown_options());
 
   let mut docx = Docx::new();
   let mut run_buf: Vec<Run> = Vec::new();
@@ -335,6 +392,15 @@ fn export_to_docx(markdown: &str, output_path: &str) -> Result<(), String> {
     .pack(file)
     .map_err(|e| format!("Failed to write DOCX: {}", e))?;
   Ok(())
+}
+
+fn export_markdown_options() -> Options {
+  let mut options = Options::empty();
+  options.insert(Options::ENABLE_STRIKETHROUGH);
+  options.insert(Options::ENABLE_TABLES);
+  options.insert(Options::ENABLE_TASKLISTS);
+  options.insert(Options::ENABLE_FOOTNOTES);
+  options
 }
 
 fn default_docx_fonts() -> RunFonts {

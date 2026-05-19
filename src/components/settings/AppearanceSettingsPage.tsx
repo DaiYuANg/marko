@@ -1,3 +1,6 @@
+import { Controller, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Check, Languages, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n/useI18n'
@@ -20,10 +23,25 @@ const locales: Array<{ value: Locale; labelKey: string }> = [
   { value: 'en-US', labelKey: 'language.en' },
 ]
 
+const appearanceSettingsSchema = z.object({
+  theme: z.enum(['light', 'dark', 'marko-light', 'marko-dark']),
+  locale: z.enum(['zh-CN', 'en-US']),
+})
+
+type AppearanceSettingsValues = z.infer<typeof appearanceSettingsSchema>
+
 export default function AppearanceSettingsPage() {
   const { t, locale, setLocale } = useI18n()
   const theme = useAppStore((state) => state.theme)
   const setTheme = useAppStore((state) => state.setTheme)
+  const form = useForm<AppearanceSettingsValues>({
+    mode: 'onChange',
+    resolver: zodResolver(appearanceSettingsSchema),
+    values: {
+      theme,
+      locale,
+    },
+  })
 
   return (
     <div className="space-y-5">
@@ -34,19 +52,30 @@ export default function AppearanceSettingsPage() {
         </div>
         <div className="mb-3 text-xs text-muted-foreground">{t('settings.themeDescription')}</div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {themes.map((item) => (
-            <Button
-              key={item.value}
-              variant="ghost"
-              data-selected={theme === item.value ? 'true' : 'false'}
-              className="theme-choice h-auto justify-start gap-3 rounded-md p-2 text-left shadow-none"
-              onClick={() => setTheme(item.value)}
-            >
-              <ThemePreview swatchClass={item.swatchClass} />
-              <span className="min-w-0 flex-1 truncate text-sm">{t(item.labelKey)}</span>
-              {theme === item.value && <Check className="h-4 w-4 text-primary" />}
-            </Button>
-          ))}
+          <Controller
+            control={form.control}
+            name="theme"
+            render={({ field }) => (
+              <>
+                {themes.map((item) => (
+                  <Button
+                    key={item.value}
+                    variant="ghost"
+                    data-selected={field.value === item.value ? 'true' : 'false'}
+                    className="theme-choice h-auto justify-start gap-3 rounded-md p-2 text-left shadow-none"
+                    onClick={() => {
+                      field.onChange(item.value)
+                      setTheme(item.value)
+                    }}
+                  >
+                    <ThemePreview swatchClass={item.swatchClass} />
+                    <span className="min-w-0 flex-1 truncate text-sm">{t(item.labelKey)}</span>
+                    {field.value === item.value && <Check className="h-4 w-4 text-primary" />}
+                  </Button>
+                ))}
+              </>
+            )}
+          />
         </div>
       </section>
 
@@ -59,16 +88,27 @@ export default function AppearanceSettingsPage() {
           {t('settings.languageDescription')}
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {locales.map((item) => (
-            <Button
-              key={item.value}
-              variant={locale === item.value ? 'secondary' : 'outline'}
-              className="h-9 justify-start rounded-md"
-              onClick={() => setLocale(item.value)}
-            >
-              {t(item.labelKey)}
-            </Button>
-          ))}
+          <Controller
+            control={form.control}
+            name="locale"
+            render={({ field }) => (
+              <>
+                {locales.map((item) => (
+                  <Button
+                    key={item.value}
+                    variant={field.value === item.value ? 'secondary' : 'outline'}
+                    className="h-9 justify-start rounded-md"
+                    onClick={() => {
+                      field.onChange(item.value)
+                      setLocale(item.value)
+                    }}
+                  >
+                    {t(item.labelKey)}
+                  </Button>
+                ))}
+              </>
+            )}
+          />
         </div>
       </section>
     </div>

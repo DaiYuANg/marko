@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 import { mergeGraphNodePositions } from '@/logic/graphViewState'
 
 type TestNodeData = {

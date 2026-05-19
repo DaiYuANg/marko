@@ -1,9 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path};
 
+use camino::Utf8Path;
+use mime_guess::from_path;
 use path_clean::PathClean;
 use percent_encoding::percent_decode_str;
 use pulldown_cmark::{Event, HeadingLevel, LinkType, Options, Parser, Tag, TagEnd};
+use slug::slugify as ascii_slugify;
+use url::Url;
 
 use crate::models::{
   FsEntry, FsIndexedMarkdownFile, FsMarkdownAsset, FsMarkdownDiagnostic, FsMarkdownHeading,
@@ -443,23 +447,19 @@ fn split_link_target(target: &str) -> (String, Option<String>) {
 }
 
 fn guess_media_type(path: &str) -> Option<String> {
-  let extension = Path::new(path)
-    .extension()
-    .and_then(|value| value.to_str())?
-    .to_ascii_lowercase();
-  let media_type = match extension.as_str() {
-    "apng" => "image/apng",
-    "avif" => "image/avif",
-    "gif" => "image/gif",
-    "jpg" | "jpeg" => "image/jpeg",
-    "png" => "image/png",
-    "svg" => "image/svg+xml",
-    "webp" => "image/webp",
-    "bmp" => "image/bmp",
-    "pdf" => "application/pdf",
-    _ => return None,
-  };
-  Some(media_type.to_string())
+  from_path(media_lookup_target(path))
+    .first_raw()
+    .map(ToOwned::to_owned)
+}
+
+fn media_lookup_target(target: &str) -> &str {
+  target
+    .split_once('#')
+    .map(|(path, _)| path)
+    .unwrap_or(target)
+    .split_once('?')
+    .map(|(path, _)| path)
+    .unwrap_or(target)
 }
 
 fn resolve_relative_link_path(base: &str, target: &str) -> String {
@@ -521,6 +521,15 @@ fn percent_decode(value: &str) -> String {
 }
 
 fn slugify(label: &str) -> String {
+  let unicode_slug = unicode_slugify(label);
+  if !unicode_slug.is_empty() {
+    return unicode_slug;
+  }
+
+  ascii_slugify(label)
+}
+
+fn unicode_slugify(label: &str) -> String {
   let mut slug = String::new();
   let mut previous_dash = false;
   for char in label.trim().chars().flat_map(|char| char.to_lowercase()) {
@@ -540,7 +549,9 @@ fn slugify(label: &str) -> String {
 }
 
 fn create_file_label(relative_path: &str) -> String {
-  let base = relative_path.rsplit('/').next().unwrap_or(relative_path);
+  let base = Utf8Path::new(relative_path)
+    .file_name()
+    .unwrap_or(relative_path);
   base
     .strip_suffix(".markdown")
     .or_else(|| base.strip_suffix(".md"))
@@ -549,11 +560,9 @@ fn create_file_label(relative_path: &str) -> String {
 }
 
 fn is_external_target(target: &str) -> bool {
-  let lower = target.to_lowercase();
-  lower.starts_with("http://")
-    || lower.starts_with("https://")
-    || lower.starts_with("mailto:")
-    || lower.starts_with("tel:")
+  Url::parse(target)
+    .map(|url| matches!(url.scheme(), "http" | "https" | "mailto" | "tel"))
+    .unwrap_or(false)
 }
 
 fn has_markdown_extension(path: &str) -> bool {

@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
+use camino::Utf8Path;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use slug::slugify as ascii_slugify;
+use url::Url;
 
 use crate::models::{FsGraph, FsGraphEdge, FsGraphNode, FsMarkdownBlock, FsWorkspaceIndex};
 
@@ -304,22 +307,26 @@ fn missing_node_id(path: &str) -> String {
 }
 
 fn create_file_label(path: &str) -> String {
-  path
-    .rsplit('/')
-    .next()
+  Utf8Path::new(path)
+    .file_name()
     .and_then(|name| name.rsplit_once('.').map(|(stem, _)| stem).or(Some(name)))
     .unwrap_or(path)
     .to_string()
 }
 
 fn external_label(url: &str) -> String {
-  url
-    .trim_start_matches("https://")
-    .trim_start_matches("http://")
-    .split('/')
-    .next()
-    .unwrap_or(url)
-    .to_string()
+  Url::parse(url)
+    .ok()
+    .and_then(|parsed| parsed.host_str().map(ToOwned::to_owned))
+    .unwrap_or_else(|| {
+      url
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .split('/')
+        .next()
+        .unwrap_or(url)
+        .to_string()
+    })
 }
 
 fn heading_level_to_u8(level: HeadingLevel) -> u8 {
@@ -595,6 +602,20 @@ fn unique_slug(text: &str, used: &mut HashMap<String, usize>) -> String {
 }
 
 fn slugify(text: &str) -> String {
+  let unicode_slug = unicode_slugify(text);
+  if !unicode_slug.is_empty() {
+    return unicode_slug;
+  }
+
+  let fallback = ascii_slugify(text);
+  if fallback.is_empty() {
+    "heading".to_string()
+  } else {
+    fallback
+  }
+}
+
+fn unicode_slugify(text: &str) -> String {
   let mut slug = String::new();
   let mut last_dash = false;
   for ch in text.chars() {
@@ -610,7 +631,7 @@ fn slugify(text: &str) -> String {
   }
   let trimmed = slug.trim_matches('-').to_string();
   if trimmed.is_empty() {
-    "heading".to_string()
+    String::new()
   } else {
     trimmed
   }

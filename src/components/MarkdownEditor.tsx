@@ -5,10 +5,14 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  type HTMLAttributes,
+  type MutableRefObject,
   type ClipboardEvent,
   type DragEvent,
+  type Ref,
   type RefObject,
 } from 'react'
+import { useDropzone } from 'react-dropzone'
 import { useHotkeys, type RegisterableHotkey } from '@tanstack/react-hotkeys'
 import {
   ProsemirrorAdapterProvider,
@@ -26,7 +30,8 @@ import { editorShortcutActionIds } from '@/components/milkdown/editorShortcuts'
 import {
   hasImageDataTransfer,
   imageSourcesFromPasteEvent,
-  imageSourcesFromDropEvent,
+  imagePathSourcesFromDropEvent,
+  imageSourcesFromFiles,
   imageSourcesFromTauriDropPaths,
   readNativeClipboardImageSource,
   type MarkdownImageImportSource,
@@ -74,10 +79,28 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
   const importDroppedImageSources = useCallback(
     async (event: DragEvent<HTMLDivElement>) => {
       placeSelectionAtClientPoint(event.clientX, event.clientY)
-      await importImageSources(imageSourcesFromDropEvent(event))
+      await importImageSources(imagePathSourcesFromDropEvent(event))
     },
     [importImageSources, placeSelectionAtClientPoint],
   )
+  const importDroppedFiles = useCallback(
+    async (files: File[], event: unknown) => {
+      if (hasDropPoint(event)) {
+        placeSelectionAtClientPoint(event.clientX, event.clientY)
+      }
+      await importImageSources(imageSourcesFromFiles(files))
+    },
+    [importImageSources, placeSelectionAtClientPoint],
+  )
+  const { getRootProps, isDragAccept } = useDropzone({
+    accept: { 'image/*': [] },
+    multiple: true,
+    noClick: true,
+    noKeyboard: true,
+    onDropAccepted: (files, event) => {
+      void importDroppedFiles(files, event)
+    },
+  })
   const importNativeClipboardImage = useCallback(async () => {
     const source = await readNativeClipboardImageSource()
     if (!source) return false
@@ -102,7 +125,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
   )
   const handleDropCapture = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
-      const sources = imageSourcesFromDropEvent(event)
+      const sources = imagePathSourcesFromDropEvent(event)
       if (sources.length === 0) return
       event.preventDefault()
       event.stopPropagation()
@@ -133,16 +156,22 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorHandle, MarkdownEditorProps
     importImageSources,
     placeSelectionAtClientPoint,
   })
+  const dropzoneRootProps = getRootProps({
+    className: `crepe flex h-full flex-1 flex-col ${isDragAccept ? 'is-image-drop-target' : ''}`,
+    onDragOverCapture: handleDragOverCapture,
+    onDropCapture: handleDropCapture,
+    onPasteCapture: handlePasteCapture,
+  }) as HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> }
+  const setShellElement = useCallback(
+    (node: HTMLDivElement | null) => {
+      shellRef.current = node
+      assignRef(dropzoneRootProps.ref, node)
+    },
+    [dropzoneRootProps.ref],
+  )
 
   return (
-    <div
-      ref={shellRef}
-      className="crepe flex h-full flex-1 flex-col"
-      onDragOverCapture={handleDragOverCapture}
-      onDropCapture={handleDropCapture}
-      onPasteCapture={handlePasteCapture}
-      {...handlers}
-    >
+    <div {...dropzoneRootProps} ref={setShellElement} {...handlers}>
       <ScrollArea
         ref={scrollAreaRef}
         className="h-full flex-1"
@@ -218,4 +247,24 @@ const useTauriImageDrop = ({
       unlisten?.()
     }
   }, [importImageSources, placeSelectionAtClientPoint, shellRef])
+}
+
+const hasDropPoint = (event: unknown): event is { clientX: number; clientY: number } => {
+  return (
+    Boolean(event) &&
+    typeof event === 'object' &&
+    typeof (event as { clientX?: unknown }).clientX === 'number' &&
+    typeof (event as { clientY?: unknown }).clientY === 'number'
+  )
+}
+
+const assignRef = <T,>(ref: Ref<T> | undefined, value: T | null) => {
+  if (typeof ref === 'function') {
+    ref(value)
+    return
+  }
+  if (ref) {
+    const mutableRef = ref as MutableRefObject<T | null>
+    mutableRef.current = value
+  }
 }

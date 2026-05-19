@@ -110,11 +110,15 @@ export const filesFromPasteEvent = (event: ClipboardEvent<HTMLElement>) => {
   return Array.from(event.clipboardData.files).filter(isImageFile)
 }
 
-export const imageSourcesFromPasteEvent = (event: ClipboardEvent<HTMLElement>) => {
-  const fileSources = filesFromPasteEvent(event).map((file) => ({
+export const imageSourcesFromFiles = (files: File[]) => {
+  return files.filter(isImageFile).map((file) => ({
     kind: 'file' as const,
     file,
   }))
+}
+
+export const imageSourcesFromPasteEvent = (event: ClipboardEvent<HTMLElement>) => {
+  const fileSources = imageSourcesFromFiles(filesFromPasteEvent(event))
   return [
     ...fileSources,
     ...imageSourcesFromClipboardText(event.clipboardData.getData('text/plain')),
@@ -126,11 +130,12 @@ export const filesFromDropEvent = (event: DragEvent<HTMLElement>) => {
 }
 
 export const imageSourcesFromDropEvent = (event: DragEvent<HTMLElement>) => {
-  const fileSources = filesFromDropEvent(event).map((file) => ({
-    kind: 'file' as const,
-    file,
-  }))
+  const fileSources = imageSourcesFromFiles(filesFromDropEvent(event))
   return [...fileSources, ...pathSourcesFromDataTransfer(event.dataTransfer)]
+}
+
+export const imagePathSourcesFromDropEvent = (event: DragEvent<HTMLElement>) => {
+  return pathSourcesFromDataTransfer(event.dataTransfer)
 }
 
 export const imageSourcesFromTauriDropPaths = (paths: string[]) => {

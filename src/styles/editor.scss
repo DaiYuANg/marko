@@ -32,6 +32,10 @@
   background: hsl(var(--background));
 }
 
+.crepe.is-image-drop-target .milkdown {
+  background: color-mix(in srgb, hsl(var(--primary)) 8%, hsl(var(--background)));
+}
+
 .crepe .milkdown .ProseMirror {
   caret-color: hsl(var(--primary));
   color: hsl(var(--foreground));

@@ -1,6 +1,6 @@
-import type { Node } from 'reactflow'
+import type { Node } from '@xyflow/react'
 
-export const mergeGraphNodePositions = <T>(
+export const mergeGraphNodePositions = <T extends Record<string, unknown>>(
   nextNodes: Node<T>[],
   currentNodes: Node<T>[],
   preservePositions: boolean,

@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use mime_guess::from_path;
 use path_clean::PathClean;
 use pathdiff::diff_paths;
 use percent_encoding::percent_decode_str;
+use url::Url;
 
 use crate::{
   models::{FsMarkdownAssetImportResult, FsMarkdownAssetResolveResult},
@@ -271,13 +273,14 @@ fn resolve_markdown_asset_blocking(
 }
 
 fn is_external_asset_target(target: &str) -> bool {
-  let lower = target.to_ascii_lowercase();
-  lower.starts_with("http://")
-    || lower.starts_with("https://")
-    || lower.starts_with("data:")
-    || lower.starts_with("blob:")
-    || lower.starts_with("asset:")
-    || lower.starts_with("file:")
+  Url::parse(target)
+    .map(|url| {
+      matches!(
+        url.scheme(),
+        "http" | "https" | "data" | "blob" | "asset" | "file"
+      )
+    })
+    .unwrap_or(false)
 }
 
 fn decode_local_asset_target(target: &str) -> String {
@@ -295,23 +298,19 @@ fn decode_local_asset_target(target: &str) -> String {
 }
 
 fn guess_media_type(path: &str) -> Option<String> {
-  let extension = Path::new(path)
-    .extension()
-    .and_then(|value| value.to_str())?
-    .to_ascii_lowercase();
-  let media_type = match extension.as_str() {
-    "apng" => "image/apng",
-    "avif" => "image/avif",
-    "bmp" => "image/bmp",
-    "gif" => "image/gif",
-    "jpeg" | "jpg" => "image/jpeg",
-    "pdf" => "application/pdf",
-    "png" => "image/png",
-    "svg" => "image/svg+xml",
-    "webp" => "image/webp",
-    _ => return None,
-  };
-  Some(media_type.to_string())
+  from_path(media_lookup_target(path))
+    .first_raw()
+    .map(ToOwned::to_owned)
+}
+
+fn media_lookup_target(target: &str) -> &str {
+  target
+    .split_once('#')
+    .map(|(path, _)| path)
+    .unwrap_or(target)
+    .split_once('?')
+    .map(|(path, _)| path)
+    .unwrap_or(target)
 }
 
 fn ensure_workspace_descendant(data: &FsStateData, path: &Path) -> Result<(), String> {

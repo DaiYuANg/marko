@@ -1,7 +1,14 @@
 import React, { useEffect, useRef } from 'react'
 import { GitGraph } from 'lucide-react'
-import { Background, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState } from 'reactflow'
-import type { Node } from 'reactflow'
+import {
+  Background,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from '@xyflow/react'
+import type { Node } from '@xyflow/react'
 import type { GraphContentMode } from '@/store/useAppStore'
 import type { GraphData, GraphNodeData } from '@/logic/graph'
 import { mergeGraphNodePositions } from '@/logic/graphViewState'

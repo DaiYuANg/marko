@@ -1,14 +1,16 @@
-import type { NodeProps } from 'reactflow'
-import { Handle, Position } from 'reactflow'
+import type { Node, NodeProps } from '@xyflow/react'
+import { Handle, Position } from '@xyflow/react'
 import { memo, useCallback, useMemo } from 'react'
 import type { GraphNodeData } from '@/logic/graph'
 import { resolveHeadingSectionCommit } from '@/logic/markdownBlockCommits'
 import { createHeadingSectionViewModel, type MarkdownBlockCommit } from '@/logic/markdownBlocks'
 import MarkdownBlockSurface from '@/components/MarkdownBlockSurface'
 
-export const ExternalNode = ({
-  data,
-}: NodeProps<{ label: string; subtitle?: string; url: string }>) => {
+type ExternalGraphNode = Node<{ label: string; subtitle?: string; url: string }, 'external'>
+type MissingGraphNode = Node<{ label: string; subtitle?: string }, 'missing'>
+type HeadingGraphNode = Node<GraphNodeData, 'heading'>
+
+export const ExternalNode = ({ data }: NodeProps<ExternalGraphNode>) => {
   return (
     <div className="rounded-md border border-amber-500/35 bg-card px-3 py-2 shadow-sm">
       <Handle type="target" position={Position.Left} />
@@ -19,7 +21,7 @@ export const ExternalNode = ({
   )
 }
 
-export const MissingNode = ({ data }: NodeProps<{ label: string; subtitle?: string }>) => {
+export const MissingNode = ({ data }: NodeProps<MissingGraphNode>) => {
   return (
     <div className="rounded-md border border-destructive/35 bg-card px-3 py-2 shadow-sm">
       <Handle type="target" position={Position.Left} />
@@ -30,7 +32,7 @@ export const MissingNode = ({ data }: NodeProps<{ label: string; subtitle?: stri
   )
 }
 
-export const HeadingNode = memo(({ id, data }: NodeProps<GraphNodeData>) => {
+export const HeadingNode = memo(({ id, data }: NodeProps<HeadingGraphNode>) => {
   const onUpdateTitle = data.onUpdateTitle
   const onUpdateContent = data.onUpdateContent
   const blocks = useMemo(

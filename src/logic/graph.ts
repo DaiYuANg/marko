@@ -1,11 +1,11 @@
-import type { Edge, Node } from 'reactflow'
+import type { Edge, Node } from '@xyflow/react'
 import { graphlib, layout as dagreLayout } from '@dagrejs/dagre'
 import type { FsGraph, FsWorkspaceIndex } from '@/services/fsApi'
 import { createFileLabel } from '@/logic/paths'
 import type { GraphContentMode } from '@/store/useAppStore'
 import { normalizeMarkdownBlocks, type MarkdownBlock } from '@/logic/markdownBlocks'
 
-export type GraphNodeData = {
+export type GraphNodeData = Record<string, unknown> & {
   label: string
   subtitle?: string
   path?: string
@@ -277,6 +277,10 @@ const applyDagreLayout = (
 }
 
 const getNodeSize = (node: Node<GraphNodeData>) => {
+  if (node.measured?.width && node.measured.height) {
+    return { width: node.measured.width, height: node.measured.height }
+  }
+
   if (node.id.startsWith('file:')) {
     return { width: FILE_NODE_WIDTH, height: FILE_NODE_HEIGHT }
   }
