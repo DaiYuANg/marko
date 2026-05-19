@@ -15,6 +15,7 @@ import { isTauriRuntime } from '@/utils/tauri'
 type TerminalPanelProps = {
   onClose: () => void
   theme: ThemeMode
+  visible: boolean
 }
 
 type TerminalTab = TerminalRuntimeState & {
@@ -48,7 +49,7 @@ function TerminalStatusIcon({ status }: { status: TerminalStatus }) {
   return <TerminalIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 }
 
-export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
+export default function TerminalPanel({ onClose, theme, visible }: TerminalPanelProps) {
   const { t } = useI18n()
   const nextTabIndexRef = useRef(2)
   const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTerminalTab(1)])
@@ -127,7 +128,13 @@ export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
 
   return (
     <TooltipProvider>
-      <section className="terminal-panel flex shrink-0 flex-col overflow-hidden border-t border-border/80">
+      <section
+        aria-hidden={!visible}
+        className={cn(
+          'terminal-panel flex shrink-0 flex-col overflow-hidden border-t border-border/80',
+          !visible && 'hidden',
+        )}
+      >
         <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 px-2">
           <TerminalIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div
@@ -239,6 +246,7 @@ export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
               statusLabel={statusLabel(tab.status)}
               tabKey={tab.key}
               theme={theme}
+              visible={visible}
               onStateChange={handleTabStateChange}
             />
           ))}

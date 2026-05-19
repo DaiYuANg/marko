@@ -28,6 +28,7 @@ type TerminalSessionPaneProps = {
   statusLabel: string
   tabKey: string
   theme: ThemeMode
+  visible: boolean
   onStateChange: (tabKey: string, state: TerminalRuntimeState) => void
 }
 
@@ -43,13 +44,15 @@ export default function TerminalSessionPane({
   statusLabel,
   tabKey,
   theme,
+  visible,
   onStateChange,
 }: TerminalSessionPaneProps) {
+  const activeAndVisible = active && visible
   const containerRef = useRef<HTMLDivElement | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const sessionIdRef = useRef<string | null>(null)
-  const activeRef = useRef(active)
+  const activeRef = useRef(activeAndVisible)
   const lastSizeRef = useRef<{ rows: number; cols: number } | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const [session, setSession] = useState<TerminalSessionInfo | null>(null)
@@ -81,8 +84,8 @@ export default function TerminalSessionPane({
   }, [])
 
   useEffect(() => {
-    activeRef.current = active
-  }, [active])
+    activeRef.current = activeAndVisible
+  }, [activeAndVisible])
 
   useEffect(() => {
     onStateChange(tabKey, { session, status, error })
@@ -257,17 +260,17 @@ export default function TerminalSessionPane({
   }, [theme])
 
   useEffect(() => {
-    if (!active) return
+    if (!activeAndVisible) return
     const frame = window.requestAnimationFrame(fitAndFocusTerminal)
     return () => window.cancelAnimationFrame(frame)
-  }, [active, fitAndFocusTerminal])
+  }, [activeAndVisible, fitAndFocusTerminal])
 
   return (
     <div
-      aria-hidden={!active}
+      aria-hidden={!activeAndVisible}
       className={cn(
         'absolute inset-0 min-h-0 bg-background',
-        active ? 'z-10 opacity-100' : 'pointer-events-none z-0 opacity-0',
+        activeAndVisible ? 'z-10 opacity-100' : 'pointer-events-none z-0 opacity-0',
       )}
     >
       <div ref={containerRef} className="h-full w-full" />

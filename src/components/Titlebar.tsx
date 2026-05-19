@@ -1,4 +1,13 @@
-import { FileText, FolderOpen, PanelLeft, PanelRight, Search, Settings2 } from 'lucide-react'
+import {
+  Code2,
+  FileText,
+  FolderOpen,
+  GitGraph,
+  PanelLeft,
+  PanelRight,
+  Search,
+  Settings2,
+} from 'lucide-react'
 import {
   memo,
   useCallback,
@@ -10,7 +19,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import type { FileEntry, ThemeMode, ViewMode } from '@/store/useAppStore'
+import type { FileEntry, ThemeMode, ViewMode, WorkspaceTab } from '@/store/useAppStore'
+import type { SaveState } from '@/app/useEditorBuffer'
 import { useI18n } from '@/i18n/useI18n'
 import { appApi, type AppPlatform } from '@/services/appApi'
 import AppMenuBar from '@/components/AppMenuBar'
@@ -27,6 +37,11 @@ import { formatShortcutList, resolveShortcutBindings } from '@/logic/shortcuts'
 import { requestFileSearchFocus } from '@/utils/appEvents'
 
 type TitlebarProps = {
+  activePath: string | null
+  activeTab: WorkspaceTab | null
+  dirtyPaths: Record<string, true>
+  saveStates: Record<string, SaveState>
+  silentSave: boolean
   onToggleSidebar: () => void
   onToggleRightSidebar: () => void
   onSelectProject: () => void
@@ -47,7 +62,39 @@ type TitlebarProps = {
   onSettingsOpenChange: (open: boolean) => void
 }
 
+const getActiveTabLabel = (tab: WorkspaceTab | null) => {
+  if (!tab) return ''
+  if (tab.kind === 'workspace-graph') return 'Workspace Graph'
+  const label = createFileLabel(tab.path)
+  if (tab.kind === 'git-diff') return `${label} · Diff`
+  if (tab.view === 'source') return `${label} · Source`
+  if (tab.view === 'graph') return `${label} · Graph`
+  return label
+}
+
+const getActiveTabTitle = (tab: WorkspaceTab | null, activePath: string | null) => {
+  if (!tab) return ''
+  if (tab.kind === 'workspace-graph') return 'Workspace Graph'
+  if (tab.kind === 'git-diff') return tab.path
+  return activePath ?? tab.path
+}
+
+const renderActiveTabIcon = (tab: WorkspaceTab | null) => {
+  if (!tab) return <FileText className="h-3.5 w-3.5" />
+  if (tab.kind === 'workspace-graph' || tab.kind === 'git-diff') {
+    return <GitGraph className="h-3.5 w-3.5" />
+  }
+  if (tab.view === 'source') return <Code2 className="h-3.5 w-3.5" />
+  if (tab.view === 'graph') return <GitGraph className="h-3.5 w-3.5" />
+  return <FileText className="h-3.5 w-3.5" />
+}
+
 function Titlebar({
+  activePath,
+  activeTab,
+  dirtyPaths,
+  saveStates,
+  silentSave,
   onToggleSidebar,
   onToggleRightSidebar,
   onSelectProject,
@@ -78,6 +125,13 @@ function Titlebar({
   const isWindows =
     typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('windows')
   const showInlineMenu = platform === 'windows' || platform === 'linux'
+  const activeTabLabel = getActiveTabLabel(activeTab)
+  const activeTabTitle = getActiveTabTitle(activeTab, activePath)
+  const activeSaveState = activePath ? saveStates[activePath] : undefined
+  const showDirtyIndicator = Boolean(activePath && !silentSave && dirtyPaths[activePath])
+  const showErrorIndicator = activeSaveState?.status === 'error'
+  const dirtyLabel = t('save.unsaved')
+  const errorLabel = t('save.error')
 
   useEffect(() => {
     if (!isTauriRuntime()) return
@@ -311,12 +365,37 @@ function Titlebar({
           </div>
           {showInlineMenu && <AppMenuBar groups={menuGroups} onAction={onMenuAction} />}
         </div>
-        <div className="mx-2 hidden flex-1 items-center justify-center md:flex">
+        <div className="mx-2 hidden min-w-0 flex-1 items-center justify-center gap-2 md:flex">
+          {activeTab && (
+            <div
+              className="flex h-7 min-w-0 max-w-[240px] shrink items-center gap-1.5 rounded-md border border-border/80 bg-background/60 px-2 text-xs text-muted-foreground"
+              title={activeTabTitle}
+            >
+              <span className="shrink-0 text-muted-foreground">
+                {renderActiveTabIcon(activeTab)}
+              </span>
+              <span className="min-w-0 truncate text-foreground/90">{activeTabLabel}</span>
+              {showDirtyIndicator && (
+                <span
+                  aria-label={dirtyLabel}
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+                  title={dirtyLabel}
+                />
+              )}
+              {showErrorIndicator && (
+                <span
+                  aria-label={errorLabel}
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"
+                  title={activeSaveState?.message ?? errorLabel}
+                />
+              )}
+            </div>
+          )}
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="command-trigger h-7 w-full max-w-md justify-start rounded-md px-3 text-left text-xs text-muted-foreground"
+            className="command-trigger h-7 min-w-[220px] max-w-md flex-1 justify-start rounded-md px-3 text-left text-xs text-muted-foreground"
             onClick={onOpenSearch}
           >
             <span className="flex w-full items-center gap-2">

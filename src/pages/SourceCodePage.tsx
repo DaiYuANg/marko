@@ -1,8 +1,9 @@
-import { lazy, memo, Suspense, useDeferredValue, useMemo } from 'react'
+import { lazy, memo, Suspense, useMemo } from 'react'
 import type { FsWorkspaceIndex } from '@/services/fsApi'
 import type { FileEntry } from '@/store/useAppStore'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
+import { useDocumentStats } from '@/pages/useDocumentStats'
 
 const MarkdownSourceEditor = lazy(() => import('@/components/MarkdownSourceEditor'))
 
@@ -16,15 +17,6 @@ type SourceCodePageProps = {
   showStatusBar: boolean
 }
 
-const getDocumentStats = (value: string) => {
-  const trimmed = value.trim()
-  return {
-    lines: value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length,
-    words: trimmed.length === 0 ? 0 : trimmed.split(/\s+/).filter(Boolean).length,
-    characters: value.replace(/\s/g, '').length,
-  }
-}
-
 function SourceCodePage({
   activePath,
   value,
@@ -35,8 +27,7 @@ function SourceCodePage({
   showStatusBar,
 }: SourceCodePageProps) {
   const { t } = useI18n()
-  const deferredValue = useDeferredValue(value)
-  const stats = useMemo(() => getDocumentStats(deferredValue), [deferredValue])
+  const stats = useDocumentStats(value, showStatusBar)
   const sourceFileContents = useMemo(
     () =>
       activePath

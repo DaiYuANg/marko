@@ -23,7 +23,7 @@ beforeEach(async () => {
 })
 
 describe('TabsBar', () => {
-  it('shows the active file save state', () => {
+  it('shows a compact unsaved indicator when visible save state is enabled', () => {
     render(
       <TabsBar
         {...createProps()}
@@ -33,7 +33,8 @@ describe('TabsBar', () => {
       />,
     )
 
-    expect(screen.getByText('Saving')).toBeInTheDocument()
+    expect(screen.getByLabelText('Unsaved')).toBeInTheDocument()
+    expect(screen.queryByText('Saving')).not.toBeInTheDocument()
   })
 
   it('hides routine save state when silent save is enabled', () => {
@@ -46,9 +47,10 @@ describe('TabsBar', () => {
     )
 
     expect(screen.queryByText('Saving')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Unsaved')).not.toBeInTheDocument()
   })
 
-  it('still shows save errors when silent save is enabled', () => {
+  it('still shows compact save errors when silent save is enabled', () => {
     render(
       <TabsBar
         {...createProps()}
@@ -57,6 +59,6 @@ describe('TabsBar', () => {
       />,
     )
 
-    expect(screen.getByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByLabelText('Save failed')).toBeInTheDocument()
   })
 })

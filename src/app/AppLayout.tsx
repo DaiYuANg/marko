@@ -42,6 +42,7 @@ import type { GitDiffRequest } from '@/services/gitApi'
 import { getWorkspaceTabId } from '@/logic/tabs'
 import type { FsSearchResult } from '@/services/fsApi'
 import { useKeyboardShortcuts } from '@/app/useKeyboardShortcuts'
+import { cn } from '@/lib/utils'
 
 const PANEL_LAYOUT_ANIMATION_MS = 220
 const panelLayoutAnimationTimers = new WeakMap<HTMLElement, number>()
@@ -101,11 +102,15 @@ export default function AppLayout() {
   const [commandOpen, setCommandOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  const [terminalInitialized, setTerminalInitialized] = useState(false)
   const workspaceGroupElementRef = useRef<HTMLDivElement | null>(null)
+  const shellGroupElementRef = useRef<HTMLDivElement | null>(null)
   const leftSidebarCollapsedRef = useRef(state.sidebarCollapsed)
   const rightSidebarCollapsedRef = useRef(state.rightSidebarCollapsed)
+  const terminalOpenRef = useRef(terminalOpen)
   const leftSidebarPanelRef = usePanelRef()
   const rightSidebarPanelRef = usePanelRef()
+  const terminalPanelRef = usePanelRef()
   const workspacePanelLayout = useDefaultLayout({
     id: 'marko-workspace-panels',
     panelIds: ['left-sidebar', 'workspace-main', 'right-sidebar'],
@@ -129,6 +134,15 @@ export default function AppLayout() {
     },
     [stateOpenFileView],
   )
+
+  const closeTerminalArea = useCallback(() => {
+    setTerminalOpen(false)
+  }, [])
+
+  const toggleTerminalArea = useCallback(() => {
+    if (!terminalOpen) setTerminalInitialized(true)
+    setTerminalOpen(!terminalOpen)
+  }, [terminalOpen])
 
   const handleOpenGitDiff = useCallback(
     (request: GitDiffRequest) => {
@@ -211,6 +225,10 @@ export default function AppLayout() {
     () => `${state.rootKind}:${state.rootPath}:${location.pathname}`,
     [location.pathname, state.rootKind, state.rootPath],
   )
+  const routeCacheMax = useMemo(
+    () => Math.min(24, Math.max(8, state.tabs.length + 2)),
+    [state.tabs.length],
+  )
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = state.theme
@@ -292,6 +310,29 @@ export default function AppLayout() {
     }
     updateLayout()
   }, [rightSidebarPanelRef, state.rightSidebarCollapsed])
+
+  useLayoutEffect(() => {
+    const panel = terminalPanelRef.current
+    if (!panel) return
+
+    const shouldAnimate = terminalOpenRef.current !== terminalOpen
+    terminalOpenRef.current = terminalOpen
+    const updateLayout = () => {
+      if (!terminalOpen) {
+        panel.collapse()
+        return
+      }
+
+      if (panel.isCollapsed()) panel.expand()
+      if (panel.getSize().inPixels < 120) panel.resize('280px')
+    }
+
+    if (shouldAnimate) {
+      animatePanelLayoutChange(shellGroupElementRef.current, updateLayout)
+      return
+    }
+    updateLayout()
+  }, [terminalOpen, terminalPanelRef])
 
   const handleMenuAction = useCallback(
     (id: string) => {
@@ -481,8 +522,7 @@ export default function AppLayout() {
               activeCacheKey={routeCacheKey}
               cacheNodeClassName="h-full"
               containerClassName="h-full"
-              enableActivity
-              max={8}
+              max={routeCacheMax}
             >
               {outlet}
             </KeepAlive>
@@ -528,6 +568,11 @@ export default function AppLayout() {
       <Toaster richColors closeButton />
       <ExportStatusOverlay />
       <Titlebar
+        activePath={state.activePath}
+        activeTab={state.activeTab}
+        dirtyPaths={state.dirtyPaths}
+        saveStates={state.saveStates}
+        silentSave={state.silentSave}
         onToggleSidebar={state.toggleSidebar}
         onToggleRightSidebar={state.toggleRightSidebar}
         onSelectProject={state.onSelectProject}
@@ -547,36 +592,42 @@ export default function AppLayout() {
         settingsOpen={settingsOpen}
         onSettingsOpenChange={setSettingsOpen}
       />
-      {terminalOpen ? (
-        <ResizableGroup
-          className="min-h-0 flex-1"
-          defaultLayout={shellPanelLayout.defaultLayout}
-          id="marko-shell-panels"
-          onLayoutChanged={shellPanelLayout.onLayoutChanged}
-          orientation="vertical"
-          resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+      <ResizableGroup
+        className="min-h-0 flex-1"
+        defaultLayout={shellPanelLayout.defaultLayout}
+        elementRef={shellGroupElementRef}
+        id="marko-shell-panels"
+        onLayoutChanged={shellPanelLayout.onLayoutChanged}
+        orientation="vertical"
+        resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+      >
+        <ResizablePanel className="min-h-0" id="workspace-area" minSize="260px">
+          {workspacePanels}
+        </ResizablePanel>
+        <ResizableSeparator
+          className={cn(
+            'resize-handle resize-handle-horizontal',
+            !terminalOpen && 'pointer-events-none opacity-0',
+          )}
+          disabled={!terminalOpen}
+          id="terminal-resize"
+        />
+        <ResizablePanel
+          className="min-h-0"
+          collapsedSize="0px"
+          collapsible
+          defaultSize="280px"
+          groupResizeBehavior="preserve-pixel-size"
+          id="terminal"
+          maxSize="65vh"
+          minSize="160px"
+          panelRef={terminalPanelRef}
         >
-          <ResizablePanel className="min-h-0" id="workspace-area" minSize="260px">
-            {workspacePanels}
-          </ResizablePanel>
-          <ResizableSeparator
-            className="resize-handle resize-handle-horizontal"
-            id="terminal-resize"
-          />
-          <ResizablePanel
-            className="min-h-0"
-            defaultSize="280px"
-            groupResizeBehavior="preserve-pixel-size"
-            id="terminal"
-            maxSize="65vh"
-            minSize="160px"
-          >
-            <TerminalPanel onClose={() => setTerminalOpen(false)} theme={state.theme} />
-          </ResizablePanel>
-        </ResizableGroup>
-      ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden">{workspacePanels}</div>
-      )}
+          {terminalInitialized && (
+            <TerminalPanel onClose={closeTerminalArea} theme={state.theme} visible={terminalOpen} />
+          )}
+        </ResizablePanel>
+      </ResizableGroup>
       <AppStatusBar
         rootKind={state.rootKind}
         rootPath={state.rootPath}
@@ -588,7 +639,7 @@ export default function AppLayout() {
         dirtyPaths={state.dirtyPaths}
         saveStates={state.saveStates}
         terminalOpen={terminalOpen}
-        onToggleTerminal={() => setTerminalOpen((open) => !open)}
+        onToggleTerminal={toggleTerminalArea}
       />
     </div>
   )

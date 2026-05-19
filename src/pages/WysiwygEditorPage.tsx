@@ -1,9 +1,10 @@
-import { lazy, memo, Suspense, useDeferredValue, useEffect, useMemo, useRef } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import type { MarkdownEditorHandle } from '@/components/milkdown/markdownEditorTypes'
 import type { SlashCommandLabels } from '@/components/milkdown/slashMenuConfig'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
 import { onExportContentRequest } from '@/utils/exportContent'
+import { useDocumentStats } from '@/pages/useDocumentStats'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 
@@ -14,22 +15,12 @@ type WysiwygEditorPageProps = {
   showStatusBar: boolean
 }
 
-const getDocumentStats = (value: string) => {
-  const trimmed = value.trim()
-  return {
-    lines: value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length,
-    words: trimmed.length === 0 ? 0 : trimmed.split(/\s+/).filter(Boolean).length,
-    characters: value.replace(/\s/g, '').length,
-  }
-}
-
 function WysiwygEditorPage({ activePath, value, onChange, showStatusBar }: WysiwygEditorPageProps) {
   const { t } = useI18n()
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
   const activePathRef = useRef(activePath)
   const valueRef = useRef(value)
-  const deferredValue = useDeferredValue(value)
-  const stats = useMemo(() => getDocumentStats(deferredValue), [deferredValue])
+  const stats = useDocumentStats(value, showStatusBar)
   const slashLabels = useMemo<SlashCommandLabels>(
     () => ({
       textGroup: t('slash.textGroup'),

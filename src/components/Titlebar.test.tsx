@@ -44,6 +44,11 @@ const workspaceIndex = {
 } satisfies NonNullable<TitlebarProps['workspaceIndex']>
 
 const createProps = (overrides: Partial<TitlebarProps> = {}): TitlebarProps => ({
+  activePath: 'notes/target.md',
+  activeTab: { kind: 'file', path: 'notes/target.md', view: 'edit' },
+  dirtyPaths: {},
+  saveStates: {},
+  silentSave: true,
   onToggleSidebar: vi.fn(),
   onToggleRightSidebar: vi.fn(),
   onSelectProject: vi.fn(),
@@ -91,7 +96,7 @@ describe('Titlebar command palette', () => {
     const onOpenFile = vi.fn()
     renderTitlebar(createProps({ commandOpen: true, onOpenFile }))
 
-    await userEvent.click(await screen.findByText('target'))
+    await userEvent.click(await screen.findByText('notes/target.md'))
 
     expect(onOpenFile).toHaveBeenCalledWith('notes/target.md')
   })

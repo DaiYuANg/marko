@@ -9,7 +9,6 @@ import {
 } from 'react'
 import { Code2, FileText, GitGraph, PenLine, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { createFileLabel } from '@/logic/paths'
 import { useI18n } from '@/i18n/useI18n'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -27,21 +26,6 @@ type TabsBarProps = {
   viewMode: ViewMode
   onChangeView: (mode: ViewMode) => void
   silentSave: boolean
-}
-
-const getSaveLabelKey = (state?: SaveState) => {
-  if (!state) return null
-  if (state.status === 'saved') return null
-  if (state.status === 'saving') return 'save.saving'
-  if (state.status === 'error') return 'save.error'
-  return 'save.unsaved'
-}
-
-const getSaveBadgeClassName = (state?: SaveState) => {
-  if (state?.status === 'saved') return 'border-emerald-500/30 text-emerald-600'
-  if (state?.status === 'saving') return 'border-sky-500/30 text-sky-600'
-  if (state?.status === 'error') return 'border-destructive/30 text-destructive'
-  return 'border-amber-500/30 text-amber-600'
 }
 
 const getTabLabel = (tab: WorkspaceTab) => {
@@ -70,6 +54,9 @@ type WorkspaceTabButtonProps = {
   isActive: boolean
   isDirty: boolean
   hasError: boolean
+  dirtyLabel: string
+  errorLabel: string
+  errorMessage?: string
   onOpenTab: (id: string) => void
   onCloseTab: (id: string) => void
 }
@@ -82,6 +69,9 @@ const WorkspaceTabButton = memo(
     isActive,
     isDirty,
     hasError,
+    dirtyLabel,
+    errorLabel,
+    errorMessage,
     onOpenTab,
     onCloseTab,
   }: WorkspaceTabButtonProps) => {
@@ -132,8 +122,20 @@ const WorkspaceTabButton = memo(
         <span className={`${compact ? 'max-w-[86px]' : 'max-w-[160px]'} truncate`}>
           {compact && label.length > 12 ? `${label.slice(0, 11)}…` : label}
         </span>
-        {isDirty && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-        {hasError && <span className="h-1.5 w-1.5 rounded-full bg-destructive" />}
+        {isDirty && (
+          <span
+            aria-label={dirtyLabel}
+            className="h-1.5 w-1.5 rounded-full bg-amber-500"
+            title={dirtyLabel}
+          />
+        )}
+        {hasError && (
+          <span
+            aria-label={errorLabel}
+            className="h-1.5 w-1.5 rounded-full bg-destructive"
+            title={errorMessage ?? errorLabel}
+          />
+        )}
         <span
           role="button"
           tabIndex={0}
@@ -156,6 +158,9 @@ const WorkspaceTabButton = memo(
     prev.isActive === next.isActive &&
     prev.isDirty === next.isDirty &&
     prev.hasError === next.hasError &&
+    prev.dirtyLabel === next.dirtyLabel &&
+    prev.errorLabel === next.errorLabel &&
+    prev.errorMessage === next.errorMessage &&
     prev.onOpenTab === next.onOpenTab &&
     prev.onCloseTab === next.onCloseTab,
 )
@@ -175,10 +180,9 @@ const TabsBarComponent = ({
   const tabsViewportRef = useRef<HTMLDivElement | null>(null)
   const compact = tabs.length >= 8
   const activeTab = tabs.find((tab) => getWorkspaceTabId(tab) === activeTabId) ?? null
-  const activePath = activeTab?.kind === 'file' ? activeTab.path : null
-  const activeSaveState = activePath ? saveStates[activePath] : undefined
-  const activeSaveLabelKey = getSaveLabelKey(activeSaveState)
   const fileTabActive = activeTab?.kind === 'file'
+  const dirtyLabel = t('save.unsaved')
+  const errorLabel = t('save.error')
 
   const handleTabsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const viewport = event.currentTarget
@@ -263,6 +267,9 @@ const TabsBarComponent = ({
                   isActive={isActive}
                   isDirty={isDirty}
                   hasError={hasError}
+                  dirtyLabel={dirtyLabel}
+                  errorLabel={errorLabel}
+                  errorMessage={saveState?.message}
                   onOpenTab={onOpenTab}
                   onCloseTab={onCloseTab}
                 />
@@ -271,25 +278,7 @@ const TabsBarComponent = ({
           </div>
         </div>
       </div>
-      <div className="hidden min-w-0 items-center gap-2 md:flex">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          {activeTab ? renderTabIcon(activeTab) : <FileText className="h-3.5 w-3.5" />}
-          <span className="max-w-[180px] truncate">
-            {activeTab ? getTabLabel(activeTab) : t('center.noFile')}
-          </span>
-          {!silentSave && activePath && dirtyPaths[activePath] && (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-          )}
-          {activeSaveLabelKey && (activeSaveState?.status === 'error' || !silentSave) && (
-            <Badge
-              variant="outline"
-              className={`h-5 shrink-0 px-1.5 text-[10px] font-medium ${getSaveBadgeClassName(activeSaveState)}`}
-              title={activeSaveState?.message}
-            >
-              {t(activeSaveLabelKey)}
-            </Badge>
-          )}
-        </div>
+      <div className="hidden shrink-0 items-center gap-2 md:flex">
         <TooltipProvider>
           <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/70 p-0.5 shadow-sm">
             <Tooltip>
