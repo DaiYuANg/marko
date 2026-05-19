@@ -9,10 +9,7 @@ import {
 } from '@/logic/markdownDiagnostics'
 import type { FileEntry } from '@/store/useAppStore'
 import { fsApi, type FsMarkdownDiagnostic, type FsWorkspaceIndex } from '@/services/fsApi'
-import {
-  FOCUS_SOURCE_POSITION_EVENT,
-  type FocusSourcePositionRequest,
-} from '@/utils/editorNavigation'
+import { onFocusSourcePositionRequest } from '@/utils/editorNavigation'
 import { isTauriRuntime } from '@/utils/tauri'
 
 type MarkdownSourceEditorProps = {
@@ -196,9 +193,7 @@ export default function MarkdownSourceEditor({
   }, [])
 
   useEffect(() => {
-    const handler = (event: Event) => {
-      const { path, line, column, endColumn } =
-        (event as CustomEvent<FocusSourcePositionRequest>).detail ?? {}
+    return onFocusSourcePositionRequest(({ path, line, column, endColumn }) => {
       if (!path || path !== activePath) return
       if (!Number.isFinite(line) || !Number.isFinite(column)) return
 
@@ -232,10 +227,7 @@ export default function MarkdownSourceEditor({
         searchHighlightRef.current?.clear()
         searchHighlightTimerRef.current = null
       }, 2_400)
-    }
-
-    window.addEventListener(FOCUS_SOURCE_POSITION_EVENT, handler)
-    return () => window.removeEventListener(FOCUS_SOURCE_POSITION_EVENT, handler)
+    })
   }, [activePath])
 
   return (

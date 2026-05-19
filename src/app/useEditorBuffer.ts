@@ -21,11 +21,13 @@ type UseEditorBufferArgs = {
 
 type WorkspaceContents = Record<string, Record<string, string>>
 type WorkspaceDirtyPaths = Record<string, Record<string, true>>
+type WorkspaceLoadingPaths = Record<string, Record<string, true>>
 type WorkspaceSaveStates = Record<string, Record<string, SaveState>>
 
 export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArgs) {
   const [workspaceFileContents, setWorkspaceFileContents] = useState<WorkspaceContents>({})
   const [workspaceDirtyPaths, setWorkspaceDirtyPaths] = useState<WorkspaceDirtyPaths>({})
+  const [workspaceLoadingPaths, setWorkspaceLoadingPaths] = useState<WorkspaceLoadingPaths>({})
   const [workspaceSaveStates, setWorkspaceSaveStates] = useState<WorkspaceSaveStates>({})
 
   const fileContents = useMemo(
@@ -35,6 +37,10 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
   const dirtyPaths = useMemo(
     () => workspaceDirtyPaths[workspaceKey] ?? EMPTY_DIRTY_PATHS,
     [workspaceDirtyPaths, workspaceKey],
+  )
+  const loadingPaths = useMemo(
+    () => workspaceLoadingPaths[workspaceKey] ?? EMPTY_DIRTY_PATHS,
+    [workspaceLoadingPaths, workspaceKey],
   )
   const saveStates = useMemo(
     () => workspaceSaveStates[workspaceKey] ?? EMPTY_SAVE_STATES,
@@ -95,6 +101,23 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
     [setPathSaveState],
   )
 
+  const setPathLoading = useCallback((workspace: string, path: string, loading: boolean) => {
+    setWorkspaceLoadingPaths((prev) =>
+      produce(prev, (draft) => {
+        if (loading) {
+          const currentWorkspaceLoading = draft[workspace] ?? (draft[workspace] = {})
+          currentWorkspaceLoading[path] = true
+          return
+        }
+
+        const currentWorkspaceLoading = draft[workspace]
+        if (!currentWorkspaceLoading?.[path]) return
+        delete currentWorkspaceLoading[path]
+        if (Object.keys(currentWorkspaceLoading).length === 0) delete draft[workspace]
+      }),
+    )
+  }, [])
+
   useEffect(() => {
     if (!isTauriRuntime()) return
     Object.values(syncTimers.current).forEach((timer) => window.clearTimeout(timer))
@@ -125,15 +148,17 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
 
     const token = loadToken.current + 1
     loadToken.current = token
+    const requestWorkspace = workspaceKey
+    setPathLoading(requestWorkspace, activePath, true)
+
     void fsApi
       .openFile(activePath)
       .then((content) => {
         if (loadToken.current !== token) return
-        const currentWorkspace = workspaceKeyRef.current
         setWorkspaceFileContents((prev) =>
           produce(prev, (draft) => {
             const currentWorkspaceContents =
-              draft[currentWorkspace] ?? (draft[currentWorkspace] = {})
+              draft[requestWorkspace] ?? (draft[requestWorkspace] = {})
             if (currentWorkspaceContents[activePath] === content) return
             currentWorkspaceContents[activePath] = content
           }),
@@ -143,21 +168,25 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
         revisionContentRef.current[activePath] = {}
         setWorkspaceDirtyPaths((prev) =>
           produce(prev, (draft) => {
-            const currentWorkspaceDirty = draft[currentWorkspace]
+            const currentWorkspaceDirty = draft[requestWorkspace]
             if (!currentWorkspaceDirty?.[activePath]) return
             delete currentWorkspaceDirty[activePath]
           }),
         )
-        setPathSaveState(currentWorkspace, activePath, { status: 'saved' })
+        setPathSaveState(requestWorkspace, activePath, { status: 'saved' })
       })
       .catch((error) => {
+        if (loadToken.current !== token) return
         console.error('open file failed', error)
-        setPathSaveState(workspaceKeyRef.current, activePath, {
+        setPathSaveState(requestWorkspace, activePath, {
           status: 'error',
           message: String(error),
         })
       })
-  }, [activePath, dirtyPathsRef, fileContentsRef, setPathSaveState, workspaceKey, workspaceKeyRef])
+      .finally(() => {
+        setPathLoading(requestWorkspace, activePath, false)
+      })
+  }, [activePath, dirtyPathsRef, fileContentsRef, setPathLoading, setPathSaveState, workspaceKey])
 
   useEffect(() => {
     if (!isTauriRuntime()) return
@@ -328,6 +357,7 @@ export function useEditorBuffer({ activePath, workspaceKey }: UseEditorBufferArg
     fileContents,
     editorValue,
     dirtyPaths,
+    loadingPaths,
     saveStates,
     onEditorChange,
   }

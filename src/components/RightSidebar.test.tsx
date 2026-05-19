@@ -7,8 +7,8 @@ import RightSidebar from '@/components/RightSidebar'
 import i18n from '@/i18n/setup'
 import { useAppStore } from '@/store/useAppStore'
 import {
-  FOCUS_HEADING_EVENT,
-  FOCUS_SOURCE_POSITION_EVENT,
+  onFocusHeadingRequest,
+  onFocusSourcePositionRequest,
   type FocusHeadingRequest,
   type FocusSourcePositionRequest,
 } from '@/utils/editorNavigation'
@@ -96,10 +96,7 @@ beforeEach(async () => {
 describe('RightSidebar', () => {
   it('dispatches a heading focus request when an outline item is clicked', async () => {
     const events: FocusHeadingRequest[] = []
-    const listener = (event: Event) => {
-      events.push((event as CustomEvent<FocusHeadingRequest>).detail)
-    }
-    window.addEventListener(FOCUS_HEADING_EVENT, listener)
+    const unsubscribe = onFocusHeadingRequest((request) => events.push(request))
 
     try {
       renderRightSidebar(createProps())
@@ -112,7 +109,7 @@ describe('RightSidebar', () => {
         expect(events).toEqual([{ path: 'target.md', slug: 'details' }])
       })
     } finally {
-      window.removeEventListener(FOCUS_HEADING_EVENT, listener)
+      unsubscribe()
     }
   })
 
@@ -120,10 +117,7 @@ describe('RightSidebar', () => {
     const onOpenFileView = vi.fn()
     const props = createProps({ onOpenFileView })
     const events: FocusSourcePositionRequest[] = []
-    const listener = (event: Event) => {
-      events.push((event as CustomEvent<FocusSourcePositionRequest>).detail)
-    }
-    window.addEventListener(FOCUS_SOURCE_POSITION_EVENT, listener)
+    const unsubscribe = onFocusSourcePositionRequest((request) => events.push(request))
 
     try {
       const { rerender } = renderRightSidebar(props)
@@ -152,7 +146,7 @@ describe('RightSidebar', () => {
         expect(events).toEqual([{ path: 'source.md', line: 2, column: 5 }])
       })
     } finally {
-      window.removeEventListener(FOCUS_SOURCE_POSITION_EVENT, listener)
+      unsubscribe()
     }
   })
 

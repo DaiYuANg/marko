@@ -78,6 +78,20 @@ const SwitchingHarness = () => {
   )
 }
 
+const LoadingHarness = () => {
+  const buffer = useEditorBuffer({
+    activePath: 'notes/current.md',
+    workspaceKey: 'internal:/workspace',
+  })
+
+  return (
+    <div>
+      <div data-testid="loading">{String(Boolean(buffer.loadingPaths['notes/current.md']))}</div>
+      <div data-testid="value">{buffer.editorValue}</div>
+    </div>
+  )
+}
+
 beforeEach(() => {
   eventHandlers.clear()
   fsApiMock.flushBuffers.mockResolvedValue(0)
@@ -199,5 +213,27 @@ describe('useEditorBuffer', () => {
     expect(screen.getByTestId('active')).toHaveTextContent('notes/current.md')
     expect(screen.getByTestId('value')).toHaveTextContent('changed')
     expect(screen.getByTestId('state')).toHaveTextContent('unsaved:true')
+  })
+
+  it('exposes loading state while opening a Markdown file', async () => {
+    let resolveOpen: ((content: string) => void) | undefined
+    fsApiMock.openFile.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOpen = resolve
+      }),
+    )
+
+    render(<LoadingHarness />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('true')
+    })
+
+    await act(async () => {
+      resolveOpen?.('loaded markdown')
+    })
+
+    expect(await screen.findByText('loaded markdown')).toBeInTheDocument()
+    expect(screen.getByTestId('loading')).toHaveTextContent('false')
   })
 })

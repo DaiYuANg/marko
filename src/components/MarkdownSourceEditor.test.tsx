@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownSourceEditor from '@/components/MarkdownSourceEditor'
-import { FOCUS_SOURCE_POSITION_EVENT } from '@/utils/editorNavigation'
+import { requestFocusSourcePosition } from '@/utils/editorNavigation'
 
 type CompletionProviderMock = {
   provideCompletionItems: (
@@ -202,11 +202,7 @@ describe('MarkdownSourceEditor', () => {
       />,
     )
 
-    window.dispatchEvent(
-      new CustomEvent(FOCUS_SOURCE_POSITION_EVENT, {
-        detail: { path: 'source.md', line: 3, column: 2, endColumn: 4 },
-      }),
-    )
+    requestFocusSourcePosition({ path: 'source.md', line: 3, column: 2, endColumn: 4 })
 
     expect(monacoEditor.setPosition).toHaveBeenCalledWith({ lineNumber: 3, column: 2 })
     expect(monacoEditor.setSelection).toHaveBeenCalledWith({
@@ -236,11 +232,7 @@ describe('MarkdownSourceEditor', () => {
       />,
     )
 
-    window.dispatchEvent(
-      new CustomEvent(FOCUS_SOURCE_POSITION_EVENT, {
-        detail: { path: 'other.md', line: 1, column: 1 },
-      }),
-    )
+    requestFocusSourcePosition({ path: 'other.md', line: 1, column: 1 })
 
     expect(monacoEditor.setPosition).not.toHaveBeenCalled()
   })

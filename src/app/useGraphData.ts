@@ -36,7 +36,7 @@ export function useGraphData(
     staleTime: 2_000,
   })
 
-  return useMemo(() => {
+  const graph = useMemo(() => {
     if (!enabled) return EMPTY_GRAPH
 
     const graphContentMode = mode === 'file' ? 'full' : contentMode
@@ -55,4 +55,13 @@ export function useGraphData(
 
     return EMPTY_GRAPH
   }, [contentMode, enabled, mode, outlineQuery.data, workspaceGraphQuery.data, workspaceIndex])
+
+  const loading =
+    mode === 'file'
+      ? outlineQuery.isFetching && !outlineQuery.data
+      : mode === 'workspace'
+        ? workspaceGraphQuery.isFetching && !workspaceGraphQuery.data
+        : false
+
+  return { graph, loading }
 }

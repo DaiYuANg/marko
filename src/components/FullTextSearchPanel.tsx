@@ -1,5 +1,5 @@
-import { useDeferredValue } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useDebounce } from 'ahooks'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -15,12 +15,13 @@ type FullTextSearchPanelProps = {
 
 export default function FullTextSearchPanel({ query, onOpenResult }: FullTextSearchPanelProps) {
   const { t } = useI18n()
-  const deferredQuery = useDeferredValue(query.trim())
-  const enabled = isTauriRuntime() && deferredQuery.length >= 2
+  const debouncedQuery = useDebounce(query.trim(), { wait: 180 })
+  const enabled = isTauriRuntime() && debouncedQuery.length >= 2
   const searchQuery = useQuery({
-    queryKey: ['workspace-search', deferredQuery],
-    queryFn: () => fsApi.searchWorkspace(deferredQuery, 20),
+    queryKey: ['workspace-search', debouncedQuery],
+    queryFn: () => fsApi.searchWorkspace(debouncedQuery, 20),
     enabled,
+    placeholderData: keepPreviousData,
     staleTime: 5_000,
   })
 

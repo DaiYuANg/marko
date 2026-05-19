@@ -3,7 +3,7 @@ import type { MarkdownEditorHandle } from '@/components/milkdown/markdownEditorT
 import type { SlashCommandLabels } from '@/components/milkdown/slashMenuConfig'
 import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import { useI18n } from '@/i18n/useI18n'
-import { EXPORT_CONTENT_EVENT, type ExportContentRequest } from '@/utils/exportContent'
+import { onExportContentRequest } from '@/utils/exportContent'
 
 const MarkdownEditor = lazy(() => import('@/components/MarkdownEditor'))
 
@@ -60,15 +60,11 @@ function WysiwygEditorPage({ activePath, value, onChange, showStatusBar }: Wysiw
   }, [activePath, value])
 
   useEffect(() => {
-    const handler = (event: Event) => {
-      const { expectedActivePath, respond } =
-        (event as CustomEvent<ExportContentRequest>).detail ?? {}
+    return onExportContentRequest(({ expectedActivePath, respond }) => {
       if (typeof respond !== 'function') return
       if (expectedActivePath != null && activePathRef.current !== expectedActivePath) return
       respond(editorRef.current?.getMarkdown() ?? valueRef.current)
-    }
-    window.addEventListener(EXPORT_CONTENT_EVENT, handler)
-    return () => window.removeEventListener(EXPORT_CONTENT_EVENT, handler)
+    })
   }, [])
 
   return (

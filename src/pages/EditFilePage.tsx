@@ -1,13 +1,16 @@
 import { Navigate, useParams } from 'react-router-dom'
 import EditorEmptyState from '@/pages/EditorEmptyState'
+import EditorPaneFallback from '@/pages/EditorPaneFallback'
 import WysiwygEditorPage from '@/pages/WysiwygEditorPage'
 import { pathToRoute } from '@/logic/routing'
 import { FileRouteNotFound, fileExists } from '@/pages/fileRouteHelpers'
+import { useI18n } from '@/i18n/useI18n'
 import { useLayoutContext } from '@/pages/useLayoutContext'
 
 export default function EditFilePage() {
   const params = useParams()
   const context = useLayoutContext()
+  const { t } = useI18n()
   const requestedPath = params['*'] || null
   const activePath = requestedPath ?? context.activePath
 
@@ -26,6 +29,10 @@ export default function EditFilePage() {
         onOpenFile={context.onOpenFile}
       />
     )
+  }
+
+  if (context.loadingPaths[activePath]) {
+    return <EditorPaneFallback label={t('editor.loadingDocument')} path={activePath} />
   }
 
   return (

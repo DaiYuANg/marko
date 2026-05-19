@@ -10,8 +10,9 @@ import {
   Search,
   Settings2,
 } from 'lucide-react'
-import { useDeferredValue, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useDebounce } from 'ahooks'
 import AppCommandDialog from '@/components/AppCommandDialog'
 import {
   CommandEmpty,
@@ -62,11 +63,12 @@ export default function TitlebarCommandDialog({
 }: TitlebarCommandDialogProps) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
-  const deferredQuery = useDeferredValue(query.trim())
+  const debouncedQuery = useDebounce(query.trim(), { wait: 160 })
   const fullTextSearch = useQuery({
-    queryKey: ['command-workspace-search', deferredQuery],
-    queryFn: () => fsApi.searchWorkspace(deferredQuery, 8),
-    enabled: open && isTauriRuntime() && deferredQuery.length >= 2,
+    queryKey: ['command-workspace-search', debouncedQuery],
+    queryFn: () => fsApi.searchWorkspace(debouncedQuery, 8),
+    enabled: open && isTauriRuntime() && debouncedQuery.length >= 2,
+    placeholderData: keepPreviousData,
     staleTime: 5_000,
   })
 

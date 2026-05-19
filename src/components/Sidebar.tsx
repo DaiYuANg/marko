@@ -7,6 +7,7 @@ import { isSidebarActivity, SIDEBAR_ACTIVITY_PARAM, type SidebarActivityId } fro
 import type { FsSearchResult } from '@/services/fsApi'
 import type { GitDiffRequest } from '@/services/gitApi'
 import type { FileEntry, FileViewKind } from '@/store/useAppStore'
+import { onFileSearchFocusRequest } from '@/utils/appEvents'
 
 type SidebarProps = {
   collapsed: boolean
@@ -80,15 +81,10 @@ const SidebarComponent = ({
   )
 
   useEffect(() => {
-    const focusFilter = () => {
+    return onFileSearchFocusRequest(() => {
       selectActivity('explorer')
       setFocusFileFilterRequest((request) => request + 1)
-    }
-
-    window.addEventListener('marko:focus-file-search', focusFilter as EventListener)
-    return () => {
-      window.removeEventListener('marko:focus-file-search', focusFilter as EventListener)
-    }
+    })
   }, [selectActivity])
 
   return (

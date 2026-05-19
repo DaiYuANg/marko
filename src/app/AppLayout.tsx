@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { useLocation, useOutlet } from 'react-router-dom'
 import {
   Group as ResizableGroup,
   Panel as ResizablePanel,
@@ -6,6 +6,7 @@ import {
   useDefaultLayout,
   usePanelRef,
 } from 'react-resizable-panels'
+import { KeepAlive } from 'keepalive-for-react'
 import Sidebar from '@/components/Sidebar'
 import RightSidebar from '@/components/RightSidebar'
 import Titlebar from '@/components/Titlebar'
@@ -69,6 +70,7 @@ export type LayoutContext = {
   activePath: string | null
   editorValue: string
   graph: GraphData
+  graphLoading: boolean
   onEditorChange: (value: string) => void
   onOpenFile: (path: string) => void
   onOpenFileView: (path: string, view: FileViewKind) => void
@@ -78,6 +80,7 @@ export type LayoutContext = {
   fileContents: Record<string, string>
   workspaceIndex: FsWorkspaceIndex | null
   saveStates: Record<string, SaveState>
+  loadingPaths: Record<string, true>
   currentView: ViewMode
   activeTab: WorkspaceTab | null
   rootPath: string
@@ -90,6 +93,7 @@ export type LayoutContext = {
 export default function AppLayout() {
   const state = useAppLayoutState()
   const stateRef = useLatest(state)
+  const location = useLocation()
   const stateOpenFile = state.onOpenFile
   const stateOpenFileView = state.onOpenFileView
   const stateOpenGitDiff = state.onOpenGitDiff
@@ -160,6 +164,7 @@ export default function AppLayout() {
       activePath: state.activePath,
       editorValue: state.editorValue,
       graph: state.graph,
+      graphLoading: state.graphLoading,
       onEditorChange: state.onEditorChange,
       onOpenFile: handleOpenFile,
       onOpenFileView: handleOpenFileView,
@@ -169,6 +174,7 @@ export default function AppLayout() {
       fileContents: state.fileContents,
       workspaceIndex: state.workspaceIndex,
       saveStates: state.saveStates,
+      loadingPaths: state.loadingPaths,
       currentView: state.viewMode,
       activeTab: state.activeTab,
       rootPath: state.rootPath,
@@ -181,6 +187,7 @@ export default function AppLayout() {
     state.activePath,
     state.editorValue,
     state.graph,
+    state.graphLoading,
     state.onEditorChange,
     handleOpenFile,
     handleOpenFileView,
@@ -190,6 +197,7 @@ export default function AppLayout() {
     state.fileContents,
     state.workspaceIndex,
     state.saveStates,
+    state.loadingPaths,
     state.viewMode,
     state.activeTab,
     state.rootPath,
@@ -198,6 +206,11 @@ export default function AppLayout() {
     state.graphContentMode,
     state.onCloseActiveTab,
   ])
+  const outlet = useOutlet(outletContext)
+  const routeCacheKey = useMemo(
+    () => `${state.rootKind}:${state.rootPath}:${location.pathname}`,
+    [location.pathname, state.rootKind, state.rootPath],
+  )
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = state.theme
@@ -464,7 +477,15 @@ export default function AppLayout() {
             silentSave={state.silentSave}
           />
           <div className="min-h-0 flex-1 overflow-hidden">
-            <Outlet context={outletContext} />
+            <KeepAlive
+              activeCacheKey={routeCacheKey}
+              cacheNodeClassName="h-full"
+              containerClassName="h-full"
+              enableActivity
+              max={8}
+            >
+              {outlet}
+            </KeepAlive>
           </div>
         </section>
       </ResizablePanel>

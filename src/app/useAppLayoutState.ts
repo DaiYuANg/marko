@@ -101,10 +101,11 @@ export function useAppLayoutState() {
   })
 
   const workspaceKey = `${rootKind}:${rootPath}`
-  const { fileContents, editorValue, dirtyPaths, saveStates, onEditorChange } = useEditorBuffer({
-    activePath: currentFilePath,
-    workspaceKey,
-  })
+  const { fileContents, editorValue, dirtyPaths, loadingPaths, saveStates, onEditorChange } =
+    useEditorBuffer({
+      activePath: currentFilePath,
+      workspaceKey,
+    })
 
   const {
     loadWorkspace,
@@ -187,7 +188,7 @@ export function useAppLayoutState() {
     entries.some((entry) => entry.kind === 'file'),
   )
   const graphMode = graphWorkspaceMatch ? 'workspace' : graphFileMatch ? 'file' : null
-  const graph = useGraphData(graphMode, workspaceIndex, currentFilePath, graphContentMode)
+  const graphState = useGraphData(graphMode, workspaceIndex, currentFilePath, graphContentMode)
 
   return {
     rootPath,
@@ -199,6 +200,7 @@ export function useAppLayoutState() {
     activeTab,
     activeTabId,
     dirtyPaths,
+    loadingPaths,
     saveStates,
     activePath: currentFilePath,
     activeResourcePath,
@@ -213,7 +215,8 @@ export function useAppLayoutState() {
     shortcutOverrides,
     viewMode,
     fileTree,
-    graph,
+    graph: graphState.graph,
+    graphLoading: graphState.loading,
     workspaceIndex,
     inspectedPath: inspectedPath ?? activeResourcePath,
     editorValue,

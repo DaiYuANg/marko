@@ -1,10 +1,11 @@
-/** Custom event for requesting the current editor content for export. */
-export type ExportContentRequest = {
-  expectedActivePath: string | null
-  respond: (content: string) => void
-}
+import { APP_EVENT, emitAppEvent, onAppEvent, type AppEventMap } from '@/utils/appEvents'
 
-export const EXPORT_CONTENT_EVENT = 'marko:get-export-content'
+export const EXPORT_CONTENT_EVENT = APP_EVENT.exportContent
+export type ExportContentRequest = AppEventMap[typeof EXPORT_CONTENT_EVENT]
+
+export const onExportContentRequest = (handler: (request: ExportContentRequest) => void) => {
+  return onAppEvent(EXPORT_CONTENT_EVENT, handler)
+}
 
 /** Request the current editor content. Resolves with fallback after timeout if no response. */
 export function requestExportContent(
@@ -21,11 +22,7 @@ export function requestExportContent(
       }
     }
 
-    window.dispatchEvent(
-      new CustomEvent<ExportContentRequest>(EXPORT_CONTENT_EVENT, {
-        detail: { expectedActivePath, respond },
-      }),
-    )
+    emitAppEvent(EXPORT_CONTENT_EVENT, { expectedActivePath, respond })
 
     setTimeout(() => {
       if (!resolved) {

@@ -24,6 +24,7 @@ import WindowControls from '@/components/WindowControls'
 import TitlebarThemeMenu from '@/components/TitlebarThemeMenu'
 import { useAppStore } from '@/store/useAppStore'
 import { formatShortcutList, resolveShortcutBindings } from '@/logic/shortcuts'
+import { requestFileSearchFocus } from '@/utils/appEvents'
 
 type TitlebarProps = {
   onToggleSidebar: () => void
@@ -170,9 +171,7 @@ function Titlebar({
     if (!isTauriRuntime()) return
     void appApi.menuDispatch(id)
   }, [])
-  const onFocusFileSearch = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('marko:focus-file-search'))
-  }, [])
+  const onFocusFileSearch = useCallback(() => requestFileSearchFocus(), [])
   const onOpenSearch = useCallback(() => {
     onCommandOpenChange(true)
   }, [onCommandOpenChange])

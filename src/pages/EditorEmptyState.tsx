@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import AppLogo from '@/components/AppLogo'
 import { useI18n } from '@/i18n/useI18n'
 import type { FileEntry } from '@/store/useAppStore'
+import { requestFileSearchFocus } from '@/utils/appEvents'
 
 type EditorEmptyStateProps = {
   files: FileEntry[]
@@ -29,7 +30,7 @@ export default function EditorEmptyState({ files, onOpenFile }: EditorEmptyState
           variant="secondary"
           size="sm"
           className="mb-4 h-8 rounded-md"
-          onClick={() => window.dispatchEvent(new CustomEvent('marko:focus-file-search'))}
+          onClick={() => requestFileSearchFocus()}
         >
           <Search className="h-4 w-4" />
           {t('editor.emptySearch')}
