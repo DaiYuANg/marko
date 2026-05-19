@@ -8,6 +8,7 @@ pub mod markdown_graph;
 pub mod markdown_index;
 pub mod path_resolver;
 pub mod search;
+pub mod terminal;
 pub mod workspace;
 
 use fluxdi::Shared;
@@ -17,6 +18,7 @@ use events::{EventBus, RuntimeService};
 pub use export::ExportService;
 use git::GitService;
 use markdown_assets::MarkdownAssetService;
+use terminal::TerminalService;
 use workspace::WorkspaceService;
 
 #[derive(Debug, Clone)]
@@ -27,5 +29,6 @@ pub struct AppServices {
   pub git: Shared<GitService>,
   pub markdown_assets: Shared<MarkdownAssetService>,
   pub runtime: Shared<RuntimeService>,
+  pub terminal: Shared<TerminalService>,
   pub workspace: Shared<WorkspaceService>,
 }

@@ -11,6 +11,7 @@ use super::{
   markdown_index::MarkdownIndexService,
   path_resolver::PathResolver,
   search::SearchService,
+  terminal::TerminalService,
   workspace::WorkspaceService,
   AppServices, ExportService,
 };
@@ -49,6 +50,8 @@ impl Module for AppModule {
     injector
       .try_provide::<MarkdownGraphService>(Provider::root(|_| Shared::new(MarkdownGraphService)))?;
     injector.try_provide::<SearchService>(Provider::root(|_| Shared::new(SearchService::new())))?;
+    injector
+      .try_provide::<TerminalService>(Provider::root(|_| Shared::new(TerminalService::new())))?;
     injector.try_provide::<WorkspaceService>(Provider::root(|injector| {
       let path_resolver = injector
         .try_resolve::<PathResolver>()
@@ -134,6 +137,7 @@ pub async fn build_app_container() -> Result<AppContainer, Error> {
     git: injector.try_resolve::<GitService>()?,
     markdown_assets: injector.try_resolve::<MarkdownAssetService>()?,
     runtime: injector.try_resolve::<RuntimeService>()?,
+    terminal: injector.try_resolve::<TerminalService>()?,
     workspace: injector.try_resolve::<WorkspaceService>()?,
   };
 

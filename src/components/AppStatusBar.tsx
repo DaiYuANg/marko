@@ -8,6 +8,7 @@ import {
   GitBranch,
   Loader2,
   PanelsTopLeft,
+  Terminal,
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,8 @@ type AppStatusBarProps = {
   viewMode: ViewMode
   dirtyPaths: Record<string, true>
   saveStates: Record<string, SaveState>
+  terminalOpen: boolean
+  onToggleTerminal: () => void
 }
 
 const viewLabelKeys: Record<ViewMode, string> = {
@@ -61,6 +64,8 @@ function AppStatusBar({
   viewMode,
   dirtyPaths,
   saveStates,
+  terminalOpen,
+  onToggleTerminal,
 }: AppStatusBarProps) {
   const { t } = useI18n()
   const [, setSearchParams] = useSearchParams()
@@ -153,6 +158,21 @@ function AppStatusBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('statusBar.openScm')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant={terminalOpen ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-6 w-6 rounded"
+                aria-pressed={terminalOpen}
+                onClick={onToggleTerminal}
+              >
+                <Terminal className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('statusBar.toggleTerminal')}</TooltipContent>
           </Tooltip>
           <div className="hidden h-3.5 w-px bg-border/80 sm:block" />
           <div className="hidden min-w-0 items-center gap-1.5 px-1 sm:flex">

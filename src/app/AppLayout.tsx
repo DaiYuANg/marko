@@ -5,6 +5,7 @@ import Titlebar from '@/components/Titlebar'
 import TabsBar from '@/components/TabsBar'
 import AppStatusBar from '@/components/AppStatusBar'
 import ExportStatusOverlay from '@/components/ExportStatusOverlay'
+import TerminalPanel from '@/components/TerminalPanel'
 import { Toaster } from '@/components/ui/sonner'
 import { useAppLayoutState } from '@/app/useAppLayoutState'
 import type { GraphData } from '@/logic/graph'
@@ -65,6 +66,7 @@ export default function AppLayout() {
   const [pendingHeading, setPendingHeading] = useState<FocusHeadingRequest | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [terminalOpen, setTerminalOpen] = useState(false)
   useTauriReadySignal()
 
   const handleOpenFile = useCallback(
@@ -390,6 +392,7 @@ export default function AppLayout() {
           inspectedPath={state.inspectedPath}
         />
       </div>
+      {terminalOpen && <TerminalPanel onClose={() => setTerminalOpen(false)} />}
       <AppStatusBar
         rootKind={state.rootKind}
         rootPath={state.rootPath}
@@ -400,6 +403,8 @@ export default function AppLayout() {
         viewMode={state.viewMode}
         dirtyPaths={state.dirtyPaths}
         saveStates={state.saveStates}
+        terminalOpen={terminalOpen}
+        onToggleTerminal={() => setTerminalOpen((open) => !open)}
       />
     </div>
   )

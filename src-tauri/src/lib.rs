@@ -13,6 +13,7 @@ use crate::commands::git::{
   git_commit_all, git_discover_repo, git_get_file_diff, git_get_status, git_init_repo,
 };
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
+use crate::commands::terminal::{terminal_close, terminal_create, terminal_resize, terminal_write};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
@@ -255,7 +256,11 @@ fn run_impl() {
       git_get_file_diff,
       git_commit_all,
       export_markdown,
-      export_open_output_path
+      export_open_output_path,
+      terminal_create,
+      terminal_write,
+      terminal_resize,
+      terminal_close
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

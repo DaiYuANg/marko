@@ -54,6 +54,7 @@ url = "2.5.8"
 slug = "0.1.6"
 pulldown-cmark-to-cmark = "22.0.0"
 camino = "1.2.2"
+portable-pty = "0.9.0"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-window-state = "2.4.1"
