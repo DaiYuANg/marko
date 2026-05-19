@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FilePlus2, FolderPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from '@/components/ui/sidebar'
-import SidebarFileTree, { filterTree, flattenTree } from '@/components/SidebarFileTree'
+import SidebarFileTree from '@/components/SidebarFileTree'
 import type { SidebarExplorerPanelProps } from '@/components/sidebarPanelTypes'
 import { useI18n } from '@/i18n/useI18n'
+import { filterTree } from '@/logic/fileTree'
 
 const createRootEntry = (promptLabel: string, action: (path: string) => void) => {
   const value = window.prompt(promptLabel)
@@ -34,32 +34,8 @@ export default function SidebarExplorerPanel({
   const { t } = useI18n()
   const [filter, setFilter] = useState('')
   const filterInputRef = useRef<HTMLInputElement | null>(null)
-  const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const readonlyTree = rootKind === 'single'
-  const activeDirKey = useMemo(() => {
-    if (!activePath) return ''
-    return activePath.split('/').slice(0, -1).join('/')
-  }, [activePath])
-  const autoOpenDirs = useMemo(() => {
-    if (!activeDirKey) return new Set<string>()
-    const parts = activeDirKey.split('/')
-    const next = new Set<string>()
-    parts.forEach((_, index) => {
-      next.add(parts.slice(0, index + 1).join('/'))
-    })
-    return next
-  }, [activeDirKey])
-  const effectiveOpenDirs = useMemo(() => {
-    if (autoOpenDirs.size === 0) return openDirs
-    const next = new Set(openDirs)
-    autoOpenDirs.forEach((path) => next.add(path))
-    return next
-  }, [autoOpenDirs, openDirs])
-  const filteredTree = useMemo(() => filterTree(fileTree, filter), [fileTree, filter])
-  const flattened = useMemo(
-    () => flattenTree(filteredTree, 0, effectiveOpenDirs),
-    [effectiveOpenDirs, filteredTree],
-  )
+  const hasVisibleFiles = useMemo(() => filterTree(fileTree, filter).length > 0, [fileTree, filter])
   const labels = useMemo(
     () => ({
       open: t('context.open'),
@@ -84,15 +60,6 @@ export default function SidebarExplorerPanel({
     filterInputRef.current?.focus()
     filterInputRef.current?.select()
   }, [focusFileFilterRequest])
-
-  const toggleFolder = useCallback((path: string) => {
-    setOpenDirs((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-  }, [])
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-1.5">
@@ -136,19 +103,18 @@ export default function SidebarExplorerPanel({
             className="h-7 rounded-md border-sidebar-border bg-background/70 text-xs shadow-sm"
           />
           <Separator className="bg-sidebar-border/70" />
-          <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full pr-1">
-            {flattened.length === 0 ? (
+          <div className="min-h-0 flex-1 overflow-hidden pr-1">
+            {!hasVisibleFiles ? (
               <div className="px-1 text-xs text-muted-foreground">
                 {t('sidebar.noProjectLoaded')}
               </div>
             ) : (
               <SidebarFileTree
-                flattened={flattened}
-                openDirs={effectiveOpenDirs}
+                nodes={fileTree}
+                searchTerm={filter}
                 activePath={activePath}
                 readonlyTree={readonlyTree}
                 labels={labels}
-                onToggleFolder={toggleFolder}
                 onOpenFile={onOpenFile}
                 onOpenFileView={onOpenFileView}
                 onCreateFile={onCreateFile}
@@ -158,7 +124,7 @@ export default function SidebarExplorerPanel({
                 onInspectPath={onInspectPath}
               />
             )}
-          </ScrollArea>
+          </div>
         </SidebarGroupContent>
       </SidebarGroup>
     </div>

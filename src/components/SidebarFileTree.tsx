@@ -1,5 +1,6 @@
-import React from 'react'
-import { List } from 'react-window'
+import React, { useCallback } from 'react'
+import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
+import { AutoSizer } from 'react-virtualized-auto-sizer'
 import {
   ChevronRight,
   Code2,
@@ -40,52 +41,10 @@ export type ContextLabels = {
   deleteFolderConfirm: string
 }
 
-type FlatTreeNode = {
-  node: FileTreeNode
-  depth: number
-}
-
-export const filterTree = (nodes: FileTreeNode[], query: string): FileTreeNode[] => {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return nodes
-
-  return nodes
-    .map((node) => {
-      const matched = node.name.toLowerCase().includes(normalized)
-      if (node.type === 'file') {
-        return matched ? node : null
-      }
-      const children = node.children ? filterTree(node.children, normalized) : []
-      if (matched || children.length > 0) {
-        return { ...node, children }
-      }
-      return null
-    })
-    .filter((node): node is FileTreeNode => node !== null)
-}
-
-export const flattenTree = (
-  nodes: FileTreeNode[],
-  depth: number,
-  openDirs: Set<string>,
-): FlatTreeNode[] => {
-  const result: FlatTreeNode[] = []
-  nodes.forEach((node) => {
-    result.push({ node, depth })
-    if (node.type === 'folder' && node.children && openDirs.has(node.path)) {
-      result.push(...flattenTree(node.children, depth + 1, openDirs))
-    }
-  })
-  return result
-}
-
-type SidebarFileTreeProps = {
-  flattened: FlatTreeNode[]
-  openDirs: Set<string>
+type SidebarFileTreeActions = {
   activePath: string | null
   readonlyTree: boolean
   labels: ContextLabels
-  onToggleFolder: (path: string) => void
   onOpenFile: (path: string) => void
   onOpenFileView: (path: string, view: 'source' | 'graph') => void
   onCreateFile: (path: string) => void
@@ -95,39 +54,48 @@ type SidebarFileTreeProps = {
   onInspectPath: (path: string) => void
 }
 
-const TreeRowComponent = ({
-  index,
-  style,
-  ariaAttributes,
-  flattened,
-  openDirs,
+type SidebarFileTreeProps = SidebarFileTreeActions & {
+  nodes: FileTreeNode[]
+  searchTerm: string
+}
+
+type FileTreeNodeRendererProps = NodeRendererProps<FileTreeNode> & SidebarFileTreeActions
+
+const imageFilePattern = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i
+
+const appendChildPath = (parentPath: string, name: string) =>
+  [parentPath, name].filter(Boolean).join('/')
+
+const renamePath = (path: string, nextName: string) =>
+  [...path.split('/').slice(0, -1), nextName].filter(Boolean).join('/')
+
+const FileTreeNodeRenderer = ({
   activePath,
-  readonlyTree,
   labels,
-  onToggleFolder,
-  onOpenFile,
-  onOpenFileView,
+  node,
   onCreateFile,
   onCreateFolder,
-  onRenamePath,
   onDeletePath,
   onInspectPath,
-}: {
-  index: number
-  style: React.CSSProperties
-  ariaAttributes: {
-    'aria-posinset': number
-    'aria-setsize': number
-    role: 'listitem'
+  onOpenFile,
+  onOpenFileView,
+  onRenamePath,
+  readonlyTree,
+  style,
+}: FileTreeNodeRendererProps) => {
+  const item = node.data
+  const isFolder = item.type === 'folder'
+  const isActive = item.type === 'file' && item.path === activePath
+  const isImageFile = item.type === 'file' && imageFilePattern.test(item.name)
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    if (isFolder) {
+      node.toggle()
+      return
+    }
+    onOpenFile(item.path)
   }
-} & SidebarFileTreeProps) => {
-  const { node, depth } = flattened[index]
-  const isFolder = node.type === 'folder'
-  const isOpen = isFolder && openDirs.has(node.path)
-  const isActive = node.type === 'file' && node.path === activePath
-  const isImageFile =
-    node.type === 'file' && /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(node.name)
-  const paddingLeft = 10 + depth * 13
 
   const handleDragStart = (event: React.DragEvent<HTMLButtonElement>) => {
     if (!isImageFile) {
@@ -140,48 +108,46 @@ const TreeRowComponent = ({
       MARKO_FILE_TREE_ITEM_MIME,
       createFileTreeDragPayload({
         kind: 'file',
-        name: node.name,
-        path: node.path,
+        name: item.name,
+        path: item.path,
       }),
     )
-    event.dataTransfer.setData('text/plain', node.path)
+    event.dataTransfer.setData('text/plain', item.path)
   }
 
   const handleCreateFile = () => {
     if (!isFolder || readonlyTree) return
     const name = window.prompt(labels.newFilePrompt, 'Untitled.md')
     if (!name) return
-    onCreateFile(`${node.path}/${name}`)
+    onCreateFile(appendChildPath(item.path, name))
   }
 
   const handleCreateFolder = () => {
     if (!isFolder || readonlyTree) return
     const name = window.prompt(labels.newFolderPrompt, 'folder')
     if (!name) return
-    onCreateFolder(`${node.path}/${name}`)
+    onCreateFolder(appendChildPath(item.path, name))
   }
 
   const handleRename = () => {
     if (readonlyTree) return
-    const nextName = window.prompt(labels.renamePrompt, node.name)
+    const nextName = window.prompt(labels.renamePrompt, item.name)
     if (!nextName) return
-    const parent = node.path.split('/').slice(0, -1)
-    const nextPath = [...parent, nextName].filter(Boolean).join('/')
-    onRenamePath(node.path, nextPath)
+    onRenamePath(item.path, renamePath(item.path, nextName))
   }
 
   const handleDelete = () => {
     if (readonlyTree) return
     const message =
-      node.type === 'folder'
-        ? labels.deleteFolderConfirm.replace('{name}', node.name)
-        : labels.deleteConfirm.replace('{name}', node.name)
+      item.type === 'folder'
+        ? labels.deleteFolderConfirm.replace('{name}', item.name)
+        : labels.deleteConfirm.replace('{name}', item.name)
     if (!window.confirm(message)) return
-    onDeletePath(node.path)
+    onDeletePath(item.path)
   }
 
   return (
-    <div style={style} key={node.path} {...ariaAttributes}>
+    <div className="min-w-0" style={{ ...style, boxSizing: 'border-box' }}>
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <Button
@@ -192,25 +158,19 @@ const TreeRowComponent = ({
                 ? 'bg-accent text-accent-foreground before:absolute before:left-0 before:top-1 before:h-5 before:w-0.5 before:rounded-full before:bg-primary'
                 : 'text-sidebar-foreground/85 hover:bg-sidebar-accent'
             }`}
+            aria-current={isActive ? 'page' : undefined}
             draggable={isImageFile}
-            style={{ paddingLeft }}
-            onClick={() => {
-              if (isFolder) {
-                onToggleFolder(node.path)
-                return
-              }
-              onOpenFile(node.path)
-            }}
+            onClick={handleClick}
             onDragStart={handleDragStart}
           >
             {isFolder ? (
               <>
                 <ChevronRight
                   className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
-                    isOpen ? 'rotate-90' : ''
+                    node.isOpen ? 'rotate-90' : ''
                   }`}
                 />
-                {isOpen ? (
+                {node.isOpen ? (
                   <FolderOpen className="h-4 w-4 text-primary" />
                 ) : (
                   <Folder className="h-4 w-4 text-muted-foreground" />
@@ -222,7 +182,7 @@ const TreeRowComponent = ({
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </>
             )}
-            <span className="ml-1 truncate text-left">{node.name}</span>
+            <span className="ml-1 truncate text-left">{item.name}</span>
           </Button>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-[12.5rem] rounded-md border border-border bg-popover p-1 shadow-lg">
@@ -246,16 +206,16 @@ const TreeRowComponent = ({
             </>
           ) : (
             <>
-              <ContextMenuItem onSelect={() => onOpenFile(node.path)}>
+              <ContextMenuItem onSelect={() => onOpenFile(item.path)}>
                 <FileText className="mr-2 h-4 w-4" />
                 {labels.open}
                 <span className="ml-auto text-[11px] text-muted-foreground">Enter</span>
               </ContextMenuItem>
-              <ContextMenuItem onSelect={() => onOpenFileView(node.path, 'source')}>
+              <ContextMenuItem onSelect={() => onOpenFileView(item.path, 'source')}>
                 <Code2 className="mr-2 h-4 w-4" />
                 {labels.openSource}
               </ContextMenuItem>
-              <ContextMenuItem onSelect={() => onOpenFileView(node.path, 'graph')}>
+              <ContextMenuItem onSelect={() => onOpenFileView(item.path, 'graph')}>
                 <ScanSearch className="mr-2 h-4 w-4" />
                 {labels.openGraph}
               </ContextMenuItem>
@@ -278,7 +238,7 @@ const TreeRowComponent = ({
               <ContextMenuSeparator />
             </>
           )}
-          <ContextMenuItem onSelect={() => onInspectPath(node.path)}>
+          <ContextMenuItem onSelect={() => onInspectPath(item.path)}>
             <Info className="mr-2 h-4 w-4" />
             {labels.properties}
           </ContextMenuItem>
@@ -288,47 +248,96 @@ const TreeRowComponent = ({
   )
 }
 
-const MemoTreeRow = React.memo(TreeRowComponent, (prev, next) => {
-  const prevItem = prev.flattened[prev.index]
-  const nextItem = next.flattened[next.index]
-  if (prevItem?.node.path !== nextItem?.node.path) return false
-  if (prevItem?.depth !== nextItem?.depth) return false
-  if (prev.style !== next.style) return false
-  if (prev.readonlyTree !== next.readonlyTree) return false
-  if (prev.labels !== next.labels) return false
+export default function SidebarFileTree({
+  activePath,
+  labels,
+  nodes,
+  onCreateFile,
+  onCreateFolder,
+  onDeletePath,
+  onInspectPath,
+  onOpenFile,
+  onOpenFileView,
+  onRenamePath,
+  readonlyTree,
+  searchTerm,
+}: SidebarFileTreeProps) {
+  const handleActivate = useCallback(
+    (node: NodeApi<FileTreeNode>) => {
+      if (node.data.type === 'file') {
+        onOpenFile(node.data.path)
+      }
+    },
+    [onOpenFile],
+  )
 
-  const path = nextItem.node.path
-  const wasActive = prev.activePath === path
-  const isActive = next.activePath === path
-  if (wasActive !== isActive) return false
+  const renderNode = useCallback(
+    (props: NodeRendererProps<FileTreeNode>) => (
+      <FileTreeNodeRenderer
+        {...props}
+        activePath={activePath}
+        labels={labels}
+        onCreateFile={onCreateFile}
+        onCreateFolder={onCreateFolder}
+        onDeletePath={onDeletePath}
+        onInspectPath={onInspectPath}
+        onOpenFile={onOpenFile}
+        onOpenFileView={onOpenFileView}
+        onRenamePath={onRenamePath}
+        readonlyTree={readonlyTree}
+      />
+    ),
+    [
+      activePath,
+      labels,
+      onCreateFile,
+      onCreateFolder,
+      onDeletePath,
+      onInspectPath,
+      onOpenFile,
+      onOpenFileView,
+      onRenamePath,
+      readonlyTree,
+    ],
+  )
 
-  const wasOpen = prev.openDirs.has(path)
-  const isOpen = next.openDirs.has(path)
-  return wasOpen === isOpen
-})
-
-const TreeRow = (
-  props: {
-    index: number
-    style: React.CSSProperties
-    ariaAttributes: {
-      'aria-posinset': number
-      'aria-setsize': number
-      role: 'listitem'
-    }
-  } & SidebarFileTreeProps,
-) => <MemoTreeRow {...props} />
-
-export default function SidebarFileTree(props: SidebarFileTreeProps) {
   return (
-    <List
-      className="h-full w-full"
-      style={{ height: '100%' }}
-      rowCount={props.flattened.length}
-      rowHeight={28}
-      overscanCount={8}
-      rowProps={props}
-      rowComponent={TreeRow}
-    />
+    <div className="h-full min-h-0 w-full overflow-hidden">
+      <AutoSizer
+        className="h-full w-full"
+        renderProp={({ height, width }) => {
+          const treeHeight = height ?? 0
+          const treeWidth = width ?? 0
+          if (treeHeight <= 0 || treeWidth <= 0) return null
+
+          return (
+            <Tree<FileTreeNode>
+              data={nodes}
+              idAccessor="path"
+              childrenAccessor="children"
+              rowHeight={28}
+              indent={13}
+              overscanCount={8}
+              height={treeHeight}
+              width={treeWidth}
+              openByDefault={false}
+              selection={activePath ?? undefined}
+              searchTerm={searchTerm}
+              searchMatch={(treeNode, term) =>
+                treeNode.data.name.toLowerCase().includes(term.toLowerCase())
+              }
+              disableDrag
+              disableDrop
+              disableEdit
+              disableMultiSelection
+              className="outline-none"
+              onActivate={handleActivate}
+            >
+              {renderNode}
+            </Tree>
+          )
+        }}
+      />
+    </div>
   )
 }

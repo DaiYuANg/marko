@@ -7,6 +7,25 @@ export type FileTreeNode = {
   children?: FileTreeNode[]
 }
 
+export const filterTree = (nodes: FileTreeNode[], query: string): FileTreeNode[] => {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return nodes
+
+  return nodes
+    .map((node) => {
+      const matched = node.name.toLowerCase().includes(normalized)
+      if (node.type === 'file') {
+        return matched ? node : null
+      }
+      const children = node.children ? filterTree(node.children, normalized) : []
+      if (matched || children.length > 0) {
+        return { ...node, children }
+      }
+      return null
+    })
+    .filter((node): node is FileTreeNode => node !== null)
+}
+
 export function buildFileTree(entries: FileEntry[]) {
   const root: FileTreeNode = { name: 'root', path: '', type: 'folder', children: [] }
 
