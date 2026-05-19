@@ -1,275 +1,203 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { FitAddon } from '@xterm/addon-fit'
-import { Unicode11Addon } from '@xterm/addon-unicode11'
-import { WebLinksAddon } from '@xterm/addon-web-links'
-import { Terminal } from '@xterm/xterm'
-import type { ITheme } from '@xterm/xterm'
-import type { UnlistenFn } from '@tauri-apps/api/event'
-import { AlertTriangle, Loader2, RotateCcw, Terminal as TerminalIcon, X } from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Loader2, Plus, RotateCcw, Terminal as TerminalIcon, X } from 'lucide-react'
+import TerminalSessionPane, {
+  type TerminalRuntimeState,
+  type TerminalStatus,
+} from '@/components/terminal/TerminalSessionPane'
+import { shellName } from '@/components/terminal/terminalTheme'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n/useI18n'
-import {
-  terminalApi,
-  terminalExitEventSchema,
-  terminalOutputEventSchema,
-  type TerminalSessionInfo,
-} from '@/services/terminalApi'
 import type { ThemeMode } from '@/store/useAppStore'
+import { cn } from '@/lib/utils'
 import { isTauriRuntime } from '@/utils/tauri'
-
-type TerminalStatus = 'connecting' | 'connected' | 'exited' | 'error' | 'unavailable'
 
 type TerminalPanelProps = {
   onClose: () => void
   theme: ThemeMode
 }
 
-function shellName(shell: string) {
-  return shell.split(/[\\/]/).filter(Boolean).pop() ?? shell
+type TerminalTab = TerminalRuntimeState & {
+  index: number
+  key: string
+  restartKey: number
 }
 
-function readTerminalTheme(): ITheme {
-  if (typeof window === 'undefined') {
-    return {
-      background: '#ffffff',
-      foreground: '#171717',
-      cursor: '#171717',
-      selectionBackground: '#2563eb33',
-    }
-  }
+function initialTerminalStatus(): TerminalStatus {
+  return isTauriRuntime() ? 'connecting' : 'unavailable'
+}
 
-  const style = window.getComputedStyle(document.documentElement)
-  const hsl = (name: string, fallback: string) => {
-    const value = style.getPropertyValue(name).trim()
-    return value ? `hsl(${value})` : fallback
-  }
-  const hslAlpha = (name: string, alpha: number, fallback: string) => {
-    const value = style.getPropertyValue(name).trim()
-    return value ? `hsl(${value} / ${alpha})` : fallback
-  }
-
+function createTerminalTab(index: number): TerminalTab {
   return {
-    background: hsl('--card', '#ffffff'),
-    foreground: hsl('--foreground', '#171717'),
-    cursor: hsl('--foreground', '#171717'),
-    selectionBackground: hslAlpha('--primary', 0.28, '#2563eb33'),
-    black: hsl('--muted-foreground', '#52525b'),
-    blue: hsl('--primary', '#2563eb'),
-    cyan: hsl('--accent-foreground', '#0891b2'),
-    green: '#16a34a',
-    magenta: hsl('--ring', '#7c3aed'),
-    red: hsl('--destructive', '#dc2626'),
-    white: hsl('--foreground', '#171717'),
-    yellow: '#ca8a04',
+    error: null,
+    index,
+    key: `terminal-tab-${index}`,
+    restartKey: 0,
+    session: null,
+    status: initialTerminalStatus(),
   }
+}
+
+function TerminalStatusIcon({ status }: { status: TerminalStatus }) {
+  if (status === 'connecting') {
+    return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+  }
+  if (status === 'error') {
+    return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+  }
+  return <TerminalIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 }
 
 export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
   const { t } = useI18n()
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const terminalRef = useRef<Terminal | null>(null)
-  const sessionIdRef = useRef<string | null>(null)
-  const resizeFrameRef = useRef<number | null>(null)
-  const pendingOutputRef = useRef<Record<string, string[]>>({})
-  const [session, setSession] = useState<TerminalSessionInfo | null>(null)
-  const [status, setStatus] = useState<TerminalStatus>(
-    isTauriRuntime() ? 'connecting' : 'unavailable',
-  )
-  const [error, setError] = useState<string | null>(null)
-  const [restartKey, setRestartKey] = useState(0)
-  const exitedLabel = t('terminal.exited')
+  const nextTabIndexRef = useRef(2)
+  const [tabs, setTabs] = useState<TerminalTab[]>(() => [createTerminalTab(1)])
+  const [activeTabKey, setActiveTabKey] = useState('terminal-tab-1')
 
-  const closeSession = useCallback(() => {
-    const id = sessionIdRef.current
-    sessionIdRef.current = null
-    if (id) void terminalApi.close(id).catch(() => undefined)
+  const statusLabel = useCallback(
+    (status: TerminalStatus) =>
+      status === 'connected'
+        ? t('terminal.connected')
+        : status === 'connecting'
+          ? t('terminal.connecting')
+          : status === 'exited'
+            ? t('terminal.exited')
+            : status === 'unavailable'
+              ? t('terminal.unavailable')
+              : t('terminal.error'),
+    [t],
+  )
+
+  const handleTabStateChange = useCallback((tabKey: string, state: TerminalRuntimeState) => {
+    setTabs((currentTabs) =>
+      currentTabs.map((tab) => (tab.key === tabKey ? { ...tab, ...state } : tab)),
+    )
   }, [])
 
-  useEffect(() => {
-    if (!isTauriRuntime()) {
-      return
-    }
+  const addTerminalTab = useCallback(() => {
+    const index = nextTabIndexRef.current
+    nextTabIndexRef.current += 1
+    const tab = createTerminalTab(index)
+    setTabs((currentTabs) => [...currentTabs, tab])
+    setActiveTabKey(tab.key)
+  }, [])
 
-    const container = containerRef.current
-    if (!container) return
-
-    let disposed = false
-    let unlistenOutput: UnlistenFn | null = null
-    let unlistenExit: UnlistenFn | null = null
-    const terminal = new Terminal({
-      allowProposedApi: true,
-      convertEol: true,
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
-      fontSize: 12,
-      letterSpacing: 0,
-      lineHeight: 1.24,
-      scrollback: 10_000,
-      theme: readTerminalTheme(),
-    })
-    const fitAddon = new FitAddon()
-    const unicodeAddon = new Unicode11Addon()
-    const webLinksAddon = new WebLinksAddon()
-
-    terminalRef.current = terminal
-    terminal.loadAddon(fitAddon)
-    terminal.loadAddon(unicodeAddon)
-    terminal.loadAddon(webLinksAddon)
-    terminal.unicode.activeVersion = '11'
-    terminal.open(container)
-    fitAddon.fit()
-    terminal.focus()
-
-    const flushPendingOutput = (id: string) => {
-      const pending = pendingOutputRef.current[id]
-      if (!pending) return
-      for (const chunk of pending) terminal.write(chunk)
-      delete pendingOutputRef.current[id]
-    }
-
-    const resizeTerminal = () => {
-      if (disposed) return
-      fitAddon.fit()
-      const id = sessionIdRef.current
-      if (!id) return
-      void terminalApi.resize(id, terminal.rows, terminal.cols).catch(() => undefined)
-    }
-
-    const scheduleResize = () => {
-      if (resizeFrameRef.current !== null) window.cancelAnimationFrame(resizeFrameRef.current)
-      resizeFrameRef.current = window.requestAnimationFrame(() => {
-        resizeFrameRef.current = null
-        resizeTerminal()
-      })
-    }
-
-    const resizeObserver = new ResizeObserver(scheduleResize)
-    resizeObserver.observe(container)
-    const dataDisposable = terminal.onData((data) => {
-      const id = sessionIdRef.current
-      if (!id) return
-      void terminalApi.write(id, data).catch((err) => {
-        setError(String(err))
-        setStatus('error')
-      })
-    })
-
-    void import('@tauri-apps/api/event').then(({ listen }) => {
-      if (disposed) return
-
-      void listen<unknown>('terminal-output', (event) => {
-        const payload = terminalOutputEventSchema.safeParse(event.payload)
-        if (!payload.success) return
-
-        const activeId = sessionIdRef.current
-        if (activeId === payload.data.id) {
-          terminal.write(payload.data.data)
-          return
-        }
-        pendingOutputRef.current[payload.data.id] = [
-          ...(pendingOutputRef.current[payload.data.id] ?? []),
-          payload.data.data,
-        ]
-      }).then((unlisten) => {
-        if (disposed) unlisten()
-        else unlistenOutput = unlisten
-      })
-
-      void listen<unknown>('terminal-exit', (event) => {
-        const payload = terminalExitEventSchema.safeParse(event.payload)
-        if (!payload.success || sessionIdRef.current !== payload.data.id) return
-
-        sessionIdRef.current = null
-        setStatus('exited')
-        terminal.writeln('')
-        terminal.writeln(exitedLabel)
-      }).then((unlisten) => {
-        if (disposed) unlisten()
-        else unlistenExit = unlisten
-      })
-    })
-
-    setError(null)
-    setStatus('connecting')
-    void terminalApi
-      .create(terminal.rows, terminal.cols)
-      .then((nextSession) => {
-        if (disposed) {
-          void terminalApi.close(nextSession.id).catch(() => undefined)
-          return
-        }
-        sessionIdRef.current = nextSession.id
-        setSession(nextSession)
-        setStatus('connected')
-        flushPendingOutput(nextSession.id)
-        scheduleResize()
-        terminal.focus()
-      })
-      .catch((err) => {
-        if (disposed) return
-        setError(String(err))
-        setStatus('error')
-      })
-
-    return () => {
-      disposed = true
-      if (resizeFrameRef.current !== null) {
-        window.cancelAnimationFrame(resizeFrameRef.current)
-        resizeFrameRef.current = null
+  const closeTerminalTab = useCallback(
+    (tabKey: string) => {
+      if (tabs.length <= 1) {
+        onClose()
+        return
       }
-      resizeObserver.disconnect()
-      dataDisposable.dispose()
-      unlistenOutput?.()
-      unlistenExit?.()
-      closeSession()
-      terminal.dispose()
-      terminalRef.current = null
-    }
-  }, [closeSession, exitedLabel, restartKey])
 
-  useEffect(() => {
-    const terminal = terminalRef.current
-    if (!terminal) return
-    terminal.options.theme = readTerminalTheme()
-  }, [theme])
+      const tabIndex = tabs.findIndex((tab) => tab.key === tabKey)
+      const nextTabs = tabs.filter((tab) => tab.key !== tabKey)
+      setTabs(nextTabs)
+      if (activeTabKey === tabKey) {
+        const nextActiveTab = nextTabs[Math.min(Math.max(tabIndex, 0), nextTabs.length - 1)]
+        setActiveTabKey(nextActiveTab.key)
+      }
+    },
+    [activeTabKey, onClose, tabs],
+  )
 
-  const restartTerminal = useCallback(() => {
-    closeSession()
-    setSession(null)
-    setError(null)
-    setStatus(isTauriRuntime() ? 'connecting' : 'unavailable')
-    setRestartKey((value) => value + 1)
-  }, [closeSession])
+  const restartActiveTerminal = useCallback(() => {
+    setTabs((currentTabs) =>
+      currentTabs.map((tab) =>
+        tab.key === activeTabKey
+          ? {
+              ...tab,
+              error: null,
+              restartKey: tab.restartKey + 1,
+              session: null,
+              status: initialTerminalStatus(),
+            }
+          : tab,
+      ),
+    )
+  }, [activeTabKey])
 
-  const statusLabel =
-    status === 'connected'
-      ? t('terminal.connected')
-      : status === 'connecting'
-        ? t('terminal.connecting')
-        : status === 'exited'
-          ? t('terminal.exited')
-          : status === 'unavailable'
-            ? t('terminal.unavailable')
-            : t('terminal.error')
+  const activeTab = useMemo(
+    () => tabs.find((tab) => tab.key === activeTabKey) ?? tabs[0],
+    [activeTabKey, tabs],
+  )
+  const activeStatusLabel = statusLabel(activeTab.status)
+  const activeSessionLabel = activeTab.session
+    ? `${shellName(activeTab.session.shell)} · ${activeTab.session.cwd}`
+    : activeStatusLabel
 
   return (
     <TooltipProvider>
-      <section className="terminal-panel flex shrink-0 flex-col border-t border-border/80">
-        <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border/70 px-2">
-          <div className="flex min-w-0 items-center gap-2 text-xs">
-            <TerminalIcon className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-foreground">{t('terminal.title')}</span>
-            <span className="truncate text-muted-foreground">
-              {session ? `${shellName(session.shell)} · ${session.cwd}` : statusLabel}
-            </span>
+      <section className="terminal-panel flex shrink-0 flex-col overflow-hidden border-t border-border/80">
+        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 px-2">
+          <TerminalIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div
+            role="tablist"
+            aria-label={t('terminal.title')}
+            className="terminal-tab-strip flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+          >
+            {tabs.map((tab) => {
+              const active = tab.key === activeTabKey
+              const title = tab.session
+                ? shellName(tab.session.shell)
+                : t('terminal.tab', { index: String(tab.index) })
+
+              return (
+                <div
+                  key={tab.key}
+                  className={cn(
+                    'flex h-7 min-w-28 max-w-52 shrink-0 items-center overflow-hidden rounded-md border text-xs transition-[background-color,border-color,color]',
+                    active
+                      ? 'border-border/90 bg-background text-foreground shadow-sm'
+                      : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-muted/70 hover:text-foreground',
+                  )}
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-left"
+                    onClick={() => setActiveTabKey(tab.key)}
+                  >
+                    <TerminalStatusIcon status={tab.status} />
+                    <span className="truncate">{title}</span>
+                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t('terminal.closeTab')}
+                        className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          closeTerminalTab(tab.key)
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('terminal.closeTab')}</TooltipContent>
+                  </Tooltip>
+                </div>
+              )
+            })}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {status === 'connecting' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {status === 'error' && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">
-              {statusLabel}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={addTerminalTab}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('terminal.new')}</TooltipContent>
+          </Tooltip>
+          <div className="flex min-w-0 shrink-0 items-center gap-1">
+            <span className="hidden max-w-[220px] truncate text-[11px] text-muted-foreground lg:inline">
+              {activeSessionLabel}
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -278,7 +206,7 @@ export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  onClick={restartTerminal}
+                  onClick={restartActiveTerminal}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </Button>
@@ -301,16 +229,19 @@ export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
             </Tooltip>
           </div>
         </header>
-        <div className="relative min-h-0 flex-1">
-          <div ref={containerRef} className="h-full w-full" />
-          {(status === 'error' || status === 'unavailable') && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 px-4 text-center text-sm text-muted-foreground backdrop-blur-sm">
-              <div className="max-w-md">
-                <p className="font-medium text-foreground">{statusLabel}</p>
-                {error && <p className="mt-1 break-words text-xs">{error}</p>}
-              </div>
-            </div>
-          )}
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          {tabs.map((tab) => (
+            <TerminalSessionPane
+              key={tab.key}
+              active={tab.key === activeTabKey}
+              exitedLabel={t('terminal.exited')}
+              restartKey={tab.restartKey}
+              statusLabel={statusLabel(tab.status)}
+              tabKey={tab.key}
+              theme={theme}
+              onStateChange={handleTabStateChange}
+            />
+          ))}
         </div>
       </section>
     </TooltipProvider>

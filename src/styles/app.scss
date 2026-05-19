@@ -151,6 +151,20 @@
   }
 }
 
+.terminal-tab-strip {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, hsl(var(--foreground)) 18%, transparent) transparent;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, hsl(var(--foreground)) 18%, transparent);
+  }
+}
+
 .resize-handle {
   position: relative;
   z-index: 5;

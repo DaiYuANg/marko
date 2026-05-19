@@ -24,7 +24,7 @@ import type {
   ViewMode,
   WorkspaceTab,
 } from '@/store/useAppStore'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { exportApi } from '@/services/exportApi'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { requestExportContent } from '@/utils/exportContent'
@@ -199,7 +199,7 @@ export default function AppLayout() {
     state.onCloseActiveTab,
   ])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = state.theme
   }, [state.theme])
 
