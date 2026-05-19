@@ -24,7 +24,7 @@ import type {
   ViewMode,
   WorkspaceTab,
 } from '@/store/useAppStore'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { exportApi } from '@/services/exportApi'
 import { fsApi, type FsWorkspaceIndex } from '@/services/fsApi'
 import { requestExportContent } from '@/utils/exportContent'
@@ -41,6 +41,29 @@ import type { GitDiffRequest } from '@/services/gitApi'
 import { getWorkspaceTabId } from '@/logic/tabs'
 import type { FsSearchResult } from '@/services/fsApi'
 import { useKeyboardShortcuts } from '@/app/useKeyboardShortcuts'
+
+const PANEL_LAYOUT_ANIMATION_MS = 220
+const panelLayoutAnimationTimers = new WeakMap<HTMLElement, number>()
+
+function animatePanelLayoutChange(element: HTMLElement | null, updateLayout: () => void) {
+  if (!element) {
+    updateLayout()
+    return
+  }
+
+  const activeTimer = panelLayoutAnimationTimers.get(element)
+  if (activeTimer !== undefined) window.clearTimeout(activeTimer)
+
+  element.classList.add('is-panel-layout-animating')
+  void element.offsetWidth
+  updateLayout()
+
+  const timer = window.setTimeout(() => {
+    element.classList.remove('is-panel-layout-animating')
+    panelLayoutAnimationTimers.delete(element)
+  }, PANEL_LAYOUT_ANIMATION_MS + 60)
+  panelLayoutAnimationTimers.set(element, timer)
+}
 
 export type LayoutContext = {
   activePath: string | null
@@ -74,6 +97,9 @@ export default function AppLayout() {
   const [commandOpen, setCommandOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  const workspaceGroupElementRef = useRef<HTMLDivElement | null>(null)
+  const leftSidebarCollapsedRef = useRef(state.sidebarCollapsed)
+  const rightSidebarCollapsedRef = useRef(state.rightSidebarCollapsed)
   const leftSidebarPanelRef = usePanelRef()
   const rightSidebarPanelRef = usePanelRef()
   const workspacePanelLayout = useDefaultLayout({
@@ -215,21 +241,43 @@ export default function AppLayout() {
   useEffect(() => {
     const panel = leftSidebarPanelRef.current
     if (!panel) return
-    if (state.sidebarCollapsed) {
-      panel.collapse()
+
+    const shouldAnimate = leftSidebarCollapsedRef.current !== state.sidebarCollapsed
+    leftSidebarCollapsedRef.current = state.sidebarCollapsed
+    const updateLayout = () => {
+      if (state.sidebarCollapsed) {
+        panel.collapse()
+        return
+      }
+      if (panel.isCollapsed()) panel.expand()
+    }
+
+    if (shouldAnimate) {
+      animatePanelLayoutChange(workspaceGroupElementRef.current, updateLayout)
       return
     }
-    if (panel.isCollapsed()) panel.expand()
+    updateLayout()
   }, [leftSidebarPanelRef, state.sidebarCollapsed])
 
   useEffect(() => {
     const panel = rightSidebarPanelRef.current
     if (!panel) return
-    if (state.rightSidebarCollapsed) {
-      panel.collapse()
+
+    const shouldAnimate = rightSidebarCollapsedRef.current !== state.rightSidebarCollapsed
+    rightSidebarCollapsedRef.current = state.rightSidebarCollapsed
+    const updateLayout = () => {
+      if (state.rightSidebarCollapsed) {
+        panel.collapse()
+        return
+      }
+      if (panel.isCollapsed()) panel.expand()
+    }
+
+    if (shouldAnimate) {
+      animatePanelLayoutChange(workspaceGroupElementRef.current, updateLayout)
       return
     }
-    if (panel.isCollapsed()) panel.expand()
+    updateLayout()
   }, [rightSidebarPanelRef, state.rightSidebarCollapsed])
 
   const handleMenuAction = useCallback(
@@ -356,6 +404,7 @@ export default function AppLayout() {
     <ResizableGroup
       className="min-h-0 flex-1"
       defaultLayout={workspacePanelLayout.defaultLayout}
+      elementRef={workspaceGroupElementRef}
       id="marko-workspace-panels"
       onLayoutChanged={workspacePanelLayout.onLayoutChanged}
       orientation="horizontal"

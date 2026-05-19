@@ -50,4 +50,8 @@
   .layout-rail {
     transition: none;
   }
+
+  .is-panel-layout-animating > [data-panel] {
+    transition: none;
+  }
 }
