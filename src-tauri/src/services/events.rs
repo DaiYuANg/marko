@@ -1,4 +1,5 @@
 use std::{
+  path::PathBuf,
   sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -12,7 +13,7 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::broadcast;
 
-use crate::state::{FsBufferState, FsState};
+use crate::state::FsState;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ExportTaskEvent {
@@ -26,7 +27,7 @@ pub struct ExportTaskEvent {
 #[derive(Debug, Clone)]
 pub enum AppEvent {
   WorkspaceChanged,
-  FileSystemChanged,
+  FileSystemChanged(Vec<PathBuf>),
   AssetChanged,
   DocumentChanged,
   BuffersFlushed,
@@ -34,12 +35,25 @@ pub enum AppEvent {
   RuntimeStopping,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone)]
 struct CoalescedWorkspaceEvents {
   should_stop: bool,
   refresh_documents: bool,
   refresh_snapshot: bool,
   rebuild_search_index: bool,
+  document_paths: Option<Vec<PathBuf>>,
+}
+
+impl Default for CoalescedWorkspaceEvents {
+  fn default() -> Self {
+    Self {
+      should_stop: false,
+      refresh_documents: false,
+      refresh_snapshot: false,
+      rebuild_search_index: false,
+      document_paths: Some(Vec::new()),
+    }
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -136,40 +150,76 @@ fn start_event_worker(
         Ok(event) => event,
         Err(broadcast::error::RecvError::Lagged(skipped)) => {
           log::warn!("app event worker lagged by {skipped} events");
-          AppEvent::FileSystemChanged
+          AppEvent::FileSystemChanged(Vec::new())
         }
         Err(broadcast::error::RecvError::Closed) => break,
       };
       match event {
         AppEvent::RuntimeStopping => break,
         AppEvent::ExportTask(payload) => emit_export_task(&app_handle, payload),
-        AppEvent::WorkspaceChanged
-        | AppEvent::AssetChanged
-        | AppEvent::FileSystemChanged
-        | AppEvent::DocumentChanged
-        | AppEvent::BuffersFlushed => {
-          let refresh_documents = matches!(
-            event,
-            AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged
-          );
-          let refresh_snapshot = true;
-          let rebuild_search_index = !matches!(event, AppEvent::AssetChanged);
-          let coalesced = coalesce_workspace_events(&app_handle, &mut receiver).await;
-          if coalesced.should_stop {
+        AppEvent::WorkspaceChanged => {
+          if handle_coalesced_workspace_event(&app_handle, &mut receiver, true, None, true, true)
+            .await
+          {
             break;
           }
-          handle_workspace_event(
+        }
+        AppEvent::FileSystemChanged(paths) => {
+          if handle_coalesced_workspace_event(
             &app_handle,
-            refresh_documents || coalesced.refresh_documents,
-            refresh_snapshot || coalesced.refresh_snapshot,
-            rebuild_search_index || coalesced.rebuild_search_index,
+            &mut receiver,
+            true,
+            if paths.is_empty() { None } else { Some(paths) },
+            true,
+            true,
           )
-          .await;
+          .await
+          {
+            break;
+          }
+        }
+        AppEvent::AssetChanged | AppEvent::DocumentChanged | AppEvent::BuffersFlushed => {
+          let rebuild_search_index = !matches!(event, AppEvent::AssetChanged);
+          if handle_coalesced_workspace_event(
+            &app_handle,
+            &mut receiver,
+            false,
+            Some(Vec::new()),
+            true,
+            rebuild_search_index,
+          )
+          .await
+          {
+            break;
+          }
         }
       }
     }
     event_worker_started.store(false, Ordering::SeqCst);
   });
+}
+
+async fn handle_coalesced_workspace_event(
+  app: &tauri::AppHandle,
+  receiver: &mut broadcast::Receiver<AppEvent>,
+  refresh_documents: bool,
+  document_paths: Option<Vec<PathBuf>>,
+  refresh_snapshot: bool,
+  rebuild_search_index: bool,
+) -> bool {
+  let coalesced = coalesce_workspace_events(app, receiver).await;
+  if coalesced.should_stop {
+    return true;
+  }
+  handle_workspace_event(
+    app,
+    refresh_documents || coalesced.refresh_documents,
+    merge_document_paths(document_paths, coalesced.document_paths),
+    refresh_snapshot || coalesced.refresh_snapshot,
+    rebuild_search_index || coalesced.rebuild_search_index,
+  )
+  .await;
+  false
 }
 
 async fn coalesce_workspace_events(
@@ -181,10 +231,21 @@ async fn coalesce_workspace_events(
   let mut coalesced = CoalescedWorkspaceEvents::default();
   loop {
     match receiver.try_recv() {
-      Ok(AppEvent::WorkspaceChanged | AppEvent::FileSystemChanged) => {
+      Ok(AppEvent::WorkspaceChanged) => {
         coalesced.refresh_documents = true;
         coalesced.refresh_snapshot = true;
         coalesced.rebuild_search_index = true;
+        coalesced.document_paths = None;
+      }
+      Ok(AppEvent::FileSystemChanged(paths)) => {
+        coalesced.refresh_documents = true;
+        coalesced.refresh_snapshot = true;
+        coalesced.rebuild_search_index = true;
+        if paths.is_empty() {
+          coalesced.document_paths = None;
+        } else if let Some(document_paths) = coalesced.document_paths.as_mut() {
+          document_paths.extend(paths);
+        }
       }
       Ok(AppEvent::AssetChanged) => {
         coalesced.refresh_snapshot = true;
@@ -207,6 +268,19 @@ async fn coalesce_workspace_events(
         coalesced.should_stop = true;
         return coalesced;
       }
+    }
+  }
+}
+
+fn merge_document_paths(
+  current: Option<Vec<PathBuf>>,
+  coalesced: Option<Vec<PathBuf>>,
+) -> Option<Vec<PathBuf>> {
+  match (current, coalesced) {
+    (None, _) | (_, None) => None,
+    (Some(mut current), Some(coalesced)) => {
+      current.extend(coalesced);
+      Some(current)
     }
   }
 }
@@ -246,20 +320,27 @@ fn export_output_name(path: &str) -> String {
 async fn handle_workspace_event(
   app: &tauri::AppHandle,
   refresh_documents: bool,
+  document_paths: Option<Vec<PathBuf>>,
   refresh_snapshot: bool,
   rebuild_search_index: bool,
 ) {
-  let (Some(state), Some(buffer_state), Some(services)) = (
+  let (Some(state), Some(services)) = (
     app.try_state::<FsState>(),
-    app.try_state::<FsBufferState>(),
     app.try_state::<crate::services::AppServices>(),
   ) else {
     return;
   };
 
   if refresh_documents {
-    if let Err(err) = services.documents.clear_clean(&buffer_state) {
-      log::warn!("clear clean document cache failed: {err}");
+    let refresh_result = match document_paths {
+      Some(paths) if !paths.is_empty() => services
+        .documents
+        .invalidate_clean_absolute_paths(&state, &paths)
+        .map(|_| ()),
+      _ => services.documents.clear_clean(),
+    };
+    if let Err(err) = refresh_result {
+      log::warn!("refresh document cache failed: {err}");
     }
     services.workspace.clear_index_cache();
   }
@@ -269,7 +350,7 @@ async fn handle_workspace_event(
       Ok(index_parent) => {
         if let Err(err) = services
           .workspace
-          .rebuild_search_index(index_parent, &state, &buffer_state)
+          .rebuild_search_index(index_parent, &state)
           .await
         {
           log::warn!("rebuild search index failed: {err}");

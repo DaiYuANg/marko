@@ -7,7 +7,7 @@ use tokio::runtime::Handle;
 
 use crate::models::{BackgroundTaskStatus, FsBufferStatus};
 use crate::services::events::AppEvent;
-use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsWatcherState};
+use crate::state::{BackgroundTasksState, FsState, FsWatcherState};
 
 const BUFFER_FLUSH_INTERVAL_MS: u64 = 1200;
 
@@ -64,12 +64,11 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
     loop {
       ticker.tick().await;
       let state = app_handle.try_state::<FsState>();
-      let buffer_state = app_handle.try_state::<FsBufferState>();
       let task_state = app_handle.try_state::<BackgroundTasksState>();
       let services = app_handle.try_state::<crate::services::AppServices>();
-      match (state, buffer_state, task_state, services) {
-        (Some(state), Some(buffer_state), Some(task_state), Some(services)) => {
-          match has_dirty_buffers(&buffer_state) {
+      match (state, task_state, services) {
+        (Some(state), Some(task_state), Some(services)) => {
+          match services.documents.has_dirty() {
             Ok(true) => {}
             Ok(false) => continue,
             Err(err) => {
@@ -82,11 +81,7 @@ pub fn start_buffer_flush_worker(app: &tauri::AppHandle) {
           {
             log::warn!("set background task failed: {err}");
           }
-          match services
-            .workspace
-            .flush_buffers(&state, &buffer_state)
-            .await
-          {
+          match services.workspace.flush_buffers(&state).await {
             Ok(statuses) => {
               if let Err(err) =
                 set_background_task(&task_state, "buffer-flush", "Save queue", "idle", None)
@@ -170,11 +165,13 @@ fn handle_fs_watch_events(
       let app_handle = app_handle.clone();
       runtime.spawn(async move {
         if let Some(services) = app_handle.try_state::<crate::services::AppServices>() {
-          let event = if events
+          let changed_paths = events
             .iter()
-            .any(|event| is_markdown_file_path(&event.path))
-          {
-            AppEvent::FileSystemChanged
+            .filter(|event| !is_temp_write_path(&event.path))
+            .map(|event| event.path.clone())
+            .collect::<Vec<_>>();
+          let event = if changed_paths.iter().any(|path| is_markdown_file_path(path)) {
+            AppEvent::FileSystemChanged(changed_paths)
           } else {
             AppEvent::AssetChanged
           };
@@ -202,12 +199,4 @@ fn is_temp_write_path(path: &Path) -> bool {
     .and_then(|ext| ext.to_str())
     .map(|ext| ext.eq_ignore_ascii_case("tmp"))
     .unwrap_or(false)
-}
-
-fn has_dirty_buffers(buffer_state: &FsBufferState) -> Result<bool, String> {
-  let buffers = buffer_state
-    .0
-    .lock()
-    .map_err(|_| "Failed to lock buffer state")?;
-  Ok(buffers.values().any(|entry| entry.dirty))
 }

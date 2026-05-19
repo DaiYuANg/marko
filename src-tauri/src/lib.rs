@@ -25,8 +25,7 @@ mod services;
 mod state;
 
 use crate::state::{
-  AllowedSystemPathsState, BackgroundTasksState, FsBufferState, FsState, FsStateData,
-  FsWatcherState,
+  AllowedSystemPathsState, BackgroundTasksState, FsState, FsStateData, FsWatcherState,
 };
 
 fn run_impl() {
@@ -70,7 +69,6 @@ fn run_impl() {
       single_file: None,
     })))
     .manage(FsWatcherState(Mutex::new(None)))
-    .manage(FsBufferState(Mutex::new(HashMap::new())))
     .manage(BackgroundTasksState(Mutex::new(HashMap::new())))
     .manage(AllowedSystemPathsState(Mutex::new(HashSet::new())));
 
@@ -202,10 +200,11 @@ fn run_impl() {
     .on_window_event(|window, event| {
       if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
         let app = window.app_handle();
-        if let (Some(state), Some(buffer_state)) =
-          (app.try_state::<FsState>(), app.try_state::<FsBufferState>())
-        {
-          let _ = commands::fs::flush_all_buffers(&state, &buffer_state);
+        if let (Some(state), Some(services)) = (
+          app.try_state::<FsState>(),
+          app.try_state::<services::AppServices>(),
+        ) {
+          let _ = commands::fs::flush_all_buffers(&state, &services);
         }
         if let Some(lifecycle) = app.try_state::<services::di::AppLifecycle>() {
           if let Err(err) = lifecycle.shutdown_blocking() {

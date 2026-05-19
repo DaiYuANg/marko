@@ -6,7 +6,7 @@ use crate::commands::fs_runtime::{emit_buffer_status, emit_buffer_statuses, set_
 pub use crate::commands::fs_runtime::{start_buffer_flush_worker, start_fs_watcher};
 use crate::models::{BackgroundTaskStatus, FsBufferStatus, FsRootInfo};
 use crate::services::events::AppEvent;
-use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsWatcherState};
+use crate::state::{BackgroundTasksState, FsState, FsWatcherState};
 
 pub use crate::services::workspace::ensure_default_file;
 
@@ -31,14 +31,10 @@ pub async fn fs_set_root(
   path: Option<String>,
   state: State<'_, FsState>,
   watcher_state: State<'_, FsWatcherState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<FsRootInfo, String> {
-  let root_info = services
-    .workspace
-    .set_root(path, &state, &buffer_state)
-    .await?;
+  let root_info = services.workspace.set_root(path, &state).await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
   publish_app_event(&services, AppEvent::WorkspaceChanged)?;
   Ok(root_info)
@@ -49,14 +45,10 @@ pub async fn fs_set_single_file(
   path: String,
   state: State<'_, FsState>,
   watcher_state: State<'_, FsWatcherState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<FsRootInfo, String> {
-  let root_info = services
-    .workspace
-    .set_single_file(path, &state, &buffer_state)
-    .await?;
+  let root_info = services.workspace.set_single_file(path, &state).await?;
   start_fs_watcher(&app, &state, &watcher_state)?;
   publish_app_event(&services, AppEvent::WorkspaceChanged)?;
   Ok(root_info)
@@ -74,50 +66,34 @@ pub async fn fs_list_entries(
 pub async fn fs_read_file(
   path: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<String, String> {
-  services
-    .workspace
-    .read_file(&path, &state, &buffer_state)
-    .await
+  services.workspace.read_file(&path, &state).await
 }
 
 #[tauri::command]
 pub async fn fs_get_workspace_index(
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<crate::models::FsWorkspaceIndex, String> {
-  services
-    .workspace
-    .workspace_index(&state, &buffer_state)
-    .await
+  services.workspace.workspace_index(&state).await
 }
 
 #[tauri::command]
 pub async fn fs_get_workspace_graph(
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<crate::models::FsGraph, String> {
-  services
-    .workspace
-    .workspace_graph(&state, &buffer_state)
-    .await
+  services.workspace.workspace_graph(&state).await
 }
 
 #[tauri::command]
 pub async fn fs_get_outline_graph(
   path: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<crate::models::FsGraph, String> {
-  services
-    .workspace
-    .outline_graph(&path, &state, &buffer_state)
-    .await
+  services.workspace.outline_graph(&path, &state).await
 }
 
 #[tauri::command]
@@ -125,12 +101,11 @@ pub async fn fs_analyze_markdown_buffer(
   path: String,
   content: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<Vec<crate::models::FsMarkdownDiagnostic>, String> {
   services
     .workspace
-    .analyze_markdown_buffer(path, content, &state, &buffer_state)
+    .analyze_markdown_buffer(path, content, &state)
     .await
 }
 
@@ -139,34 +114,26 @@ pub async fn fs_search_workspace(
   query: String,
   limit: Option<usize>,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<Vec<crate::models::FsSearchResult>, String> {
   let index_parent = search_index_parent(&app)?;
   services
     .workspace
-    .search_workspace(
-      index_parent,
-      query,
-      limit.unwrap_or(20),
-      &state,
-      &buffer_state,
-    )
+    .search_workspace(index_parent, query, limit.unwrap_or(20), &state)
     .await
 }
 
 #[tauri::command]
 pub async fn fs_rebuild_search_index(
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<(), String> {
   let index_parent = search_index_parent(&app)?;
   services
     .workspace
-    .rebuild_search_index(index_parent, &state, &buffer_state)
+    .rebuild_search_index(index_parent, &state)
     .await
 }
 
@@ -174,13 +141,9 @@ pub async fn fs_rebuild_search_index(
 pub async fn fs_open_file(
   path: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<String, String> {
-  services
-    .workspace
-    .open_file(&path, &state, &buffer_state)
-    .await
+  services.workspace.open_file(&path, &state).await
 }
 
 #[tauri::command]
@@ -188,13 +151,10 @@ pub fn fs_update_buffer(
   path: String,
   content: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<FsBufferStatus, String> {
-  let status = services
-    .workspace
-    .update_buffer(&path, &content, &state, &buffer_state)?;
+  let status = services.workspace.update_buffer(&path, &content, &state)?;
   emit_buffer_status(&app, &status)?;
   if status.dirty {
     publish_app_event(&services, AppEvent::DocumentChanged)?;
@@ -205,17 +165,12 @@ pub fn fs_update_buffer(
 #[tauri::command]
 pub async fn fs_flush_buffers(
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   task_state: State<'_, BackgroundTasksState>,
   services: State<'_, crate::services::AppServices>,
   app: tauri::AppHandle,
 ) -> Result<usize, String> {
   set_background_task(&task_state, "buffer-flush", "Save queue", "running", None)?;
-  let statuses = match services
-    .workspace
-    .flush_buffers(&state, &buffer_state)
-    .await
-  {
+  let statuses = match services.workspace.flush_buffers(&state).await {
     Ok(statuses) => statuses,
     Err(err) => {
       let _ = set_background_task(
@@ -237,10 +192,9 @@ pub async fn fs_flush_buffers(
 #[tauri::command]
 pub fn fs_get_buffer_status(
   path: String,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<Option<FsBufferStatus>, String> {
-  services.documents.status(&buffer_state, &path)
+  services.documents.status(&path)
 }
 
 #[tauri::command]
@@ -335,26 +289,21 @@ pub async fn fs_write_file(
   path: String,
   content: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
   services
     .workspace
-    .write_file_buffered(&path, &content, &state, &buffer_state)
+    .write_file_buffered(&path, &content, &state)
 }
 
 #[tauri::command]
 pub async fn fs_create_file(
   path: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
-  services
-    .workspace
-    .create_file(path, &state, &buffer_state)
-    .await?;
-  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  services.workspace.create_file(path, &state).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged(Vec::new()))?;
   Ok(())
 }
 
@@ -365,7 +314,7 @@ pub async fn fs_create_dir(
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
   services.workspace.create_dir(path, &state).await?;
-  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  publish_app_event(&services, AppEvent::FileSystemChanged(Vec::new()))?;
   Ok(())
 }
 
@@ -373,14 +322,10 @@ pub async fn fs_create_dir(
 pub async fn fs_delete_path(
   path: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
-  services
-    .workspace
-    .delete_path(path, &state, &buffer_state)
-    .await?;
-  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  services.workspace.delete_path(path, &state).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged(Vec::new()))?;
   Ok(())
 }
 
@@ -389,14 +334,10 @@ pub async fn fs_rename_path(
   from: String,
   to: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
-  services
-    .workspace
-    .rename_path(from, to, &state, &buffer_state)
-    .await?;
-  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  services.workspace.rename_path(from, to, &state).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged(Vec::new()))?;
   Ok(())
 }
 
@@ -405,14 +346,10 @@ pub async fn fs_move_path(
   from: String,
   to: String,
   state: State<'_, FsState>,
-  buffer_state: State<'_, FsBufferState>,
   services: State<'_, crate::services::AppServices>,
 ) -> Result<(), String> {
-  services
-    .workspace
-    .move_path(from, to, &state, &buffer_state)
-    .await?;
-  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  services.workspace.move_path(from, to, &state).await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged(Vec::new()))?;
   Ok(())
 }
 
@@ -430,13 +367,16 @@ fn search_index_parent(app: &tauri::AppHandle) -> Result<std::path::PathBuf, Str
     .map_err(|err| format!("Failed to resolve app data dir: {err}"))
 }
 
-pub fn flush_all_buffers(state: &FsState, buffer_state: &FsBufferState) -> Result<usize, String> {
-  Ok(flush_all_buffers_with_status(state, buffer_state)?.len())
+pub fn flush_all_buffers(
+  state: &FsState,
+  services: &crate::services::AppServices,
+) -> Result<usize, String> {
+  Ok(flush_all_buffers_with_status(state, services)?.len())
 }
 
 fn flush_all_buffers_with_status(
   state: &FsState,
-  buffer_state: &FsBufferState,
+  services: &crate::services::AppServices,
 ) -> Result<Vec<FsBufferStatus>, String> {
-  crate::services::document_store::flush_all_documents_with_status(state, buffer_state)
+  services.documents.flush_all_with_status(state)
 }

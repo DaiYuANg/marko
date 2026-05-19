@@ -17,16 +17,6 @@ pub struct FsState(pub RwLock<FsStateData>);
 
 pub struct FsWatcherState(pub Mutex<Option<Debouncer<RecommendedWatcher>>>);
 
-#[derive(Debug, Clone)]
-pub struct FsBufferEntry {
-  pub content: String,
-  pub dirty: bool,
-  pub revision: u64,
-  pub saved_revision: u64,
-}
-
-pub struct FsBufferState(pub Mutex<HashMap<String, FsBufferEntry>>);
-
 pub struct BackgroundTasksState(pub Mutex<HashMap<String, BackgroundTaskStatus>>);
 
 pub struct AllowedSystemPathsState(pub Mutex<HashSet<PathBuf>>);

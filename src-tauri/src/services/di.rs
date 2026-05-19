@@ -166,10 +166,7 @@ mod tests {
 
     let index = services
       .workspace
-      .workspace_index(
-        &state,
-        &crate::state::FsBufferState(std::sync::Mutex::new(std::collections::HashMap::new())),
-      )
+      .workspace_index(&state)
       .await
       .expect("workspace index should resolve through WorkspaceService");
     assert!(index.files.is_empty());

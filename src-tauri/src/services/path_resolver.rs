@@ -11,6 +11,10 @@ impl PathResolver {
   pub fn resolve(&self, data: &FsStateData, relative: &str) -> Result<PathBuf, String> {
     resolve_path(data, relative)
   }
+
+  pub fn relative_from_absolute(&self, data: &FsStateData, absolute: &Path) -> Option<String> {
+    relative_from_absolute(data, absolute)
+  }
 }
 
 pub fn resolve_path(data: &FsStateData, relative: &str) -> Result<PathBuf, String> {
@@ -47,4 +51,26 @@ pub fn resolve_path(data: &FsStateData, relative: &str) -> Result<PathBuf, Strin
   }
 
   Ok(data.root_path.join(rel))
+}
+
+pub fn relative_from_absolute(data: &FsStateData, absolute: &Path) -> Option<String> {
+  let absolute = absolute.clean();
+
+  if data.root_kind == "single" {
+    let single_file = data.single_file.as_ref()?.clean();
+    if absolute != single_file {
+      return None;
+    }
+    return single_file
+      .file_name()
+      .and_then(|name| name.to_str())
+      .map(|name| name.to_string());
+  }
+
+  let root = data.root_path.clean();
+  let relative = absolute.strip_prefix(root).ok()?;
+  if relative.as_os_str().is_empty() {
+    return None;
+  }
+  Some(relative.to_string_lossy().replace('\\', "/"))
 }
