@@ -512,6 +512,16 @@ impl WorkspaceService {
     Ok(())
   }
 
+  pub async fn move_path(
+    &self,
+    from: String,
+    to: String,
+    state: &FsState,
+    buffer_state: &FsBufferState,
+  ) -> Result<(), String> {
+    self.rename_path(from, to, state, buffer_state).await
+  }
+
   pub fn clear_index_cache(&self) {
     match self.index_cache.lock() {
       Ok(mut cache) => {

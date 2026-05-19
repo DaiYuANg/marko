@@ -351,6 +351,7 @@ export default function AppLayout() {
           onCreateFile={state.createFile}
           onCreateFolder={state.createFolder}
           onRenamePath={state.renamePath}
+          onMovePath={state.movePath}
           onDeletePath={state.deletePath}
           onUseInternalRoot={state.onUseInternalRoot}
           rootKind={state.rootKind}

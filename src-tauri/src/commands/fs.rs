@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
 use tauri::{Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::commands::fs_runtime::{emit_buffer_status, emit_buffer_statuses, set_background_task};
 pub use crate::commands::fs_runtime::{start_buffer_flush_worker, start_fs_watcher};
@@ -263,6 +264,20 @@ pub async fn fs_get_path_metadata(
 }
 
 #[tauri::command]
+pub async fn fs_open_path_in_system(
+  path: String,
+  state: State<'_, FsState>,
+  services: State<'_, crate::services::AppServices>,
+  app: tauri::AppHandle,
+) -> Result<(), String> {
+  let metadata = services.workspace.path_metadata(path, &state).await?;
+  app
+    .opener()
+    .open_path(metadata.absolute_path, None::<String>)
+    .map_err(|err| format!("Failed to open path: {err}"))
+}
+
+#[tauri::command]
 pub async fn fs_import_markdown_asset(
   source_path: String,
   document_path: String,
@@ -380,6 +395,22 @@ pub async fn fs_rename_path(
   services
     .workspace
     .rename_path(from, to, &state, &buffer_state)
+    .await?;
+  publish_app_event(&services, AppEvent::FileSystemChanged)?;
+  Ok(())
+}
+
+#[tauri::command]
+pub async fn fs_move_path(
+  from: String,
+  to: String,
+  state: State<'_, FsState>,
+  buffer_state: State<'_, FsBufferState>,
+  services: State<'_, crate::services::AppServices>,
+) -> Result<(), String> {
+  services
+    .workspace
+    .move_path(from, to, &state, &buffer_state)
     .await?;
   publish_app_event(&services, AppEvent::FileSystemChanged)?;
   Ok(())

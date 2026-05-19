@@ -43,6 +43,18 @@
     }
   },
   "plugins": {
+    "cli": {
+      "description": "Open marko with an optional workspace or markdown file path.",
+      "args": [
+        {
+          "name": "paths",
+          "description": "Workspace or markdown file paths to open.",
+          "index": 1,
+          "takesValue": true,
+          "multiple": true
+        }
+      ]
+    },
     "deep-link": {
       "desktop": {
         "schemes": ["marko"]

@@ -44,6 +44,15 @@ type UseMarkdownCrepeControllerOptions = MarkdownEditorProps & {
   nodeViewFactory: NodeViewFactory
 }
 
+const scheduleMicrotask = (task: () => void) => {
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(task)
+    return
+  }
+
+  void Promise.resolve().then(task)
+}
+
 export const useMarkdownCrepeController = ({
   activePath,
   darkMode,
@@ -69,6 +78,7 @@ export const useMarkdownCrepeController = ({
   const hasInitializedEditorRef = useRef(false)
   const lastSyncedPathRef = useRef(activePath)
   const pendingExternalValueRef = useRef<PendingExternalValue | null>(null)
+  const scheduledExternalApplyRef = useRef(0)
 
   const focusEditor = useCallback(() => {
     focusCrepeEditor(crepeRef.current)
@@ -143,7 +153,13 @@ export const useMarkdownCrepeController = ({
       nextValue: string,
       options?: ReplaceMarkdownOptions,
     ) => {
-      replaceCrepeMarkdown(crepe, nextValue, applyingExternalValueRef, latestValue, options)
+      const applyId = scheduledExternalApplyRef.current + 1
+      scheduledExternalApplyRef.current = applyId
+      scheduleMicrotask(() => {
+        if (scheduledExternalApplyRef.current !== applyId) return
+        if (crepeRef.current !== crepe) return
+        replaceCrepeMarkdown(crepe, nextValue, applyingExternalValueRef, latestValue, options)
+      })
     },
     [],
   )
@@ -254,6 +270,7 @@ export const useMarkdownCrepeController = ({
 
     return () => {
       destroyed = true
+      scheduledExternalApplyRef.current += 1
       if (crepeRef.current === crepe) {
         latestValue.current = readCrepeMarkdown(crepe, latestValue.current)
         crepeRef.current = null

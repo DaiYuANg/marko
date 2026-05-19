@@ -28,6 +28,7 @@ export default function SidebarExplorerPanel({
   onInspectPath,
   onOpenFile,
   onOpenFileView,
+  onMovePath,
   onRenamePath,
   rootKind,
 }: SidebarExplorerPanelProps) {
@@ -41,6 +42,15 @@ export default function SidebarExplorerPanel({
       open: t('context.open'),
       openSource: t('context.openSource'),
       openGraph: t('context.openGraph'),
+      openInSystem: t('context.openInSystem'),
+      revealInFolder: t('context.revealInFolder'),
+      copyPath: t('context.copyPath'),
+      copyAbsolutePath: t('context.copyAbsolutePath'),
+      copyMarkdownLink: t('context.copyMarkdownLink'),
+      copied: t('context.copied'),
+      actionFailed: t('context.actionFailed'),
+      expand: t('context.expand'),
+      collapse: t('context.collapse'),
       newFile: t('context.newFile'),
       newFolder: t('context.newFolder'),
       rename: t('context.rename'),
@@ -119,6 +129,7 @@ export default function SidebarExplorerPanel({
                 onOpenFileView={onOpenFileView}
                 onCreateFile={onCreateFile}
                 onCreateFolder={onCreateFolder}
+                onMovePath={onMovePath}
                 onRenamePath={onRenamePath}
                 onDeletePath={onDeletePath}
                 onInspectPath={onInspectPath}

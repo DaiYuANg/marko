@@ -68,4 +68,7 @@ async function exportMarkdown(
 
 export const exportApi = {
   exportMarkdown,
+  openExportedFile(path: string) {
+    return invoke<void>('export_open_output_path', { path })
+  },
 }

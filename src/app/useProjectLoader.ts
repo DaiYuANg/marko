@@ -222,6 +222,10 @@ export function useProjectLoader({
     await runInTauri(() => fsApi.renamePath(from, to))
   }, [])
 
+  const movePath = useCallback(async (from: string, to: string) => {
+    await runInTauri(() => fsApi.movePath(from, to))
+  }, [])
+
   const deletePath = useCallback(async (path: string) => {
     await runInTauri(() => fsApi.deletePath(path))
   }, [])
@@ -235,6 +239,7 @@ export function useProjectLoader({
     createFile,
     createFolder,
     renamePath,
+    movePath,
     deletePath,
   }
 }

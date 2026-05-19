@@ -115,6 +115,7 @@ export function useAppLayoutState() {
     createFile,
     createFolder,
     renamePath,
+    movePath,
     deletePath,
   } = useProjectLoader({
     rootPath,
@@ -233,6 +234,7 @@ export function useAppLayoutState() {
     createFile,
     createFolder,
     renamePath,
+    movePath,
     deletePath,
     onRefresh: loadWorkspace,
     onInspectPath: setInspectedPath,

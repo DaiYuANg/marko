@@ -23,6 +23,7 @@ export default function SidebarToolPanel({
   onOpenSearchResult,
   onOpenWorkspaceGraph,
   onRenamePath,
+  onMovePath,
   onUseInternalRoot,
   recentProjects,
   rootKind,
@@ -65,6 +66,7 @@ export default function SidebarToolPanel({
           onOpenFile={onOpenFile}
           onOpenFileView={onOpenFileView}
           onRenamePath={onRenamePath}
+          onMovePath={onMovePath}
           rootKind={rootKind}
         />
       )}

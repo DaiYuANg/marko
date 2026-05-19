@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { toast } from 'sonner'
-import { openPath } from '@tauri-apps/plugin-opener'
 import { useI18n } from '@/i18n/useI18n'
 import { Spinner } from '@/components/ui/spinner'
 import { isTauriRuntime } from '@/utils/tauri'
+import { exportApi } from '@/services/exportApi'
 
 type ExportTaskStatus = 'started' | 'finished' | 'failed'
 
@@ -59,7 +59,7 @@ export default function ExportStatusOverlay() {
             action: {
               label: t('export.openFile'),
               onClick: () => {
-                void openPath(task.output_path)
+                void exportApi.openExportedFile(task.output_path)
               },
             },
           })

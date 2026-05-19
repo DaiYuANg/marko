@@ -1,18 +1,19 @@
 use crate::commands::app::{app_get_platform, menu_dispatch};
-use crate::commands::export::export_markdown;
+use crate::commands::export::{export_markdown, export_open_output_path};
 use crate::commands::fs::{
   fs_analyze_markdown_buffer, fs_create_dir, fs_create_file, fs_delete_path, fs_flush_buffers,
   fs_get_background_tasks, fs_get_buffer_status, fs_get_outline_graph, fs_get_path_metadata,
   fs_get_root_info, fs_get_snapshot, fs_get_workspace_graph, fs_get_workspace_index,
-  fs_import_markdown_asset, fs_import_markdown_asset_base64, fs_list_entries, fs_open_file,
-  fs_read_file, fs_rebuild_search_index, fs_rename_path, fs_resolve_markdown_asset,
-  fs_search_workspace, fs_set_root, fs_set_single_file, fs_update_buffer, fs_write_file,
+  fs_import_markdown_asset, fs_import_markdown_asset_base64, fs_list_entries, fs_move_path,
+  fs_open_file, fs_open_path_in_system, fs_read_file, fs_rebuild_search_index, fs_rename_path,
+  fs_resolve_markdown_asset, fs_search_workspace, fs_set_root, fs_set_single_file,
+  fs_update_buffer, fs_write_file,
 };
 use crate::commands::git::{
   git_commit_all, git_discover_repo, git_get_file_diff, git_get_status, git_init_repo,
 };
 use crate::commands::markdown::{list_markdown_files, read_markdown_file, write_markdown_file};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, Mutex, RwLock};
@@ -23,7 +24,10 @@ mod models;
 mod services;
 mod state;
 
-use crate::state::{BackgroundTasksState, FsBufferState, FsState, FsStateData, FsWatcherState};
+use crate::state::{
+  AllowedSystemPathsState, BackgroundTasksState, FsBufferState, FsState, FsStateData,
+  FsWatcherState,
+};
 
 fn run_impl() {
   let app_container = futures::executor::block_on(services::di::build_app_container())
@@ -31,7 +35,12 @@ fn run_impl() {
   let app_services = app_container.services;
   let app_lifecycle = app_container.lifecycle;
 
-  let builder = tauri::Builder::default()
+  let builder = tauri::Builder::default();
+
+  #[cfg(not(any(target_os = "android", target_os = "ios")))]
+  let builder = builder.plugin(tauri_plugin_cli::init());
+
+  let builder = builder
     .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
       if let Some(main) = app.get_webview_window("main") {
         let _ = main.show();
@@ -62,7 +71,8 @@ fn run_impl() {
     })))
     .manage(FsWatcherState(Mutex::new(None)))
     .manage(FsBufferState(Mutex::new(HashMap::new())))
-    .manage(BackgroundTasksState(Mutex::new(HashMap::new())));
+    .manage(BackgroundTasksState(Mutex::new(HashMap::new())))
+    .manage(AllowedSystemPathsState(Mutex::new(HashSet::new())));
 
   #[cfg(not(any(target_os = "android", target_os = "ios")))]
   let builder = builder.plugin(
@@ -228,6 +238,7 @@ fn run_impl() {
       fs_get_buffer_status,
       fs_get_background_tasks,
       fs_get_path_metadata,
+      fs_open_path_in_system,
       fs_import_markdown_asset,
       fs_import_markdown_asset_base64,
       fs_resolve_markdown_asset,
@@ -236,6 +247,7 @@ fn run_impl() {
       fs_create_dir,
       fs_delete_path,
       fs_rename_path,
+      fs_move_path,
       app_get_platform,
       menu_dispatch,
       git_discover_repo,
@@ -243,7 +255,8 @@ fn run_impl() {
       git_get_status,
       git_get_file_diff,
       git_commit_all,
-      export_markdown
+      export_markdown,
+      export_open_output_path
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

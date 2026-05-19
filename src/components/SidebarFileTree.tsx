@@ -1,252 +1,24 @@
-import React, { useCallback } from 'react'
-import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
+import { useCallback, useRef } from 'react'
+import type { KeyboardEvent } from 'react'
+import {
+  Tree,
+  type MoveHandler,
+  type NodeApi,
+  type NodeRendererProps,
+  type RenameHandler,
+  type TreeApi,
+} from 'react-arborist'
 import { AutoSizer } from 'react-virtualized-auto-sizer'
+import { FileTreeNodeRenderer } from '@/components/file-tree/FileTreeNodeRenderer'
 import {
-  ChevronRight,
-  Code2,
-  FilePlus2,
-  FileText,
-  Folder,
-  FolderOpen,
-  FolderPlus,
-  Info,
-  Pencil,
-  ScanSearch,
-  Trash2,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu'
-import { createFileTreeDragPayload, MARKO_FILE_TREE_ITEM_MIME } from '@/logic/fileDragPayload'
+  appendChildPath,
+  getCreateParentPath,
+  renamePath,
+} from '@/components/file-tree/fileTreeActions'
+import type { SidebarFileTreeProps } from '@/components/file-tree/types'
 import type { FileTreeNode } from '@/logic/fileTree'
 
-export type ContextLabels = {
-  open: string
-  openSource: string
-  openGraph: string
-  newFile: string
-  newFolder: string
-  rename: string
-  delete: string
-  properties: string
-  newFilePrompt: string
-  newFolderPrompt: string
-  renamePrompt: string
-  deleteConfirm: string
-  deleteFolderConfirm: string
-}
-
-type SidebarFileTreeActions = {
-  activePath: string | null
-  readonlyTree: boolean
-  labels: ContextLabels
-  onOpenFile: (path: string) => void
-  onOpenFileView: (path: string, view: 'source' | 'graph') => void
-  onCreateFile: (path: string) => void
-  onCreateFolder: (path: string) => void
-  onRenamePath: (from: string, to: string) => void
-  onDeletePath: (path: string) => void
-  onInspectPath: (path: string) => void
-}
-
-type SidebarFileTreeProps = SidebarFileTreeActions & {
-  nodes: FileTreeNode[]
-  searchTerm: string
-}
-
-type FileTreeNodeRendererProps = NodeRendererProps<FileTreeNode> & SidebarFileTreeActions
-
-const imageFilePattern = /\.(apng|avif|bmp|gif|jpe?g|png|svg|webp)$/i
-
-const appendChildPath = (parentPath: string, name: string) =>
-  [parentPath, name].filter(Boolean).join('/')
-
-const renamePath = (path: string, nextName: string) =>
-  [...path.split('/').slice(0, -1), nextName].filter(Boolean).join('/')
-
-const FileTreeNodeRenderer = ({
-  activePath,
-  labels,
-  node,
-  onCreateFile,
-  onCreateFolder,
-  onDeletePath,
-  onInspectPath,
-  onOpenFile,
-  onOpenFileView,
-  onRenamePath,
-  readonlyTree,
-  style,
-}: FileTreeNodeRendererProps) => {
-  const item = node.data
-  const isFolder = item.type === 'folder'
-  const isActive = item.type === 'file' && item.path === activePath
-  const isImageFile = item.type === 'file' && imageFilePattern.test(item.name)
-
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    if (isFolder) {
-      node.toggle()
-      return
-    }
-    onOpenFile(item.path)
-  }
-
-  const handleDragStart = (event: React.DragEvent<HTMLButtonElement>) => {
-    if (!isImageFile) {
-      event.preventDefault()
-      return
-    }
-
-    event.dataTransfer.effectAllowed = 'copy'
-    event.dataTransfer.setData(
-      MARKO_FILE_TREE_ITEM_MIME,
-      createFileTreeDragPayload({
-        kind: 'file',
-        name: item.name,
-        path: item.path,
-      }),
-    )
-    event.dataTransfer.setData('text/plain', item.path)
-  }
-
-  const handleCreateFile = () => {
-    if (!isFolder || readonlyTree) return
-    const name = window.prompt(labels.newFilePrompt, 'Untitled.md')
-    if (!name) return
-    onCreateFile(appendChildPath(item.path, name))
-  }
-
-  const handleCreateFolder = () => {
-    if (!isFolder || readonlyTree) return
-    const name = window.prompt(labels.newFolderPrompt, 'folder')
-    if (!name) return
-    onCreateFolder(appendChildPath(item.path, name))
-  }
-
-  const handleRename = () => {
-    if (readonlyTree) return
-    const nextName = window.prompt(labels.renamePrompt, item.name)
-    if (!nextName) return
-    onRenamePath(item.path, renamePath(item.path, nextName))
-  }
-
-  const handleDelete = () => {
-    if (readonlyTree) return
-    const message =
-      item.type === 'folder'
-        ? labels.deleteFolderConfirm.replace('{name}', item.name)
-        : labels.deleteConfirm.replace('{name}', item.name)
-    if (!window.confirm(message)) return
-    onDeletePath(item.path)
-  }
-
-  return (
-    <div className="min-w-0" style={{ ...style, boxSizing: 'border-box' }}>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`group relative h-[28px] w-full justify-start rounded-md px-2 text-xs transition-all ${
-              isActive
-                ? 'bg-accent text-accent-foreground before:absolute before:left-0 before:top-1 before:h-5 before:w-0.5 before:rounded-full before:bg-primary'
-                : 'text-sidebar-foreground/85 hover:bg-sidebar-accent'
-            }`}
-            aria-current={isActive ? 'page' : undefined}
-            draggable={isImageFile}
-            onClick={handleClick}
-            onDragStart={handleDragStart}
-          >
-            {isFolder ? (
-              <>
-                <ChevronRight
-                  className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
-                    node.isOpen ? 'rotate-90' : ''
-                  }`}
-                />
-                {node.isOpen ? (
-                  <FolderOpen className="h-4 w-4 text-primary" />
-                ) : (
-                  <Folder className="h-4 w-4 text-muted-foreground" />
-                )}
-              </>
-            ) : (
-              <>
-                <span className="w-3.5" />
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </>
-            )}
-            <span className="ml-1 truncate text-left">{item.name}</span>
-          </Button>
-        </ContextMenuTrigger>
-        <ContextMenuContent className="w-[12.5rem] rounded-md border border-border bg-popover p-1 shadow-lg">
-          {isFolder ? (
-            <>
-              {!readonlyTree && (
-                <>
-                  <ContextMenuItem onSelect={handleCreateFile}>
-                    <FilePlus2 className="mr-2 h-4 w-4" />
-                    {labels.newFile}
-                    <span className="ml-auto text-[11px] text-muted-foreground">N</span>
-                  </ContextMenuItem>
-                  <ContextMenuItem onSelect={handleCreateFolder}>
-                    <FolderPlus className="mr-2 h-4 w-4" />
-                    {labels.newFolder}
-                    <span className="ml-auto text-[11px] text-muted-foreground">Shift+N</span>
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <ContextMenuItem onSelect={() => onOpenFile(item.path)}>
-                <FileText className="mr-2 h-4 w-4" />
-                {labels.open}
-                <span className="ml-auto text-[11px] text-muted-foreground">Enter</span>
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => onOpenFileView(item.path, 'source')}>
-                <Code2 className="mr-2 h-4 w-4" />
-                {labels.openSource}
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => onOpenFileView(item.path, 'graph')}>
-                <ScanSearch className="mr-2 h-4 w-4" />
-                {labels.openGraph}
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
-          {!readonlyTree && (
-            <>
-              <ContextMenuItem onSelect={handleRename}>
-                <Pencil className="mr-2 h-4 w-4" />
-                {labels.rename}
-              </ContextMenuItem>
-              <ContextMenuItem
-                onSelect={handleDelete}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {labels.delete}
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
-          <ContextMenuItem onSelect={() => onInspectPath(item.path)}>
-            <Info className="mr-2 h-4 w-4" />
-            {labels.properties}
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    </div>
-  )
-}
+export type { ContextLabels } from '@/components/file-tree/types'
 
 export default function SidebarFileTree({
   activePath,
@@ -259,9 +31,17 @@ export default function SidebarFileTree({
   onOpenFile,
   onOpenFileView,
   onRenamePath,
+  onMovePath,
   readonlyTree,
   searchTerm,
 }: SidebarFileTreeProps) {
+  const treeRef = useRef<TreeApi<FileTreeNode> | undefined>(undefined)
+
+  const getActiveNode = useCallback(() => {
+    const tree = treeRef.current
+    return tree?.focusedNode ?? tree?.mostRecentNode ?? tree?.selectedNodes[0] ?? null
+  }, [])
+
   const handleActivate = useCallback(
     (node: NodeApi<FileTreeNode>) => {
       if (node.data.type === 'file') {
@@ -269,6 +49,124 @@ export default function SidebarFileTree({
       }
     },
     [onOpenFile],
+  )
+
+  const handleMove = useCallback<MoveHandler<FileTreeNode>>(
+    async ({ dragNodes, parentNode }) => {
+      if (readonlyTree) return
+      const targetParentPath = parentNode?.isRoot ? '' : (parentNode?.data.path ?? '')
+      for (const dragNode of dragNodes) {
+        const nextPath = appendChildPath(targetParentPath, dragNode.data.name)
+        if (nextPath && nextPath !== dragNode.data.path) {
+          await onMovePath(dragNode.data.path, nextPath)
+        }
+      }
+    },
+    [onMovePath, readonlyTree],
+  )
+
+  const handleRename = useCallback<RenameHandler<FileTreeNode>>(
+    async ({ name, node }) => {
+      if (readonlyTree) return
+      const nextName = name.trim()
+      if (!nextName || nextName === node.data.name || nextName.includes('/')) return
+      await onRenamePath(node.data.path, renamePath(node.data.path, nextName))
+    },
+    [onRenamePath, readonlyTree],
+  )
+
+  const handleDeleteNode = useCallback(
+    (node: NodeApi<FileTreeNode> | null) => {
+      if (!node || node.isRoot || readonlyTree) return
+      const message =
+        node.data.type === 'folder'
+          ? labels.deleteFolderConfirm.replace('{name}', node.data.name)
+          : labels.deleteConfirm.replace('{name}', node.data.name)
+      if (!window.confirm(message)) return
+      onDeletePath(node.data.path)
+    },
+    [labels.deleteConfirm, labels.deleteFolderConfirm, onDeletePath, readonlyTree],
+  )
+
+  const promptCreate = useCallback(
+    (node: NodeApi<FileTreeNode> | null, kind: 'file' | 'folder') => {
+      if (readonlyTree) return
+      const promptLabel = kind === 'file' ? labels.newFilePrompt : labels.newFolderPrompt
+      const fallback = kind === 'file' ? 'Untitled.md' : 'folder'
+      const name = window.prompt(promptLabel, fallback)?.trim()
+      if (!name) return
+      const nextPath = appendChildPath(getCreateParentPath(node), name)
+      if (kind === 'file') onCreateFile(nextPath)
+      else onCreateFolder(nextPath)
+    },
+    [labels.newFilePrompt, labels.newFolderPrompt, onCreateFile, onCreateFolder, readonlyTree],
+  )
+
+  const handleKeyDownCapture = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return
+
+      const node = getActiveNode()
+      const isCommand = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
+
+      if (isCommand && key === 'n') {
+        event.preventDefault()
+        event.stopPropagation()
+        promptCreate(node, event.shiftKey ? 'folder' : 'file')
+        return
+      }
+
+      if (event.key === 'F2') {
+        if (!node || node.isRoot || readonlyTree) return
+        event.preventDefault()
+        event.stopPropagation()
+        void node.edit()
+        return
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault()
+        event.stopPropagation()
+        handleDeleteNode(node)
+        return
+      }
+
+      if (event.key === 'Enter') {
+        if (!node || node.isRoot) return
+        event.preventDefault()
+        event.stopPropagation()
+        if (node.data.type === 'folder') {
+          node.toggle()
+          return
+        }
+        onOpenFile(node.data.path)
+      }
+    },
+    [getActiveNode, handleDeleteNode, onOpenFile, promptCreate, readonlyTree],
+  )
+
+  const disableDrop = useCallback(
+    ({
+      dragNodes,
+      parentNode,
+    }: {
+      parentNode: NodeApi<FileTreeNode>
+      dragNodes: NodeApi<FileTreeNode>[]
+      index: number
+    }) => {
+      if (readonlyTree) return true
+      if (!parentNode.isRoot && parentNode.data.type !== 'folder') return true
+      const targetParentPath = parentNode.isRoot ? '' : parentNode.data.path
+      return dragNodes.some(
+        (dragNode) =>
+          targetParentPath === dragNode.data.path ||
+          targetParentPath.startsWith(`${dragNode.data.path}/`),
+      )
+    },
+    [readonlyTree],
   )
 
   const renderNode = useCallback(
@@ -283,7 +181,6 @@ export default function SidebarFileTree({
         onInspectPath={onInspectPath}
         onOpenFile={onOpenFile}
         onOpenFileView={onOpenFileView}
-        onRenamePath={onRenamePath}
         readonlyTree={readonlyTree}
       />
     ),
@@ -296,13 +193,12 @@ export default function SidebarFileTree({
       onInspectPath,
       onOpenFile,
       onOpenFileView,
-      onRenamePath,
       readonlyTree,
     ],
   )
 
   return (
-    <div className="h-full min-h-0 w-full overflow-hidden">
+    <div className="h-full min-h-0 w-full overflow-hidden" onKeyDownCapture={handleKeyDownCapture}>
       <AutoSizer
         className="h-full w-full"
         renderProp={({ height, width }) => {
@@ -312,6 +208,7 @@ export default function SidebarFileTree({
 
           return (
             <Tree<FileTreeNode>
+              ref={treeRef}
               data={nodes}
               idAccessor="path"
               childrenAccessor="children"
@@ -326,12 +223,14 @@ export default function SidebarFileTree({
               searchMatch={(treeNode, term) =>
                 treeNode.data.name.toLowerCase().includes(term.toLowerCase())
               }
-              disableDrag
-              disableDrop
-              disableEdit
+              disableDrag={readonlyTree}
+              disableDrop={disableDrop}
+              disableEdit={readonlyTree}
               disableMultiSelection
               className="outline-none"
               onActivate={handleActivate}
+              onMove={handleMove}
+              onRename={handleRename}
             >
               {renderNode}
             </Tree>

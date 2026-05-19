@@ -262,12 +262,18 @@ export const fsApi = {
   renamePath(from: string, to: string) {
     return invoke('fs_rename_path', { from, to })
   },
+  movePath(from: string, to: string) {
+    return invoke('fs_move_path', { from, to })
+  },
   deletePath(path: string) {
     return invoke('fs_delete_path', { path })
   },
   async getPathMetadata(path: string) {
     const result = await invoke<unknown>('fs_get_path_metadata', { path })
     return fsPathMetadataSchema.parse(result)
+  },
+  openPathInSystem(path: string) {
+    return invoke<void>('fs_open_path_in_system', { path })
   },
   async importMarkdownAsset({
     sourcePath,

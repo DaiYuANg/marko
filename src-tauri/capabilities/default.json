@@ -6,6 +6,9 @@
   "permissions": [
     "core:default",
     "clipboard-manager:default",
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
     "dialog:default",
     "deep-link:default",
     "global-shortcut:default",

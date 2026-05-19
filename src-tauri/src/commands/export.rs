@@ -1,9 +1,13 @@
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use path_clean::PathClean;
 use tauri::State;
+use tauri_plugin_opener::OpenerExt;
 
 use crate::services::events::{AppEvent, ExportTaskEvent};
 use crate::services::AppServices;
+use crate::state::AllowedSystemPathsState;
 
 /// Export Markdown to the given format. Uses in-process Rust libraries only.
 #[tauri::command]
@@ -12,8 +16,10 @@ pub async fn export_markdown(
   format: String,
   output_path: String,
   services: State<'_, AppServices>,
+  allowed_paths: State<'_, AllowedSystemPathsState>,
 ) -> Result<String, String> {
   let task_id = create_export_task_id(&format);
+  allow_export_output_path(&output_path, &allowed_paths)?;
   publish_export_event(&services, &task_id, &format, &output_path, "started", None);
 
   let task_services = services.inner().clone();
@@ -58,6 +64,28 @@ pub async fn export_markdown(
   Ok(task_id)
 }
 
+#[tauri::command]
+pub async fn export_open_output_path(
+  path: String,
+  allowed_paths: State<'_, AllowedSystemPathsState>,
+  app: tauri::AppHandle,
+) -> Result<(), String> {
+  let normalized = normalize_system_path(&path)?;
+  let allowed = allowed_paths
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock allowed export paths".to_string())?
+    .contains(&normalized);
+  if !allowed {
+    return Err("Path was not selected by the export dialog".to_string());
+  }
+
+  app
+    .opener()
+    .open_path(normalized.to_string_lossy().to_string(), None::<String>)
+    .map_err(|err| format!("Failed to open exported file: {err}"))
+}
+
 fn create_export_task_id(format: &str) -> String {
   let millis = SystemTime::now()
     .duration_since(UNIX_EPOCH)
@@ -86,4 +114,40 @@ fn publish_export_event(
   {
     log::warn!("publish export task event failed: {err}");
   }
+}
+
+fn allow_export_output_path(
+  output_path: &str,
+  allowed_paths: &AllowedSystemPathsState,
+) -> Result<(), String> {
+  let normalized = normalize_system_path(output_path)?;
+  allowed_paths
+    .0
+    .lock()
+    .map_err(|_| "Failed to lock allowed export paths".to_string())?
+    .insert(normalized);
+  Ok(())
+}
+
+fn normalize_system_path(path: &str) -> Result<PathBuf, String> {
+  let path = PathBuf::from(path);
+  if !path.is_absolute() {
+    return Err("System path must be absolute".to_string());
+  }
+
+  if path.exists() {
+    return std::fs::canonicalize(&path)
+      .map(|path| path.clean())
+      .map_err(|err| format!("Failed to resolve path: {err}"));
+  }
+
+  let parent = path
+    .parent()
+    .ok_or_else(|| "System path must have a parent directory".to_string())?;
+  let file_name = path
+    .file_name()
+    .ok_or_else(|| "System path must include a file name".to_string())?;
+  let parent =
+    std::fs::canonicalize(parent).map_err(|err| format!("Failed to resolve parent path: {err}"))?;
+  Ok(parent.join(file_name).clean())
 }

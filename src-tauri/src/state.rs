@@ -1,7 +1,7 @@
 use crate::models::BackgroundTaskStatus;
 use notify::RecommendedWatcher;
 use notify_debouncer_mini::Debouncer;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
 
@@ -28,3 +28,5 @@ pub struct FsBufferEntry {
 pub struct FsBufferState(pub Mutex<HashMap<String, FsBufferEntry>>);
 
 pub struct BackgroundTasksState(pub Mutex<HashMap<String, BackgroundTaskStatus>>);
+
+pub struct AllowedSystemPathsState(pub Mutex<HashSet<PathBuf>>);
