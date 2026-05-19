@@ -131,9 +131,7 @@ const RightSidebarComponent = ({
 
   return (
     <aside
-      className={`layout-rail workspace-rail flex flex-col border-l border-sidebar-border/80 ${
-        collapsed ? 'w-14' : 'w-72'
-      }`}
+      className="layout-rail workspace-rail flex h-full w-full flex-col border-l border-sidebar-border/80"
       data-collapsed={collapsed ? 'true' : 'false'}
     >
       {!collapsed ? (

@@ -1,4 +1,11 @@
 import { Outlet } from 'react-router-dom'
+import {
+  Group as ResizableGroup,
+  Panel as ResizablePanel,
+  Separator as ResizableSeparator,
+  useDefaultLayout,
+  usePanelRef,
+} from 'react-resizable-panels'
 import Sidebar from '@/components/Sidebar'
 import RightSidebar from '@/components/RightSidebar'
 import Titlebar from '@/components/Titlebar'
@@ -67,6 +74,16 @@ export default function AppLayout() {
   const [commandOpen, setCommandOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  const leftSidebarPanelRef = usePanelRef()
+  const rightSidebarPanelRef = usePanelRef()
+  const workspacePanelLayout = useDefaultLayout({
+    id: 'marko-workspace-panels',
+    panelIds: ['left-sidebar', 'workspace-main', 'right-sidebar'],
+  })
+  const shellPanelLayout = useDefaultLayout({
+    id: 'marko-shell-panels',
+    panelIds: ['workspace-area', 'terminal'],
+  })
   useTauriReadySignal()
 
   const handleOpenFile = useCallback(
@@ -195,6 +212,26 @@ export default function AppLayout() {
     }
   }, [])
 
+  useEffect(() => {
+    const panel = leftSidebarPanelRef.current
+    if (!panel) return
+    if (state.sidebarCollapsed) {
+      panel.collapse()
+      return
+    }
+    if (panel.isCollapsed()) panel.expand()
+  }, [leftSidebarPanelRef, state.sidebarCollapsed])
+
+  useEffect(() => {
+    const panel = rightSidebarPanelRef.current
+    if (!panel) return
+    if (state.rightSidebarCollapsed) {
+      panel.collapse()
+      return
+    }
+    if (panel.isCollapsed()) panel.expand()
+  }, [rightSidebarPanelRef, state.rightSidebarCollapsed])
+
   const handleMenuAction = useCallback(
     (id: string) => {
       const currentState = stateRef.current
@@ -315,6 +352,107 @@ export default function AppLayout() {
     }
   }, [handleMenuAction])
 
+  const workspacePanels = (
+    <ResizableGroup
+      className="min-h-0 flex-1"
+      defaultLayout={workspacePanelLayout.defaultLayout}
+      id="marko-workspace-panels"
+      onLayoutChanged={workspacePanelLayout.onLayoutChanged}
+      orientation="horizontal"
+      resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+    >
+      <ResizablePanel
+        className="min-h-0"
+        collapsedSize="48px"
+        collapsible
+        defaultSize="320px"
+        disabled={state.sidebarCollapsed}
+        groupResizeBehavior="preserve-pixel-size"
+        id="left-sidebar"
+        maxSize="520px"
+        minSize="240px"
+        panelRef={leftSidebarPanelRef}
+      >
+        <Sidebar
+          collapsed={state.sidebarCollapsed}
+          recentProjects={state.recentProjects}
+          files={state.files}
+          fileTree={state.fileTree}
+          activePath={state.activeResourcePath}
+          onOpenFile={handleOpenFile}
+          onOpenFileView={handleOpenFileView}
+          onOpenProject={state.onOpenProject}
+          onOpenWorkspaceGraph={state.onOpenWorkspaceGraph}
+          onCreateFile={state.createFile}
+          onCreateFolder={state.createFolder}
+          onRenamePath={state.renamePath}
+          onMovePath={state.movePath}
+          onDeletePath={state.deletePath}
+          onUseInternalRoot={state.onUseInternalRoot}
+          rootKind={state.rootKind}
+          rootPath={state.rootPath}
+          onOpenGitDiff={handleOpenGitDiff}
+          onInspectPath={state.onInspectPath}
+          onOpenSearchResult={handleOpenSearchResult}
+        />
+      </ResizablePanel>
+      <ResizableSeparator
+        className="resize-handle resize-handle-vertical"
+        disabled={state.sidebarCollapsed}
+        id="left-sidebar-resize"
+      />
+      <ResizablePanel className="min-h-0" id="workspace-main" minSize="360px">
+        <section className="workspace-main flex h-full min-w-0 flex-1 flex-col overflow-hidden border-x border-border/80">
+          <TabsBar
+            tabs={state.tabs}
+            dirtyPaths={state.dirtyPaths}
+            saveStates={state.saveStates}
+            activeTabId={state.activeTabId}
+            onOpenTab={state.onOpenTab}
+            onCloseTab={state.onCloseTab}
+            viewMode={state.viewMode}
+            onChangeView={state.setViewMode}
+            silentSave={state.silentSave}
+          />
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Outlet context={outletContext} />
+          </div>
+        </section>
+      </ResizablePanel>
+      <ResizableSeparator
+        className="resize-handle resize-handle-vertical"
+        disabled={state.rightSidebarCollapsed}
+        id="right-sidebar-resize"
+      />
+      <ResizablePanel
+        className="min-h-0"
+        collapsedSize="56px"
+        collapsible
+        defaultSize="288px"
+        disabled={state.rightSidebarCollapsed}
+        groupResizeBehavior="preserve-pixel-size"
+        id="right-sidebar"
+        maxSize="460px"
+        minSize="240px"
+        panelRef={rightSidebarPanelRef}
+      >
+        <RightSidebar
+          collapsed={state.rightSidebarCollapsed}
+          activePath={state.activePath}
+          editorValue={state.editorValue}
+          files={state.files}
+          fileContents={state.fileContents}
+          workspaceIndex={state.workspaceIndex}
+          tabs={state.tabs.map(getWorkspaceTabId)}
+          totalFiles={totalFiles}
+          onOpenFileView={handleOpenFileView}
+          viewMode={state.viewMode}
+          inspectedPath={state.inspectedPath}
+        />
+      </ResizablePanel>
+    </ResizableGroup>
+  )
+
   return (
     <div className="app-shell flex h-full flex-col">
       <Toaster richColors closeButton />
@@ -339,60 +477,36 @@ export default function AppLayout() {
         settingsOpen={settingsOpen}
         onSettingsOpenChange={setSettingsOpen}
       />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar
-          collapsed={state.sidebarCollapsed}
-          recentProjects={state.recentProjects}
-          files={state.files}
-          fileTree={state.fileTree}
-          activePath={state.activeResourcePath}
-          onOpenFile={handleOpenFile}
-          onOpenFileView={handleOpenFileView}
-          onOpenProject={state.onOpenProject}
-          onOpenWorkspaceGraph={state.onOpenWorkspaceGraph}
-          onCreateFile={state.createFile}
-          onCreateFolder={state.createFolder}
-          onRenamePath={state.renamePath}
-          onMovePath={state.movePath}
-          onDeletePath={state.deletePath}
-          onUseInternalRoot={state.onUseInternalRoot}
-          rootKind={state.rootKind}
-          rootPath={state.rootPath}
-          onOpenGitDiff={handleOpenGitDiff}
-          onInspectPath={state.onInspectPath}
-          onOpenSearchResult={handleOpenSearchResult}
-        />
-        <section className="workspace-main flex min-w-0 flex-1 flex-col overflow-hidden border-x border-border/80">
-          <TabsBar
-            tabs={state.tabs}
-            dirtyPaths={state.dirtyPaths}
-            saveStates={state.saveStates}
-            activeTabId={state.activeTabId}
-            onOpenTab={state.onOpenTab}
-            onCloseTab={state.onCloseTab}
-            viewMode={state.viewMode}
-            onChangeView={state.setViewMode}
-            silentSave={state.silentSave}
+      {terminalOpen ? (
+        <ResizableGroup
+          className="min-h-0 flex-1"
+          defaultLayout={shellPanelLayout.defaultLayout}
+          id="marko-shell-panels"
+          onLayoutChanged={shellPanelLayout.onLayoutChanged}
+          orientation="vertical"
+          resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+        >
+          <ResizablePanel className="min-h-0" id="workspace-area" minSize="260px">
+            {workspacePanels}
+          </ResizablePanel>
+          <ResizableSeparator
+            className="resize-handle resize-handle-horizontal"
+            id="terminal-resize"
           />
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <Outlet context={outletContext} />
-          </div>
-        </section>
-        <RightSidebar
-          collapsed={state.rightSidebarCollapsed}
-          activePath={state.activePath}
-          editorValue={state.editorValue}
-          files={state.files}
-          fileContents={state.fileContents}
-          workspaceIndex={state.workspaceIndex}
-          tabs={state.tabs.map(getWorkspaceTabId)}
-          totalFiles={totalFiles}
-          onOpenFileView={handleOpenFileView}
-          viewMode={state.viewMode}
-          inspectedPath={state.inspectedPath}
-        />
-      </div>
-      {terminalOpen && <TerminalPanel onClose={() => setTerminalOpen(false)} />}
+          <ResizablePanel
+            className="min-h-0"
+            defaultSize="280px"
+            groupResizeBehavior="preserve-pixel-size"
+            id="terminal"
+            maxSize="65vh"
+            minSize="160px"
+          >
+            <TerminalPanel onClose={() => setTerminalOpen(false)} theme={state.theme} />
+          </ResizablePanel>
+        </ResizableGroup>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">{workspacePanels}</div>
+      )}
       <AppStatusBar
         rootKind={state.rootKind}
         rootPath={state.rootPath}

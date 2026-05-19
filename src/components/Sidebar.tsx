@@ -93,9 +93,7 @@ const SidebarComponent = ({
 
   return (
     <aside
-      className={`layout-rail workspace-rail flex overflow-hidden border-r border-sidebar-border text-sidebar-foreground ${
-        collapsed ? 'w-12' : 'w-80'
-      }`}
+      className="layout-rail workspace-rail flex h-full w-full overflow-hidden border-r border-sidebar-border text-sidebar-foreground"
       data-collapsed={collapsed ? 'true' : 'false'}
     >
       <SidebarActivityRail

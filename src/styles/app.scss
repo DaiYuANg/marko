@@ -27,9 +27,7 @@
 }
 
 .layout-rail {
-  transition:
-    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 180ms ease;
+  transition: box-shadow 180ms ease;
 }
 
 :root[data-theme='marko-light'] .panel-surface {
@@ -127,7 +125,8 @@
 }
 
 .terminal-panel {
-  height: clamp(180px, 30vh, 340px);
+  height: 100%;
+  min-height: 0;
   background: color-mix(in srgb, hsl(var(--background)) 94%, hsl(var(--card)));
   box-shadow: inset 0 1px 0 color-mix(in srgb, hsl(var(--card)) 62%, transparent);
 
@@ -143,6 +142,76 @@
 
   .xterm-viewport {
     scrollbar-width: thin;
+  }
+}
+
+.resize-handle {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--border) / 0.18);
+  outline: none;
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease;
+
+  &::after {
+    content: '';
+    border-radius: 999px;
+    background: transparent;
+    transition:
+      background-color 140ms ease,
+      transform 140ms ease;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: hsl(var(--ring) / 0.12);
+  }
+
+  &:hover::after,
+  &:focus-visible::after {
+    background: hsl(var(--ring) / 0.72);
+  }
+
+  &[data-disabled] {
+    cursor: default;
+    opacity: 0;
+  }
+}
+
+.resize-handle-vertical {
+  width: 7px;
+  margin-inline: -3px;
+  cursor: col-resize;
+
+  &::after {
+    width: 2px;
+    height: 36px;
+  }
+
+  &:hover::after,
+  &:focus-visible::after {
+    transform: scaleX(1.35);
+  }
+}
+
+.resize-handle-horizontal {
+  height: 7px;
+  margin-block: -3px;
+  cursor: row-resize;
+
+  &::after {
+    width: 36px;
+    height: 2px;
+  }
+
+  &:hover::after,
+  &:focus-visible::after {
+    transform: scaleY(1.35);
   }
 }
 

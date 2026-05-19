@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
+import type { ITheme } from '@xterm/xterm'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { AlertTriangle, Loader2, RotateCcw, Terminal as TerminalIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,21 +15,60 @@ import {
   terminalOutputEventSchema,
   type TerminalSessionInfo,
 } from '@/services/terminalApi'
+import type { ThemeMode } from '@/store/useAppStore'
 import { isTauriRuntime } from '@/utils/tauri'
 
 type TerminalStatus = 'connecting' | 'connected' | 'exited' | 'error' | 'unavailable'
 
 type TerminalPanelProps = {
   onClose: () => void
+  theme: ThemeMode
 }
 
 function shellName(shell: string) {
   return shell.split(/[\\/]/).filter(Boolean).pop() ?? shell
 }
 
-export default function TerminalPanel({ onClose }: TerminalPanelProps) {
+function readTerminalTheme(): ITheme {
+  if (typeof window === 'undefined') {
+    return {
+      background: '#ffffff',
+      foreground: '#171717',
+      cursor: '#171717',
+      selectionBackground: '#2563eb33',
+    }
+  }
+
+  const style = window.getComputedStyle(document.documentElement)
+  const hsl = (name: string, fallback: string) => {
+    const value = style.getPropertyValue(name).trim()
+    return value ? `hsl(${value})` : fallback
+  }
+  const hslAlpha = (name: string, alpha: number, fallback: string) => {
+    const value = style.getPropertyValue(name).trim()
+    return value ? `hsl(${value} / ${alpha})` : fallback
+  }
+
+  return {
+    background: hsl('--card', '#ffffff'),
+    foreground: hsl('--foreground', '#171717'),
+    cursor: hsl('--foreground', '#171717'),
+    selectionBackground: hslAlpha('--primary', 0.28, '#2563eb33'),
+    black: hsl('--muted-foreground', '#52525b'),
+    blue: hsl('--primary', '#2563eb'),
+    cyan: hsl('--accent-foreground', '#0891b2'),
+    green: '#16a34a',
+    magenta: hsl('--ring', '#7c3aed'),
+    red: hsl('--destructive', '#dc2626'),
+    white: hsl('--foreground', '#171717'),
+    yellow: '#ca8a04',
+  }
+}
+
+export default function TerminalPanel({ onClose, theme }: TerminalPanelProps) {
   const { t } = useI18n()
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const terminalRef = useRef<Terminal | null>(null)
   const sessionIdRef = useRef<string | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const pendingOutputRef = useRef<Record<string, string[]>>({})
@@ -67,25 +107,13 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
       letterSpacing: 0,
       lineHeight: 1.24,
       scrollback: 10_000,
-      theme: {
-        background: '#101014',
-        foreground: '#e6e6ea',
-        cursor: '#ffffff',
-        selectionBackground: '#4f46e540',
-        black: '#17171c',
-        blue: '#7aa2f7',
-        cyan: '#7dcfff',
-        green: '#9ece6a',
-        magenta: '#bb9af7',
-        red: '#f7768e',
-        white: '#c0caf5',
-        yellow: '#e0af68',
-      },
+      theme: readTerminalTheme(),
     })
     const fitAddon = new FitAddon()
     const unicodeAddon = new Unicode11Addon()
     const webLinksAddon = new WebLinksAddon()
 
+    terminalRef.current = terminal
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(unicodeAddon)
     terminal.loadAddon(webLinksAddon)
@@ -197,8 +225,15 @@ export default function TerminalPanel({ onClose }: TerminalPanelProps) {
       unlistenExit?.()
       closeSession()
       terminal.dispose()
+      terminalRef.current = null
     }
   }, [closeSession, exitedLabel, restartKey])
+
+  useEffect(() => {
+    const terminal = terminalRef.current
+    if (!terminal) return
+    terminal.options.theme = readTerminalTheme()
+  }, [theme])
 
   const restartTerminal = useCallback(() => {
     closeSession()
